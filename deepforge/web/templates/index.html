@@ -3,322 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepForge - AI 创作工坊</title>
+    <title>DeepForge</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        :root{
-            --bg:#0a0e14;--surface:#111820;--surface-2:#1a2332;--surface-3:#243044;
-            --border:#1e2d3d;--border-focus:#3d5a80;
-            --text:#c5d1de;--text-bright:#e6edf3;--text-dim:#6b7f95;
-            --accent:#58a6ff;--cyan:#39d2c0;--green:#3fb950;--yellow:#d29922;
-            --red:#f85149;--purple:#bc8cff;--orange:#f0883e;
-            --gradient:linear-gradient(135deg,var(--cyan),var(--accent));
-            --shadow:0 4px 24px rgba(0,0,0,.4);
-            --radius:10px;
-        }
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+        :root{--bg:#0a0e14;--surface:#111820;--surface-2:#1a2332;--border:#1e2d3d;--text:#c5d1de;--text-bright:#e6edf3;--text-dim:#6b7f95;--accent:#58a6ff;--cyan:#39d2c0;--green:#3fb950;--yellow:#d29922;--red:#f85149;--purple:#bc8cff}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
-        /* ═══ Header ═══ */
-        header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(12px);z-index:10}
+        header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between}
         .logo{display:flex;align-items:center;gap:10px}
-        .logo-icon{width:32px;height:32px;border-radius:8px;background:var(--gradient);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#fff}
-        .logo h1{font-size:18px;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700}
-        .logo-tag{font-size:11px;color:var(--text-dim);background:var(--surface-2);padding:2px 8px;border-radius:4px;border:1px solid var(--border)}
-        .header-right{display:flex;align-items:center;gap:16px;font-size:12px}
-        .status-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border)}
-        .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
-        .status-dot.off{background:var(--red);box-shadow:0 0 6px var(--red)}
-        .model-badge{color:var(--accent);font-family:monospace;font-size:11px}
+        .logo h1{font-size:18px;background:linear-gradient(135deg,var(--cyan),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .header-r{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-dim)}
+        .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
+        .dot.off{background:var(--red)}
 
-        /* ═══ Layout ═══ */
-        .main{flex:1;display:flex;overflow:hidden}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;max-width:900px;width:100%;margin:0 auto;padding:0 20px}
 
-        /* ═══ Sidebar ═══ */
-        .sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;gap:16px;overflow-y:auto}
-        .sidebar-section{display:flex;flex-direction:column;gap:4px}
-        .sidebar-title{font-size:10px;text-transform:uppercase;color:var(--text-dim);letter-spacing:1.5px;padding:0 8px 6px;font-weight:600}
-        .agent-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:default;transition:all .2s;position:relative}
-        .agent-card:hover{background:var(--surface-2)}
-        .agent-card.active{background:var(--surface-3);box-shadow:inset 3px 0 0 var(--accent)}
-        .agent-card.done{opacity:.6}
-        .agent-avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
-        .agent-avatar.pm{background:rgba(57,210,192,.15)}
-        .agent-avatar.pd{background:rgba(63,185,80,.15)}
-        .agent-avatar.arch{background:rgba(210,153,34,.15)}
-        .agent-avatar.eng{background:rgba(88,166,255,.15)}
-        .agent-avatar.rev{background:rgba(248,81,73,.15)}
-        .agent-avatar.crowd{background:rgba(188,140,255,.15)}
-        .agent-avatar.mem{background:rgba(199,209,220,.15)}
-        .agent-info{flex:1;min-width:0}
-        .agent-name{font-size:12px;font-weight:600;color:var(--text-bright)}
-        .agent-role{font-size:10px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .agent-badge{font-size:9px;padding:1px 6px;border-radius:4px;font-weight:500;flex-shrink:0}
-        .agent-badge.idle{background:var(--surface-3);color:var(--text-dim)}
-        .agent-badge.working{background:rgba(210,153,34,.2);color:var(--yellow);animation:glow 1.5s ease-in-out infinite}
-        .agent-badge.done{background:rgba(63,185,80,.15);color:var(--green)}
-        @keyframes glow{0%,100%{opacity:1}50%{opacity:.5}}
+        /* 欢迎 */
+        .welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center}
+        .welcome h2{font-size:26px;color:var(--text-bright)}
+        .welcome p{color:var(--text-dim);font-size:14px;max-width:400px;line-height:1.6}
+        .templates{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:500px}
+        .tpl{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;cursor:pointer;transition:all .15s;text-align:left}
+        .tpl:hover{border-color:var(--accent);transform:translateY(-1px)}
+        .tpl span{font-size:18px;margin-right:6px}
 
-        .sidebar-stats{padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)}
-        .stat-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0}
-        .stat-label{color:var(--text-dim)}
-        .stat-value{color:var(--text-bright);font-family:monospace}
+        /* 工作区 */
+        .workspace{flex:1;display:none;flex-direction:column;overflow:hidden;padding:20px 0}
+        .workspace.show{display:flex}
 
-        /* ═══ Chat Area ═══ */
-        .chat{flex:1;display:flex;flex-direction:column;min-width:0}
-        .messages{flex:1;overflow-y:auto;padding:20px 24px;scroll-behavior:smooth}
-        .messages::-webkit-scrollbar{width:6px}
-        .messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+        /* 进度终端 */
+        .terminal{background:var(--surface);border:1px solid var(--border);border-radius:10px;flex:1;display:flex;flex-direction:column;overflow:hidden}
+        .terminal-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim)}
+        .terminal-header .dots{display:flex;gap:5px}
+        .terminal-header .dots span{width:10px;height:10px;border-radius:50%}
+        .terminal-header .dots span:nth-child(1){background:#f85149}
+        .terminal-header .dots span:nth-child(2){background:#d29922}
+        .terminal-header .dots span:nth-child(3){background:#3fb950}
+        .terminal-body{flex:1;overflow-y:auto;padding:12px 16px;font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:12px;line-height:1.8}
+        .terminal-body::-webkit-scrollbar{width:5px}
+        .terminal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-        /* ═══ Welcome ═══ */
-        .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:20px;padding:40px}
-        .welcome-icon{font-size:48px;width:80px;height:80px;border-radius:20px;background:var(--gradient);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(57,210,192,.2)}
-        .welcome h2{font-size:24px;color:var(--text-bright);font-weight:600}
-        .welcome p{color:var(--text-dim);font-size:14px;max-width:420px;text-align:center;line-height:1.6}
-        .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px;width:100%}
-        .quick-btn{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;color:var(--text);font-size:13px;cursor:pointer;transition:all .2s;text-align:left;display:flex;align-items:center;gap:10px}
-        .quick-btn:hover{border-color:var(--accent);background:var(--surface-2);transform:translateY(-1px);box-shadow:var(--shadow)}
-        .quick-btn span{font-size:20px}
+        .log-line{display:flex;gap:8px;margin:2px 0;animation:fadein .2s}
+        @keyframes fadein{from{opacity:0}to{opacity:1}}
+        .log-time{color:var(--text-dim);flex-shrink:0}
+        .log-agent{font-weight:600;flex-shrink:0;min-width:70px}
+        .log-agent.pm{color:var(--cyan)}.log-agent.pd{color:var(--green)}.log-agent.arch{color:var(--yellow)}
+        .log-agent.eng{color:var(--accent)}.log-agent.rev{color:var(--red)}.log-agent.crowd{color:var(--purple)}.log-agent.mem{color:var(--text-bright)}
+        .log-msg{color:var(--text)}
+        .log-line.success .log-msg{color:var(--green)}
+        .log-line.error .log-msg{color:var(--red)}
+        .log-line.info .log-msg{color:var(--text-dim)}
 
-        /* ═══ Messages ═══ */
-        .msg{margin-bottom:16px;animation:slideUp .3s ease}
-        @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-        .msg-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-        .msg-avatar{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
-        .msg-sender{font-size:12px;font-weight:600}
-        .msg-time{font-size:10px;color:var(--text-dim);margin-left:auto}
-        .msg-body{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-size:13px;line-height:1.75;overflow-x:auto;max-width:100%}
-        .msg-body h1,.msg-body h2,.msg-body h3{margin:14px 0 6px;color:var(--accent);font-size:15px}
-        .msg-body h1:first-child,.msg-body h2:first-child,.msg-body h3:first-child{margin-top:0}
-        .msg-body ul,.msg-body ol{padding-left:18px;margin:6px 0}
-        .msg-body li{margin:3px 0}
-        .msg-body code{background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
-        .msg-body pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;margin:8px 0}
-        .msg-body pre code{background:none;padding:0}
-        .msg-body table{border-collapse:collapse;width:100%;margin:8px 0;font-size:12px}
-        .msg-body th,.msg-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
-        .msg-body th{background:var(--surface-2);color:var(--text-bright)}
-        .msg-body strong{color:var(--text-bright)}
+        .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:6px}
+        @keyframes spin{to{transform:rotate(360deg)}}
 
-        .msg.user .msg-body{background:var(--surface-2);border-color:var(--border-focus)}
+        /* 预览区 */
+        .preview-area{display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:50vh;position:relative}
+        .preview-area.show{display:block}
+        .preview-bar{padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px}
+        .preview-bar a{color:var(--accent);text-decoration:none}
+        .preview-bar a:hover{text-decoration:underline}
+        .preview-frame{width:100%;height:calc(100% - 30px);border:none;background:#fff}
 
-        .msg-sender.pm{color:var(--cyan)} .msg-sender.pd{color:var(--green)} .msg-sender.arch{color:var(--yellow)}
-        .msg-sender.eng{color:var(--accent)} .msg-sender.rev{color:var(--red)} .msg-sender.crowd{color:var(--purple)}
-        .msg-sender.mem{color:var(--text-bright)} .msg-sender.user-tag{color:var(--cyan)}
+        /* 详情面板 */
+        .detail-toggle{margin-top:8px;font-size:11px;color:var(--text-dim);cursor:pointer;text-align:center}
+        .detail-toggle:hover{color:var(--accent)}
+        .detail-panel{display:none;margin-top:8px;max-height:300px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;line-height:1.6}
+        .detail-panel.show{display:block}
+        .detail-panel pre{white-space:pre-wrap;word-break:break-all}
 
-        /* ═══ Collapse ═══ */
-        .msg-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);cursor:pointer;margin-top:8px;user-select:none}
-        .msg-toggle:hover{color:var(--accent)}
-        .msg-collapsed .msg-body{max-height:200px;overflow:hidden;mask-image:linear-gradient(#000 60%,transparent);-webkit-mask-image:linear-gradient(#000 60%,transparent)}
-
-        /* ═══ Pipeline Progress ═══ */
-        .pipeline{padding:0 24px 10px;display:none}
-        .pipeline.show{display:block}
-        .pipeline-bar{display:flex;gap:3px;align-items:center}
-        .pip-step{flex:1;height:4px;border-radius:2px;background:var(--surface-3);transition:background .4s;position:relative}
-        .pip-step.done{background:var(--green)}
-        .pip-step.active{background:var(--yellow);animation:glow 1.2s infinite}
-        .pip-label{display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--text-dim)}
-        .pip-iter{text-align:center;font-size:10px;color:var(--yellow);margin-top:4px;display:none}
-        .pip-iter.show{display:block}
-
-        /* ═══ Typing ═══ */
-        .typing{display:none;padding:8px 24px;align-items:center;gap:8px;font-size:12px;color:var(--text-dim)}
-        .typing.show{display:flex}
-        .typing-dots span{width:5px;height:5px;border-radius:50%;background:var(--text-dim);display:inline-block;animation:bounce 1.4s infinite}
-        .typing-dots span:nth-child(2){animation-delay:.2s}
-        .typing-dots span:nth-child(3){animation-delay:.4s}
-        @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-
-        /* ═══ Input ═══ */
-        .input-area{background:var(--surface);border-top:1px solid var(--border);padding:14px 24px}
-        .input-wrap{display:flex;gap:10px;max-width:860px;margin:0 auto;align-items:flex-end}
-        .input-field{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text-bright);font-size:14px;font-family:inherit;resize:none;outline:none;min-height:44px;max-height:140px;transition:border-color .2s;line-height:1.5}
-        .input-field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.1)}
+        /* 输入 */
+        .input-area{padding:14px 0;display:flex;gap:10px}
+        .input-field{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-bright);font-size:14px;font-family:inherit;resize:none;outline:none;min-height:44px;max-height:100px}
+        .input-field:focus{border-color:var(--accent)}
         .input-field::placeholder{color:var(--text-dim)}
-        .send-btn{background:var(--gradient);border:none;border-radius:var(--radius);padding:10px 20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;height:44px}
-        .send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(57,210,192,.3)}
-        .send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+        .send-btn{background:linear-gradient(135deg,var(--cyan),var(--accent));border:none;border-radius:8px;padding:10px 20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;height:44px}
+        .send-btn:disabled{opacity:.4;cursor:not-allowed}
 
-        /* ═══ Mobile ═══ */
-        @media(max-width:768px){
-            .sidebar{display:none}
-            .quick-grid{grid-template-columns:1fr}
-            .messages{padding:12px}
-            .input-area{padding:10px 12px}
-        }
+        @media(max-width:768px){.templates{grid-template-columns:1fr}.main{padding:0 12px}}
     </style>
 </head>
 <body>
     <header>
-        <div class="logo">
-            <div class="logo-icon">D</div>
-            <h1>DeepForge</h1>
-            <span class="logo-tag">v0.1</span>
-        </div>
-        <div class="header-right">
-            <div class="status-pill">
-                <span class="status-dot" id="dot"></span>
-                <span id="statusText">connecting</span>
-            </div>
-            <span class="model-badge" id="modelName"></span>
-        </div>
+        <div class="logo"><h1>DeepForge</h1></div>
+        <div class="header-r"><span class="dot" id="dot"></span><span id="st">connecting</span><span id="mdl" style="color:var(--accent);font-family:monospace"></span></div>
     </header>
 
     <div class="main">
-        <div class="sidebar">
-            <div class="sidebar-section">
-                <div class="sidebar-title">Agent Team</div>
-                <div class="agent-card" data-agent="project_manager">
-                    <div class="agent-avatar pm">🎯</div>
-                    <div class="agent-info"><div class="agent-name">项目经理</div><div class="agent-role">需求理解 &middot; 全局统筹</div></div>
-                    <span class="agent-badge idle" id="s-project_manager">idle</span>
-                </div>
-                <div class="agent-card" data-agent="product_manager">
-                    <div class="agent-avatar pd">📋</div>
-                    <div class="agent-info"><div class="agent-name">产品经理</div><div class="agent-role">需求分析 &middot; PRD</div></div>
-                    <span class="agent-badge idle" id="s-product_manager">idle</span>
-                </div>
-                <div class="agent-card" data-agent="architect">
-                    <div class="agent-avatar arch">🏗</div>
-                    <div class="agent-info"><div class="agent-name">架构师</div><div class="agent-role">技术选型 &middot; 设计</div></div>
-                    <span class="agent-badge idle" id="s-architect">idle</span>
-                </div>
-                <div class="agent-card" data-agent="engineer">
-                    <div class="agent-avatar eng">💻</div>
-                    <div class="agent-info"><div class="agent-name">工程师</div><div class="agent-role">编码 &middot; 测试</div></div>
-                    <span class="agent-badge idle" id="s-engineer">idle</span>
-                </div>
-                <div class="agent-card" data-agent="reviewer">
-                    <div class="agent-avatar rev">🔍</div>
-                    <div class="agent-info"><div class="agent-name">审查专家</div><div class="agent-role">Code Review &middot; 安全</div></div>
-                    <span class="agent-badge idle" id="s-reviewer">idle</span>
-                </div>
-                <div class="agent-card" data-agent="crowd_user">
-                    <div class="agent-avatar crowd">👥</div>
-                    <div class="agent-info"><div class="agent-name">内测用户团</div><div class="agent-role">模拟测试 &middot; 反馈</div></div>
-                    <span class="agent-badge idle" id="s-crowd_user">idle</span>
-                </div>
-                <div class="agent-card" data-agent="memory_keeper">
-                    <div class="agent-avatar mem">🧠</div>
-                    <div class="agent-info"><div class="agent-name">记忆守护者</div><div class="agent-role">知识沉淀 &middot; 进化</div></div>
-                    <span class="agent-badge idle" id="s-memory_keeper">idle</span>
-                </div>
-            </div>
-            <div class="sidebar-stats" id="statsPanel" style="display:none">
-                <div class="sidebar-title" style="padding:0 0 6px">Session Stats</div>
-                <div class="stat-row"><span class="stat-label">Messages</span><span class="stat-value" id="statMsgs">0</span></div>
-                <div class="stat-row"><span class="stat-label">Iteration</span><span class="stat-value" id="statIter">-</span></div>
-                <div class="stat-row"><span class="stat-label">Duration</span><span class="stat-value" id="statTime">0s</span></div>
+        <div class="welcome" id="welcome">
+            <h2>想做点什么？</h2>
+            <p>描述你想创建的东西，7个AI Agent会协作帮你做出来</p>
+            <div class="templates">
+                <div class="tpl" onclick="go('帮我做一个番茄钟网页，25分钟倒计时，简洁美观')"><span>🍅</span>番茄钟</div>
+                <div class="tpl" onclick="go('做一个贪吃蛇Chrome扩展小游戏')"><span>🎮</span>Chrome小游戏</div>
+                <div class="tpl" onclick="go('帮我做一个Markdown实时预览编辑器')"><span>📝</span>Markdown编辑器</div>
+                <div class="tpl" onclick="go('做一个简洁的个人博客首页')"><span>🌐</span>个人网站</div>
             </div>
         </div>
 
-        <div class="chat">
-            <div class="messages" id="messages">
-                <div class="welcome" id="welcome">
-                    <div class="welcome-icon">🔥</div>
-                    <h2>DeepForge</h2>
-                    <p>告诉我你想创造什么，7个AI Agent会协作帮你从想法到成品</p>
-                    <div class="quick-grid">
-                        <button class="quick-btn" onclick="Q('帮我做一个贪吃蛇Chrome扩展小游戏')"><span>🎮</span>Chrome小游戏</button>
-                        <button class="quick-btn" onclick="Q('帮我做一个番茄钟网页应用，简洁美观')"><span>🍅</span>番茄钟应用</button>
-                        <button class="quick-btn" onclick="Q('做一个Markdown编辑器，支持实时预览')"><span>📝</span>Markdown编辑器</button>
-                        <button class="quick-btn" onclick="Q('帮我做一个记账小工具，支持分类统计和图表')"><span>💰</span>记账工具</button>
-                    </div>
+        <div class="workspace" id="workspace">
+            <div class="terminal">
+                <div class="terminal-header">
+                    <div class="dots"><span></span><span></span><span></span></div>
+                    <span>DeepForge — 7 Agents Working</span>
+                    <span style="margin-left:auto" id="elapsed"></span>
                 </div>
+                <div class="terminal-body" id="logs"></div>
             </div>
-
-            <div class="pipeline" id="pipeline">
-                <div class="pipeline-bar" id="pipelineBar">
-                    <div class="pip-step" data-step="project_manager"></div>
-                    <div class="pip-step" data-step="product_manager"></div>
-                    <div class="pip-step" data-step="architect"></div>
-                    <div class="pip-step" data-step="engineer"></div>
-                    <div class="pip-step" data-step="reviewer"></div>
-                    <div class="pip-step" data-step="crowd_user"></div>
-                    <div class="pip-step" data-step="memory_keeper"></div>
+            <div class="preview-area" id="preview">
+                <div class="preview-bar">
+                    <span>产出物预览</span>
+                    <a href="#" id="previewLink" target="_blank">在新窗口打开 ↗</a>
                 </div>
-                <div class="pip-label"><span>PM</span><span>PD</span><span>Arch</span><span>Eng</span><span>Rev</span><span>QA</span><span>Mem</span></div>
-                <div class="pip-iter" id="pipIter">🔄 Iteration 1</div>
+                <iframe class="preview-frame" id="previewFrame"></iframe>
             </div>
+            <div class="detail-toggle" id="detailToggle" onclick="toggleDetail()">▼ 查看Agent详细输出</div>
+            <div class="detail-panel" id="detailPanel"><pre id="detailContent"></pre></div>
+        </div>
 
-            <div class="typing" id="typing">
-                <div class="typing-dots"><span></span><span></span><span></span></div>
-                <span id="typingText">thinking...</span>
-            </div>
-
-            <div class="input-area">
-                <div class="input-wrap">
-                    <textarea class="input-field" id="input" placeholder="描述你想创建的东西...  Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
-                    <button class="send-btn" id="sendBtn" onclick="send()">发送</button>
-                </div>
-            </div>
+        <div class="input-area">
+            <textarea class="input-field" id="input" placeholder="描述你想创建的东西... Enter发送" rows="1"></textarea>
+            <button class="send-btn" id="btn" onclick="send()">开始</button>
         </div>
     </div>
 
 <script>
 const sid=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36);
-let ws,busy=false,msgCount=0,startTime=0;
-
-const NAMES={project_manager:'🎯 项目经理',product_manager:'📋 产品经理',architect:'🏗 架构师',engineer:'💻 工程师',reviewer:'🔍 审查专家',crowd_user:'👥 内测用户团',memory_keeper:'🧠 记忆守护者',user:'🔥 你'};
-const CLS={project_manager:'pm',product_manager:'pd',architect:'arch',engineer:'eng',reviewer:'rev',crowd_user:'crowd',memory_keeper:'mem',user:'user-tag'};
-const ORDER=['project_manager','product_manager','architect','engineer','reviewer','crowd_user','memory_keeper'];
+let ws,busy=false,t0=0,timer=null,details=[];
+const AGENTS={project_manager:['PM','pm'],product_manager:['PD','pd'],architect:['Arch','arch'],engineer:['Eng','eng'],reviewer:['Rev','rev'],crowd_user:['QA','crowd'],memory_keeper:['Mem','mem']};
 
 function connect(){
     const p=location.protocol==='https:'?'wss:':'ws:';
     ws=new WebSocket(`${p}//${location.host}/ws/${sid}`);
-    ws.onopen=()=>{$('dot').classList.remove('off');$('statusText').textContent='connected';fetch('/api/status').then(r=>r.json()).then(d=>{$('modelName').textContent=d.model||''})};
-    ws.onclose=()=>{$('dot').classList.add('off');$('statusText').textContent='reconnecting';setTimeout(connect,3000)};
+    ws.onopen=()=>{$('dot').classList.remove('off');$('st').textContent='ready';fetch('/api/status').then(r=>r.json()).then(d=>$('mdl').textContent=d.model||'')};
+    ws.onclose=()=>{$('dot').classList.add('off');$('st').textContent='offline';setTimeout(connect,3000)};
     ws.onmessage=e=>{
         const d=JSON.parse(e.data);
         if(d.type==='agent_message'){
-            hideTyping();addMsg(d.sender,d.content);setAgent(d.sender,'done');pip(d.sender,'done');
-            const i=ORDER.indexOf(d.sender);
-            if(i>=0&&i<ORDER.length-1){setAgent(ORDER[i+1],'working');showTyping(NAMES[ORDER[i+1]]+' working...');pip(ORDER[i+1],'active')}
-            msgCount++;$('statMsgs').textContent=msgCount;
+            const [label,cls]=AGENTS[d.sender]||[d.sender,''];
+            if(d.msg_type!=='handoff'&&d.summary){
+                log(label,cls,d.summary);
+            }
+            details.push({sender:d.sender,content:d.content});
+            $('detailContent').textContent=details.map(x=>`[${x.sender}]\n${x.content}\n`).join('\n---\n');
+            if(d.has_files){
+                log('SYS','info','📁 文件已生成，准备预览...');
+                setTimeout(()=>showPreview(d.content),500);
+            }
         }else if(d.type==='status'){
-            if(d.content==='processing'){busy=true;$('sendBtn').disabled=true;$('pipeline').classList.add('show');$('statsPanel').style.display='';startTime=Date.now();setAgent('project_manager','working');showTyping('🎯 项目经理正在分析需求...');pip('project_manager','active');tick()}
-            else if(d.content==='done'){busy=false;$('sendBtn').disabled=false;hideTyping();$('pipeline').classList.remove('show');resetAll()}
-        }else if(d.type==='error'){busy=false;$('sendBtn').disabled=false;hideTyping();addMsg('system','❌ '+d.content)}
-    }
+            if(d.content==='processing'){start()}
+            else if(d.content==='done'){done()}
+        }else if(d.type==='error'){
+            log('ERR','',d.content,'error');
+            busy=false;$('btn').disabled=false;
+        }
+    };
 }
 
-function addMsg(who,text){
-    const w=$('welcome');if(w)w.style.display='none';
-    const c=$('messages'),d=document.createElement('div');
-    d.className='msg'+(who==='user'?' user':'');
-    const cls=CLS[who]||'';
-    const t=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
-    const isLong=text.length>800;
-    d.innerHTML=`<div class="msg-head"><div class="msg-avatar ${cls}" style="font-size:12px">${(NAMES[who]||who).charAt(0)}</div><span class="msg-sender ${cls}">${NAMES[who]||who}</span><span class="msg-time">${t}</span></div><div class="msg-body">${md(text)}</div>${isLong?'<div class="msg-toggle" onclick="toggleMsg(this)">▼ 展开全部</div>':''}`;
-    if(isLong)d.classList.add('msg-collapsed');
-    c.appendChild(d);c.scrollTop=c.scrollHeight;
+function log(agent,cls,msg,type=''){
+    const el=$('logs'),div=document.createElement('div');
+    div.className='log-line'+(type?' '+type:'');
+    const t=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    div.innerHTML=`<span class="log-time">${t}</span><span class="log-agent ${cls}">${agent}</span><span class="log-msg">${esc(msg)}</span>`;
+    el.appendChild(div);el.scrollTop=el.scrollHeight;
 }
 
-function toggleMsg(el){const m=el.closest('.msg');m.classList.toggle('msg-collapsed');el.textContent=m.classList.contains('msg-collapsed')?'▼ 展开全部':'▲ 收起'}
-
-function md(t){
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
-        .replace(/`([^`]+)`/g,'<code>$1</code>')
-        .replace(/\|(.+)\|/gm,r=>{const cells=r.split('|').filter(c=>c.trim());if(cells.every(c=>/^[-:]+$/.test(c.trim())))return '';return '<tr>'+cells.map(c=>'<td>'+c.trim()+'</td>').join('')+'</tr>'})
-        .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
-        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
-        .replace(/^- (.+)$/gm,'<li>$1</li>')
-        .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
+function start(){
+    busy=true;$('btn').disabled=true;$('btn').textContent='工作中...';
+    $('welcome').style.display='none';$('workspace').classList.add('show');
+    details=[];$('detailContent').textContent='';
+    $('preview').classList.remove('show');
+    t0=Date.now();tick();
+    log('SYS','info','🚀 任务启动，7个Agent开始协作...','info');
 }
 
-function send(){const el=$('input'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;addMsg('user',t);ws.send(JSON.stringify({message:t}));el.value='';el.style.height='auto'}
-function Q(t){$('input').value=t;send()}
-function showTyping(t){$('typingText').textContent=t;$('typing').classList.add('show')}
-function hideTyping(){$('typing').classList.remove('show')}
-function setAgent(a,s){const el=$('s-'+a);if(!el)return;el.textContent=s;el.className='agent-badge '+s;const card=el.closest('.agent-card');document.querySelectorAll('.agent-card').forEach(c=>c.classList.remove('active'));if(s==='working')card.classList.add('active');if(s==='done')card.classList.add('done')}
-function resetAll(){ORDER.forEach(a=>{setAgent(a,'idle');const c=document.querySelector(`.agent-card[data-agent="${a}"]`);if(c)c.classList.remove('done')});document.querySelectorAll('.pip-step').forEach(s=>{s.classList.remove('done','active')});$('pipIter').classList.remove('show')}
-function pip(a,s){const el=document.querySelector(`.pip-step[data-step="${a}"]`);if(!el)return;el.classList.remove('done','active');el.classList.add(s)}
-function tick(){if(!busy)return;const s=Math.floor((Date.now()-startTime)/1000);const m=Math.floor(s/60);$('statTime').textContent=m>0?m+'m'+s%60+'s':s+'s';setTimeout(tick,1000)}
+function done(){
+    busy=false;$('btn').disabled=false;$('btn').textContent='开始';
+    if(timer)clearInterval(timer);
+    const s=((Date.now()-t0)/1000).toFixed(0);
+    log('SYS','info',`✅ 完成！耗时 ${s}s`,'success');
+}
+
+function showPreview(content){
+    const m=content.match(/```filepath:([^\n]+\.html)\n([\s\S]*?)```/);
+    if(!m)return;
+    const html=m[2];
+    const blob=new Blob([html],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    $('previewFrame').src=url;
+    $('previewLink').href=url;
+    $('preview').classList.add('show');
+    log('SYS','info','🎉 预览已就绪！','success');
+}
+
+function toggleDetail(){
+    const p=$('detailPanel');p.classList.toggle('show');
+    $('detailToggle').textContent=p.classList.contains('show')?'▲ 收起详细输出':'▼ 查看Agent详细输出';
+}
+
+function tick(){timer=setInterval(()=>{const s=((Date.now()-t0)/1000).toFixed(0);$('elapsed').textContent=s+'s'},1000)}
+function send(){const el=$('input'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({message:t}));el.value='';el.style.height='auto'}
+function go(t){$('input').value=t;send()}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function $(id){return document.getElementById(id)}
-
 $('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-$('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'});
+$('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'});
 connect();
 </script>
 </body>
