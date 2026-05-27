@@ -88,6 +88,25 @@ header{position:relative;z-index:10;padding:14px 28px;display:flex;align-items:c
 .preview.show{display:flex;flex-direction:column}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .preview-bar{padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-3)}
+
+/* Settings */
+.settings-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:14px}
+.settings-btn:hover{border-color:var(--accent);color:var(--accent)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-hi);border-radius:16px;padding:24px;width:90%;max-width:480px;animation:fadeUp .3s ease}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--text)}
+.modal label{display:block;font-size:12px;color:var(--text-2);margin-bottom:4px;margin-top:12px}
+.modal input,.modal select{width:100%;background:var(--bg);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--text);outline:none;font-family:inherit;transition:border-color .2s}
+.modal input:focus,.modal select:focus{border-color:var(--accent)}
+.modal select{appearance:none;cursor:pointer}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.modal-actions button{padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.modal-actions .cancel{background:var(--surface-el);color:var(--text-2)}
+.modal-actions .cancel:hover{background:var(--surface-hi)}
+.modal-actions .save{background:var(--accent);color:#fff}
+.modal-actions .save:hover{opacity:.9}
+.modal .hint{font-size:11px;color:var(--text-4);margin-top:4px}
 .preview-bar .url{flex:1;background:var(--surface-el);border-radius:6px;padding:4px 10px;font-family:monospace;font-size:10px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .preview-bar a{color:var(--accent);text-decoration:none;font-size:12px}
 .preview iframe{flex:1;border:none;background:#fff;width:100%}
@@ -126,6 +145,7 @@ header{position:relative;z-index:10;padding:14px 28px;display:flex;align-items:c
         <span class="hdr-dot" id="dot"></span>
         <span id="st">connecting</span>
         <span id="mdl" style="font-family:monospace;color:var(--accent)"></span>
+        <button class="settings-btn" onclick="openSettings()" title="设置">⚙</button>
     </div>
 </header>
 
@@ -181,6 +201,39 @@ header{position:relative;z-index:10;padding:14px 28px;display:flex;align-items:c
 </div>
 
 <div class="timer" id="timer">0s</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+    <div class="modal">
+        <h3>⚙ 模型设置</h3>
+        <label>模型提供商</label>
+        <select id="setProvider" onchange="onProviderChange()">
+            <option value="custom">自定义 (OpenAI兼容协议)</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问 Qwen</option>
+            <option value="glm">智谱 GLM</option>
+            <option value="kimi">Moonshot Kimi</option>
+            <option value="ollama">Ollama (本地)</option>
+            <option value="openrouter">OpenRouter</option>
+        </select>
+        <div class="hint">支持所有 OpenAI 兼容协议的模型API</div>
+
+        <label>API Base URL</label>
+        <input id="setUrl" placeholder="https://api.example.com/v1">
+
+        <label>模型名称</label>
+        <input id="setModel" placeholder="model-name">
+
+        <label>API Key</label>
+        <input id="setKey" type="password" placeholder="sk-...">
+        <div class="hint">密钥仅保存在本地 .env 文件中，不会上传</div>
+
+        <div class="modal-actions">
+            <button class="cancel" onclick="closeSettings()">取消</button>
+            <button class="save" onclick="saveSettings()">保存</button>
+        </div>
+    </div>
+</div>
 
 <script>
 const sid=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36);
@@ -247,6 +300,34 @@ function send(){const el=$('input'),t=el.value.trim();if(!t||busy||!ws||ws.ready
 function send2(){const el=$('input2'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({message:t}));el.value=''}
 function go(t){$('input').value=t;send()}
 function $(id){return document.getElementById(id)}
+
+const PRESETS={
+    deepseek:{url:'https://api.deepseek.com/v1',model:'deepseek-chat'},
+    qwen:{url:'https://dashscope.aliyuncs.com/compatible-mode/v1',model:'qwen-plus'},
+    glm:{url:'https://open.bigmodel.cn/api/paas/v4',model:'glm-4-flash'},
+    kimi:{url:'https://api.moonshot.cn/v1',model:'moonshot-v1-8k'},
+    ollama:{url:'http://localhost:11434/v1',model:'qwen2.5:7b'},
+    openrouter:{url:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat'},
+};
+function openSettings(){
+    $('settingsModal').classList.add('show');
+    fetch('/api/status').then(r=>r.json()).then(d=>{
+        $('setUrl').value=d.base_url||'';
+        $('setModel').value=d.model||'';
+    });
+}
+function closeSettings(){$('settingsModal').classList.remove('show')}
+function onProviderChange(){
+    const v=$('setProvider').value;
+    if(PRESETS[v]){$('setUrl').value=PRESETS[v].url;$('setModel').value=PRESETS[v].model}
+}
+function saveSettings(){
+    const body={api_key:$('setKey').value,base_url:$('setUrl').value,model:$('setModel').value};
+    fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{
+        if(d.status==='ok'){$('mdl').textContent=d.model;closeSettings();location.reload()}
+    }).catch(e=>alert('保存失败: '+e));
+}
 $('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'});
 connect();

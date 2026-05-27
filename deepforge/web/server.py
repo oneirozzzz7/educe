@@ -81,9 +81,51 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         return {
             "status": "ready",
             "model": config.default_model.model,
+            "base_url": config.default_model.base_url,
             "agents": list(config.agents.keys()),
             "has_api_key": bool(config.default_model.api_key),
         }
+
+    @app.get("/api/providers")
+    async def providers():
+        from deepforge.models.router import PROVIDER_PRESETS
+        return {"providers": PROVIDER_PRESETS}
+
+    @app.post("/api/settings")
+    async def update_settings(body: dict):
+        import os
+        from pathlib import Path
+
+        model = body.get("model", "")
+        api_key = body.get("api_key", "")
+        base_url = body.get("base_url", "")
+
+        if api_key:
+            config.default_model.api_key = api_key
+            os.environ["DEEPFORGE_API_KEY"] = api_key
+        if model:
+            config.default_model.model = model
+            os.environ["DEEPFORGE_MODEL"] = model
+        if base_url:
+            config.default_model.base_url = base_url
+            os.environ["DEEPFORGE_BASE_URL"] = base_url
+
+        env_path = Path.cwd() / ".env"
+        lines = []
+        if env_path.exists():
+            lines = [l for l in env_path.read_text().strip().split("\n")
+                     if not l.startswith("DEEPFORGE_")]
+        if api_key:
+            lines.append(f"DEEPFORGE_API_KEY={api_key}")
+        if base_url:
+            lines.append(f"DEEPFORGE_BASE_URL={base_url}")
+        if model:
+            lines.append(f"DEEPFORGE_MODEL={model}")
+        env_path.write_text("\n".join(lines) + "\n")
+
+        sessions.clear()
+
+        return {"status": "ok", "model": config.default_model.model}
 
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
