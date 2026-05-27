@@ -27,3 +27,22 @@ deepforge.yaml
 # Agent原始输出日志 - 不上传到开源仓库
 docs/*_output_*.md
 docs/agent_raw_*
+
+# Next.js / React build
+web/.next/
+web/node_modules/
+web/out/
+
+# 进化引擎运行产物
+.deepforge/evolution/
+.deepforge/output/
+.deepforge/traces/
+.deepforge/preview/
+
+# 测试产生的临时文件
+data/
+template/
+static/
+Makefile
+requirements.txt
+index.html

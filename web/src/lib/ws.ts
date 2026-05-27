@@ -37,8 +37,11 @@ export interface DeepForgeWS {
   onDisconnect: (handler: () => void) => void;
 }
 
+export const API_HOST = typeof window !== "undefined"
+  ? (window as any).__DEEPFORGE_API_HOST || "localhost:7860"
+  : "localhost:7860";
+
 export function createWS(sessionId: string): DeepForgeWS {
-  const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:7860";
   const proto = typeof window !== "undefined" && location.protocol === "https:" ? "wss:" : "ws:";
   const url = `${proto}//${API_HOST}/ws/${sessionId}`;
 
