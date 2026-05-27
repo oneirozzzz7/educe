@@ -8,8 +8,18 @@ build/
 .eggs/
 *.egg
 .env
+.env.*
 .venv/
 venv/
 node_modules/
 .pytest_cache/
 .ruff_cache/
+
+# 安全敏感文件 - 绝对不能上传
+*.key
+*.pem
+*secret*
+*credential*
+.local_test/
+tests/local_*
+deepforge.yaml
