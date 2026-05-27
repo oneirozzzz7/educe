@@ -94,25 +94,44 @@ def run_setup_wizard() -> dict:
         padding=(1, 2),
     ))
 
-    console.print("\n[bold]第1步：选择AI模型[/bold]\n")
+    console.print("\n[bold]第1步：配置模型接入[/bold]\n")
+    console.print("[dim]DeepForge 支持所有 OpenAI 兼容协议的模型API。[/dim]")
+    console.print("[dim]以下是常见的提供商，你也可以选择「自定义」接入任意兼容API。[/dim]\n")
 
     table = Table(box=box.ROUNDED, show_header=True)
     table.add_column("#", style="bold", width=3)
-    table.add_column("模型", style="cyan", width=20)
-    table.add_column("说明", width=30)
-    table.add_column("价格", style="green", width=18)
+    table.add_column("提供商", style="cyan", width=20)
+    table.add_column("协议", width=20)
+    table.add_column("说明", width=25)
 
     for i, p in enumerate(PROVIDERS, 1):
-        table.add_row(str(i), p["name"], p["desc"], p["price"])
+        table.add_row(str(i), p["name"], "OpenAI兼容", p["desc"])
+    table.add_row(str(len(PROVIDERS) + 1), "自定义API", "OpenAI兼容", "任意兼容OpenAI协议的API")
 
     console.print(table)
 
     choice = Prompt.ask(
-        "\n选择模型 [1-5]",
-        choices=[str(i) for i in range(1, len(PROVIDERS) + 1)],
+        "\n选择提供商",
+        choices=[str(i) for i in range(1, len(PROVIDERS) + 2)],
         default="1",
     )
-    provider = PROVIDERS[int(choice) - 1]
+
+    choice_idx = int(choice) - 1
+    if choice_idx >= len(PROVIDERS):
+        provider = {
+            "key": "custom",
+            "name": "自定义",
+            "desc": "自定义OpenAI兼容API",
+            "env": "DEEPFORGE_API_KEY",
+            "base_url": "",
+            "model": "",
+            "signup_url": "",
+            "price": "",
+        }
+        provider["base_url"] = Prompt.ask("API Base URL", default="https://api.example.com/v1")
+        provider["model"] = Prompt.ask("模型名称", default="gpt-3.5-turbo")
+    else:
+        provider = PROVIDERS[choice_idx]
 
     console.print(f"\n[green]✓[/green] 已选择: [bold]{provider['name']}[/bold]")
 

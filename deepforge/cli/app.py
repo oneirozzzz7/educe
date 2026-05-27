@@ -234,7 +234,14 @@ def demo(config, game):
 @click.option("--config", "-c", default=None, help="配置文件路径")
 def web(host, port, config):
     """启动Web界面（适合非技术用户）"""
+    from deepforge.core.setup_wizard import load_env_file, ensure_configured
+    load_env_file()
     cfg = DeepForgeConfig.load(config)
+
+    if not cfg.default_model.api_key:
+        ensure_configured()
+        cfg = DeepForgeConfig.load(config)
+
     console.print(f"\n[bold cyan]🌐 DeepForge Web UI[/bold cyan]")
     console.print(f"[dim]访问 http://localhost:{port} 开始使用[/dim]\n")
 
