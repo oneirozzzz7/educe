@@ -211,6 +211,8 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     await orchestrator.run_pipeline(user_input)
                     if needs_pipeline:
                         await websocket.send_json({"type": "status", "content": "done"})
+                    else:
+                        await websocket.send_json({"type": "status", "content": "chat_done"})
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
 
