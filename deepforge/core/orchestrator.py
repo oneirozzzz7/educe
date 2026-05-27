@@ -110,8 +110,59 @@ class Orchestrator:
             if response.type == MessageType.HANDOFF:
                 await self._process_message(response, depth + 1)
 
+    def _needs_pipeline(self, user_input: str) -> bool:
+        """判断用户输入是否需要启动完整pipeline"""
+        text = user_input.strip()
+        if len(text) < 5:
+            return False
+
+        chat_patterns = [
+            "你好", "hello", "hi", "hey", "嗨", "在吗", "你是谁",
+            "谢谢", "thanks", "再见", "bye", "ok", "好的",
+            "什么是", "怎么用", "如何使用", "帮助", "help",
+        ]
+        text_lower = text.lower()
+        for p in chat_patterns:
+            if text_lower == p or text_lower == p + "啊" or text_lower == p + "吗":
+                return False
+
+        create_signals = [
+            "做", "创建", "生成", "开发", "写", "搭建", "实现", "构建", "设计",
+            "build", "create", "make", "develop", "write", "generate",
+            "帮我", "我想要", "我需要",
+        ]
+        for s in create_signals:
+            if s in text_lower:
+                return True
+
+        return len(text) > 15
+
+    async def _quick_reply(self, user_input: str) -> str:
+        """对闲聊/简单问题直接用模型回复，不走pipeline"""
+        if not self.agents:
+            return '你好！输入你想创建的东西，比如"帮我做一个番茄钟"，我会调动7个Agent帮你完成。'
+
+        agent = next(iter(self.agents.values()))
+        try:
+            response = await agent.call_model(
+                [{"role": "user", "content": f"{user_input}\n\n（请简短回复，如果用户想创建什么东西，引导他描述具体需求）"}],
+                self.context,
+            )
+            return response
+        except Exception:
+            return '你好！描述你想创建的东西，我会帮你完成。比如"帮我做一个番茄钟网页"。'
+
     async def run_pipeline(self, user_input: str) -> WorkContext:
         self.context.user_request = user_input
+
+        if not self._needs_pipeline(user_input):
+            reply = await self._quick_reply(user_input)
+            msg = Message(type=MessageType.RESULT, sender="project_manager", receiver="user", content=reply)
+            self.context.add_message(msg)
+            self._notify(msg)
+            self._display_message(msg)
+            return self.context
+
         import uuid
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
@@ -177,6 +228,15 @@ class Orchestrator:
     async def run_iterative_pipeline(self, user_input: str) -> WorkContext:
         """带迭代循环的流水线：审查不通过→回退工程师修改→再审查，最多max_iterations轮"""
         self.context.user_request = user_input
+
+        if not self._needs_pipeline(user_input):
+            reply = await self._quick_reply(user_input)
+            msg = Message(type=MessageType.RESULT, sender="project_manager", receiver="user", content=reply)
+            self.context.add_message(msg)
+            self._notify(msg)
+            self._display_message(msg)
+            return self.context
+
         self.context.metadata["iteration"] = 0
 
         pre_review = ["project_manager", "product_manager", "architect"]
