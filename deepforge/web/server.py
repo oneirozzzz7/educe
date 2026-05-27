@@ -100,23 +100,29 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         api_key = body.get("api_key", "")
         base_url = body.get("base_url", "")
 
-        if api_key:
-            config.default_model.api_key = api_key
-            os.environ["DEEPFORGE_API_KEY"] = api_key
         if model:
             config.default_model.model = model
             os.environ["DEEPFORGE_MODEL"] = model
         if base_url:
             config.default_model.base_url = base_url
             os.environ["DEEPFORGE_BASE_URL"] = base_url
+        if api_key:
+            config.default_model.api_key = api_key
+            os.environ["DEEPFORGE_API_KEY"] = api_key
+        elif not config.default_model.api_key:
+            for env_key in ["KIMI_API_KEY", "DEEPSEEK_API_KEY", "QWEN_API_KEY", "GLM_API_KEY"]:
+                val = os.environ.get(env_key)
+                if val:
+                    config.default_model.api_key = val
+                    break
 
         env_path = Path.cwd() / ".env"
         lines = []
         if env_path.exists():
             lines = [l for l in env_path.read_text().strip().split("\n")
-                     if not l.startswith("DEEPFORGE_")]
-        if api_key:
-            lines.append(f"DEEPFORGE_API_KEY={api_key}")
+                     if l and not l.startswith("DEEPFORGE_")]
+        if config.default_model.api_key:
+            lines.append(f"DEEPFORGE_API_KEY={config.default_model.api_key}")
         if base_url:
             lines.append(f"DEEPFORGE_BASE_URL={base_url}")
         if model:
