@@ -141,6 +141,10 @@ def chat(config):
             _show_memory(cfg)
             continue
 
+        if user_input.lower() == "/stats":
+            _show_stats(orchestrator)
+            continue
+
         console.print(f"\n[bold]🚀 开始处理: {user_input[:50]}{'...' if len(user_input) > 50 else ''}[/bold]\n")
 
         try:
@@ -301,6 +305,40 @@ def _show_memory(config: DeepForgeConfig):
     table.add_row("总计", str(stats.get("total", 0)), style="bold")
 
     console.print(table)
+
+
+def _show_stats(orchestrator: Orchestrator):
+    stats = orchestrator.observer.get_stats()
+
+    table = Table(box=box.ROUNDED, title="📊 框架运行统计")
+    table.add_column("指标", style="cyan")
+    table.add_column("值", style="green")
+
+    table.add_row("总任务数", str(stats.get("total_tasks", 0)))
+    table.add_row("成功率", f"{stats.get('success_rate', 0):.0%}")
+    table.add_row("平均耗时", f"{stats.get('avg_duration', 0)}s")
+    table.add_row("平均评分", f"{stats.get('avg_rating', 0)}/5" if stats.get("rated_count") else "未评分")
+
+    console.print(table)
+
+    agent_stats = stats.get("agent_stats", {})
+    if agent_stats:
+        at = Table(box=box.ROUNDED, title="Agent 表现")
+        at.add_column("Agent", style="cyan")
+        at.add_column("调用", style="white")
+        at.add_column("成功率", style="green")
+        at.add_column("平均耗时", style="yellow")
+
+        for name, s in agent_stats.items():
+            at.add_row(name, str(s["calls"]), f"{s['success_rate']:.0%}", f"{s['avg_time']:.1f}s")
+
+        console.print(at)
+
+    errors = stats.get("recent_errors", [])
+    if errors:
+        console.print("\n[red]最近错误:[/red]")
+        for e in errors:
+            console.print(f"  - {e[:80]}")
 
 
 if __name__ == "__main__":

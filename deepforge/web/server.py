@@ -86,6 +86,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             "has_api_key": bool(config.default_model.api_key),
         }
 
+    @app.get("/api/stats")
+    async def stats():
+        from deepforge.core.observer import Observer
+        obs = Observer()
+        return obs.get_stats()
+
     @app.get("/api/providers")
     async def providers():
         from deepforge.models.router import PROVIDER_PRESETS

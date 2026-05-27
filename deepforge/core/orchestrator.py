@@ -10,6 +10,7 @@ from rich.markdown import Markdown
 from deepforge.core.agent import BaseAgent
 from deepforge.core.config import DeepForgeConfig
 from deepforge.core.message import Message, MessageType, WorkContext, TaskStatus
+from deepforge.core.observer import Observer
 
 console = Console()
 
@@ -41,6 +42,7 @@ class Orchestrator:
         self.context = WorkContext()
         self._on_message: list[Callable[[Message], None]] = []
         self.max_iterations = max_iterations
+        self.observer = Observer()
 
     def register(self, agent: BaseAgent) -> None:
         self.agents[agent.name] = agent
@@ -110,6 +112,10 @@ class Orchestrator:
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
         self.context.user_request = user_input
+        import uuid
+        task_id = uuid.uuid4().hex[:8]
+        self.observer.start_task(task_id, user_input, self.config.default_model.model)
+
         pipeline = [
             "project_manager",
             "product_manager",
@@ -122,6 +128,7 @@ class Orchestrator:
 
         current_content = user_input
         current_sender = "user"
+        pipeline_success = True
 
         for agent_name in pipeline:
             if agent_name not in self.agents:
@@ -130,6 +137,8 @@ class Orchestrator:
                 continue
 
             self.context.current_phase = agent_name
+            self.observer.start_agent(agent_name)
+
             msg = Message(
                 type=MessageType.TASK if current_sender != "user" else MessageType.USER_INPUT,
                 sender=current_sender,
@@ -145,16 +154,24 @@ class Orchestrator:
                     self._display_message(response)
                     current_content = response.content
                     current_sender = agent_name
+                self.observer.finish_agent(agent_name, success=True, summary=current_content[:80])
             except Exception as e:
                 error_msg = f"[{agent_name}] 执行失败: {e}"
                 console.print(f"[red]⚠ {error_msg}[/red]")
+                self.observer.finish_agent(agent_name, success=False, error=str(e))
                 err = Message(type=MessageType.ERROR, sender=agent_name, receiver="user", content=error_msg)
                 self.context.add_message(err)
                 self._notify(err)
                 if agent_name in ("project_manager", "engineer"):
                     console.print("[red]关键Agent失败，停止流水线[/red]")
+                    pipeline_success = False
                     break
 
+        self.observer.finish_task(
+            success=pipeline_success,
+            project_type=self.context.artifacts.get("project_type", ""),
+            file_count=len(self.context.artifacts.get("code_files", [])),
+        )
         return self.context
 
     async def run_iterative_pipeline(self, user_input: str) -> WorkContext:
