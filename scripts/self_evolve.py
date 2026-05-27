@@ -262,37 +262,31 @@ class EvolutionEngine:
         self.memory.add(entry)
 
     async def supervisor_review(self):
-        """监工Agent审视当前状态并做出决策"""
-        supervisor = SupervisorAgent(config=self.config, model_client=self.client)
-        context = WorkContext(user_request="监工审查")
-
+        """监工审查——写入待决策文件，由Claude（而非弱模型）来做框架优化决策"""
         rate = self.stats["tests_passed"] / max(self.stats["tests_run"], 1) * 100
         failures = self.memory.search("failure", category="evolution_failure", limit=5)
         failure_list = [f.title for f in failures]
 
-        context.metadata["evolution_stats"] = {
+        review = {
+            "time": datetime.now().isoformat(),
             "rounds": self.stats["rounds"],
-            "tests": self.stats["tests_run"],
+            "tests_run": self.stats["tests_run"],
+            "tests_passed": self.stats["tests_passed"],
             "pass_rate": f"{rate:.0f}%",
             "skills_created": self.stats["skills_created"],
-            "hours": round((time.time() - self.stats["started_at"]) / 3600, 1),
+            "hours_running": round((time.time() - self.stats["started_at"]) / 3600, 1),
+            "recent_failures": failure_list,
+            "needs_attention": rate < 90 or len(failure_list) > 0,
         }
-        context.metadata["recent_failures"] = failure_list
 
-        msg = Message(
-            type=MessageType.TASK,
-            sender="system",
-            receiver="supervisor",
-            content=f"进化引擎已运行{self.stats['rounds']}轮，通过率{rate:.0f}%，请审视并决策下一步。",
-        )
-        context.add_message(msg)
+        review_path = LOG_DIR / "supervisor_review.json"
+        with open(review_path, "w") as f:
+            json.dump(review, f, ensure_ascii=False, indent=2)
 
-        print(f"\n👷 监工审查中...")
-        async for response in supervisor.handle(msg, context):
-            decision = response.content
-            self._log("supervisor_decision", {"decision": decision[:300]})
-            print(f"  📋 监工决策: {decision[:200]}")
-            self.stats["improvements"] += 1
+        self._log("supervisor_review", review)
+        print(f"  👷 监工审查完成: 通过率{rate:.0f}%, {len(failure_list)}个待处理问题")
+        if review["needs_attention"]:
+            print(f"  ⚠ 需要Claude介入优化（见 {review_path}）")
 
     def print_stats(self):
         elapsed = time.time() - self.stats["started_at"]
