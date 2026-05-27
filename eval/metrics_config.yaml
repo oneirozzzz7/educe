@@ -1,0 +1,35 @@
+metrics:
+  - name: attribution_accuracy
+    formula: "(df['pred_label'] == df['gold_label']).mean()"
+    target: 0.75
+    gate: true
+    higher_is_better: true
+    description: "预测归因标签与人工gold完全一致的比例"
+
+  - name: over_tag_rate
+    formula: "( (df['gold_label'] == '无标签') & (df['pred_label'] != '无标签') ).mean()"
+    target: 0.10
+    gate: true
+    higher_is_better: false
+    description: "gold无标签但预测有标签的比例"
+
+  - name: under_tag_rate
+    formula: "( (df['gold_label'] != '无标签') & (df['pred_label'] == '无标签') ).mean()"
+    target: 0.15
+    gate: true
+    higher_is_better: false
+    description: "gold有标签但预测无标签的比例"
+
+  - name: wildcard_rate
+    formula: "(df['pred_label'] == '其他/未知').mean()"
+    target: 0.20
+    gate: false
+    higher_is_better: false
+    description: "预测为「其他/未知」的比例"
+
+  - name: evidence_completeness
+    formula: "(df['evidence'].apply(lambda x: len(x) > 0 and any(e.strip() for e in x) )).mean()"
+    target: 0.90
+    gate: false
+    higher_is_better: true
+    description: "预测给出可点击原文片段且能定位的比例"
