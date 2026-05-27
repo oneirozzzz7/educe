@@ -141,7 +141,12 @@ def chat(config):
         console.print(f"\n[bold]🚀 开始处理: {user_input[:50]}{'...' if len(user_input) > 50 else ''}[/bold]\n")
 
         try:
-            asyncio.run(orchestrator.run_pipeline(user_input))
+            if user_input.startswith("/iter "):
+                real_input = user_input[6:].strip()
+                console.print("[yellow]🔄 迭代模式：审查不通过将自动回退修改[/yellow]\n")
+                asyncio.run(orchestrator.run_iterative_pipeline(real_input))
+            else:
+                asyncio.run(orchestrator.run_pipeline(user_input))
         except Exception as e:
             console.print(f"\n[red]❌ 发生错误: {e}[/red]")
             console.print("[dim]请检查API Key和网络连接[/dim]")
@@ -222,6 +227,7 @@ def _show_help():
 | `/status` | 显示当前配置状态 |
 | `/agents` | 显示所有Agent状态 |
 | `/memory` | 显示记忆库统计 |
+| `/iter <需求>` | 迭代模式（审查不通过自动回退修改） |
 | `/quit` | 退出 |
 
 ## 使用示例
