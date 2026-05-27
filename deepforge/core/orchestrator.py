@@ -138,12 +138,22 @@ class Orchestrator:
             )
             self.context.add_message(msg)
 
-            async for response in self.agents[agent_name].handle(msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-                current_content = response.content
-                current_sender = agent_name
+            try:
+                async for response in self.agents[agent_name].handle(msg, self.context):
+                    self.context.add_message(response)
+                    self._notify(response)
+                    self._display_message(response)
+                    current_content = response.content
+                    current_sender = agent_name
+            except Exception as e:
+                error_msg = f"[{agent_name}] 执行失败: {e}"
+                console.print(f"[red]⚠ {error_msg}[/red]")
+                err = Message(type=MessageType.ERROR, sender=agent_name, receiver="user", content=error_msg)
+                self.context.add_message(err)
+                self._notify(err)
+                if agent_name in ("project_manager", "engineer"):
+                    console.print("[red]关键Agent失败，停止流水线[/red]")
+                    break
 
         return self.context
 

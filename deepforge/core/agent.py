@@ -49,13 +49,31 @@ class BaseAgent(abc.ABC):
         system_prompt = self.build_system_prompt(context)
         full_messages = [{"role": "system", "content": system_prompt}] + messages
 
-        response = await self.model_client.chat(
-            messages=full_messages,
-            model=self.model_config.model,
-            temperature=self.model_config.temperature,
-            max_tokens=self.model_config.max_tokens,
-        )
-        return response
+        max_retries = 3
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.model_client.chat(
+                    messages=full_messages,
+                    model=self.model_config.model,
+                    temperature=self.model_config.temperature,
+                    max_tokens=self.model_config.max_tokens,
+                )
+                return response
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+
+                if "401" in error_str or "403" in error_str or "authentication" in error_str:
+                    raise RuntimeError(f"API认证失败 (模型: {self.model_config.model}): {e}")
+
+                if attempt < max_retries - 1:
+                    import asyncio
+                    wait = (attempt + 1) * 2
+                    await asyncio.sleep(wait)
+
+        raise RuntimeError(f"模型调用失败 ({max_retries}次重试后): {last_error}")
 
     async def call_model_stream(self, messages: list[dict], context: WorkContext) -> AsyncIterator[str]:
         if self.model_client is None:
