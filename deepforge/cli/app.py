@@ -158,7 +158,27 @@ def chat(config):
             console.print(f"\n[red]❌ 发生错误: {e}[/red]")
             console.print("[dim]请检查API Key和网络连接[/dim]")
 
-        console.print("\n[green]✅ 处理完成！[/green]\n")
+        console.print("\n[green]✅ 处理完成！[/green]")
+
+        output_dir = orchestrator.context.artifacts.get("output_dir")
+        if output_dir:
+            console.print(f"[dim]产出物目录: {output_dir}[/dim]")
+
+        try:
+            rating = Prompt.ask(
+                "[dim]满意吗？评分1-5（回车跳过）[/dim]",
+                default="",
+            )
+            if rating and rating.isdigit() and 1 <= int(rating) <= 5:
+                orchestrator.observer.record_feedback(
+                    orchestrator.observer._current.task_id if orchestrator.observer._current else "",
+                    int(rating),
+                )
+                console.print(f"[dim]感谢反馈！评分已记录[/dim]")
+        except Exception:
+            pass
+
+        console.print()
 
 
 @main.command()

@@ -41,7 +41,7 @@ export default function Page() {
 
     ws.onConnect(() => {
       setConnected(true);
-      fetch("/api/status")
+      fetch(`http://${process.env.NEXT_PUBLIC_API_HOST || "localhost:7860"}/api/status`)
         .then((r) => r.json())
         .then((d) => setModel(d.model || ""));
     });

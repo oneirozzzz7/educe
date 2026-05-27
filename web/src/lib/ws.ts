@@ -38,9 +38,9 @@ export interface DeepForgeWS {
 }
 
 export function createWS(sessionId: string): DeepForgeWS {
+  const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:7860";
   const proto = typeof window !== "undefined" && location.protocol === "https:" ? "wss:" : "ws:";
-  const host = typeof window !== "undefined" ? location.host : "localhost:7860";
-  const url = `${proto}//${host}/ws/${sessionId}`;
+  const url = `${proto}//${API_HOST}/ws/${sessionId}`;
 
   let ws: WebSocket | null = null;
   let messageHandlers: ((msg: ServerMessage) => void)[] = [];
