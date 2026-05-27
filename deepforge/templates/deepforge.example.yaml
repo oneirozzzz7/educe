@@ -1,0 +1,85 @@
+# DeepForge 配置文件
+# 详细文档: https://github.com/deepforge-ai/deepforge
+
+project_name: "my-project"
+work_dir: "."
+language: "zh"
+
+# 默认模型配置（所有Agent共用，除非单独指定）
+default_model:
+  provider: "openai_compatible"
+  model: "deepseek-chat"
+  api_key: ""  # 也可通过环境变量 DEEPSEEK_API_KEY 设置
+  base_url: "https://api.deepseek.com/v1"
+  temperature: 0.7
+  max_tokens: 4096
+
+# 可配置多个模型，不同Agent使用不同模型
+models:
+  deepseek:
+    provider: "openai_compatible"
+    model: "deepseek-chat"
+    api_key: ""
+    base_url: "https://api.deepseek.com/v1"
+    temperature: 0.7
+    max_tokens: 4096
+
+  qwen:
+    provider: "openai_compatible"
+    model: "qwen-plus"
+    api_key: ""
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    temperature: 0.7
+    max_tokens: 4096
+
+  glm:
+    provider: "openai_compatible"
+    model: "glm-4-flash"
+    api_key: ""
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    temperature: 0.7
+    max_tokens: 4096
+
+  kimi:
+    provider: "openai_compatible"
+    model: "moonshot-v1-8k"
+    api_key: ""
+    base_url: "https://api.moonshot.cn/v1"
+    temperature: 0.7
+    max_tokens: 4096
+
+# Agent配置 - 可为每个Agent指定不同模型
+agents:
+  project_manager:
+    enabled: true
+    model: null  # 使用default_model
+  product_manager:
+    enabled: true
+    model: null
+  architect:
+    enabled: true
+    model: null
+  engineer:
+    enabled: true
+    model: null
+  reviewer:
+    enabled: true
+    model: null
+  crowd_user:
+    enabled: true
+    model: null
+  memory_keeper:
+    enabled: true
+    model: null
+
+# 记忆系统
+memory:
+  enabled: true
+  storage_dir: ".deepforge/memory"
+  max_entries: 10000
+
+# 技能系统
+skills:
+  enabled: true
+  skill_dir: ".deepforge/skills"
+  community_dir: ".deepforge/community_skills"
