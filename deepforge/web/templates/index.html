@@ -203,13 +203,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 <div class="ov" id="setM" onclick="if(event.target===this)closeSet()">
     <div class="md">
         <h3>⚙ Settings</h3>
-        <label>Provider</label>
-        <select id="sP" onchange="onP()"><option value="custom">Custom (OpenAI compatible)</option><option value="deepseek">DeepSeek</option><option value="qwen">Qwen</option><option value="glm">GLM</option><option value="kimi">Kimi</option><option value="ollama">Ollama</option><option value="openrouter">OpenRouter</option></select>
+        <label>切换模型</label>
+        <select id="sModel">
+            <option value="">-- 选择模型 --</option>
+        </select>
+        <div class="ht">切换后立即生效，无需重新输入Key</div>
+
+        <label style="margin-top:16px;border-top:1px solid var(--b1);padding-top:12px">API 配置（高级）</label>
         <label>Base URL</label><input id="sU">
-        <label>Model</label><input id="sM">
-        <label>API Key</label><input id="sK" type="password" placeholder="sk-...">
-        <div class="ht">Stored locally only</div>
-        <div class="mbb"><button class="cc" onclick="closeSet()">Cancel</button><button class="ss" onclick="saveSet()">Save</button></div>
+        <label>API Key</label><input id="sK" type="password" placeholder="留空则保留当前Key">
+        <div class="ht">仅保存在本地 .env 文件</div>
+        <div class="mbb"><button class="cc" onclick="closeSet()">取消</button><button class="ss" onclick="saveSet()">保存</button></div>
     </div>
 </div>
 
@@ -312,11 +316,33 @@ function send2(){const e=$('inp2'),t=e.value.trim();if(!t||busy||!ws||ws.readySt
 function go(t){$('inp').value=t;send()}
 function $(id){return document.getElementById(id)}
 
-const PR={deepseek:{u:'https://api.deepseek.com/v1',m:'deepseek-chat'},qwen:{u:'https://dashscope.aliyuncs.com/compatible-mode/v1',m:'qwen-plus'},glm:{u:'https://open.bigmodel.cn/api/paas/v4',m:'glm-4-flash'},kimi:{u:'https://api.moonshot.cn/v1',m:'moonshot-v1-8k'},ollama:{u:'http://localhost:11434/v1',m:'qwen2.5:7b'},openrouter:{u:'https://openrouter.ai/api/v1',m:'deepseek/deepseek-chat'}};
-function openSet(){$('setM').classList.add('show');fetch('/api/status').then(r=>r.json()).then(d=>{$('sU').value=d.base_url||'';$('sM').value=d.model||''})}
+function openSet(){
+    $('setM').classList.add('show');
+    fetch('/api/status').then(r=>r.json()).then(d=>{
+        $('sU').value=d.base_url||'';
+        const sel=$('sModel');
+        fetch('/api/models').then(r=>r.json()).then(m=>{
+            sel.innerHTML='';
+            m.models.forEach(name=>{
+                const o=document.createElement('option');o.value=name;o.textContent=name;
+                if(name===d.model)o.selected=true;
+                sel.appendChild(o);
+            });
+        }).catch(()=>{
+            sel.innerHTML=`<option value="${d.model}">${d.model}</option>`;
+        });
+    });
+}
 function closeSet(){$('setM').classList.remove('show')}
-function onP(){const v=$('sP').value;if(PR[v]){$('sU').value=PR[v].u;$('sM').value=PR[v].m}}
-function saveSet(){fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:$('sK').value,base_url:$('sU').value,model:$('sM').value})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){$('mdl').textContent=d.model;closeSet();location.reload()}}).catch(e=>alert('Error: '+e))}
+function saveSet(){
+    const model=$('sModel').value;
+    const body={model:model};
+    const url=$('sU').value;if(url)body.base_url=url;
+    const key=$('sK').value;if(key)body.api_key=key;
+    fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{if(d.status==='ok'){$('mdl').textContent=d.model;closeSet();location.reload()}})
+    .catch(e=>alert('Error: '+e));
+}
 
 $('inp').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('inp').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'});

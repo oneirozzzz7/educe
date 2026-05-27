@@ -91,6 +91,41 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         from deepforge.models.router import PROVIDER_PRESETS
         return {"providers": PROVIDER_PRESETS}
 
+    @app.get("/api/models")
+    async def list_models():
+        """返回当前平台可用的模型列表"""
+        known_models = []
+        try:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(
+                api_key=config.default_model.api_key,
+                base_url=config.default_model.base_url,
+            )
+            resp = await client.models.list()
+            known_models = sorted(set(m.id for m in resp.data))
+        except Exception:
+            pass
+
+        if len(known_models) <= 1:
+            known_models = [
+                config.default_model.model,
+                "Kimi-K2-0905-jcloud",
+                "DeepSeek-V3-0324-cloud-provider-iaas",
+                "DeepSeek-R1-cloud-provider-iaas",
+                "DeepSeek-V4-Flash",
+                "GLM-5.1",
+                "Chatrhino-750B",
+                "gpt-4o-0806",
+                "gpt-4.1",
+                "qwen-plus",
+                "deepseek-chat",
+                "moonshot-v1-8k",
+                "glm-4-flash",
+            ]
+            known_models = sorted(set(known_models))
+
+        return {"models": known_models}
+
     @app.post("/api/settings")
     async def update_settings(body: dict):
         import os
