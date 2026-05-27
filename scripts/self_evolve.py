@@ -27,6 +27,7 @@ from deepforge.core.message import Message, MessageType, WorkContext
 from deepforge.models.router import ModelClient
 from deepforge.agents import ALL_AGENTS
 from deepforge.agents.engineer import EngineerAgent
+from deepforge.agents.supervisor import SupervisorAgent
 from deepforge.memory.store import MemoryStore, MemoryEntry
 from deepforge.skills.registry import SkillRegistry
 
@@ -260,6 +261,39 @@ class EvolutionEngine:
         )
         self.memory.add(entry)
 
+    async def supervisor_review(self):
+        """监工Agent审视当前状态并做出决策"""
+        supervisor = SupervisorAgent(config=self.config, model_client=self.client)
+        context = WorkContext(user_request="监工审查")
+
+        rate = self.stats["tests_passed"] / max(self.stats["tests_run"], 1) * 100
+        failures = self.memory.search("failure", category="evolution_failure", limit=5)
+        failure_list = [f.title for f in failures]
+
+        context.metadata["evolution_stats"] = {
+            "rounds": self.stats["rounds"],
+            "tests": self.stats["tests_run"],
+            "pass_rate": f"{rate:.0f}%",
+            "skills_created": self.stats["skills_created"],
+            "hours": round((time.time() - self.stats["started_at"]) / 3600, 1),
+        }
+        context.metadata["recent_failures"] = failure_list
+
+        msg = Message(
+            type=MessageType.TASK,
+            sender="system",
+            receiver="supervisor",
+            content=f"进化引擎已运行{self.stats['rounds']}轮，通过率{rate:.0f}%，请审视并决策下一步。",
+        )
+        context.add_message(msg)
+
+        print(f"\n👷 监工审查中...")
+        async for response in supervisor.handle(msg, context):
+            decision = response.content
+            self._log("supervisor_decision", {"decision": decision[:300]})
+            print(f"  📋 监工决策: {decision[:200]}")
+            self.stats["improvements"] += 1
+
     def print_stats(self):
         elapsed = time.time() - self.stats["started_at"]
         hours = elapsed / 3600
@@ -318,6 +352,12 @@ async def main():
 
             if round_num % 5 == 0:
                 engine.print_stats()
+
+            if round_num % 10 == 0:
+                try:
+                    await engine.supervisor_review()
+                except Exception as e:
+                    print(f"  ⚠ 监工异常: {e}")
 
             if time.time() < end_time:
                 await asyncio.sleep(args.interval)

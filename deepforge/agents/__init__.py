@@ -5,6 +5,7 @@ from deepforge.agents.engineer import EngineerAgent
 from deepforge.agents.reviewer import ReviewerAgent
 from deepforge.agents.crowd_user import CrowdUserAgent
 from deepforge.agents.memory_keeper import MemoryKeeperAgent
+from deepforge.agents.supervisor import SupervisorAgent
 
 ALL_AGENTS = [
     ProjectManagerAgent,
@@ -24,5 +25,6 @@ __all__ = [
     "ReviewerAgent",
     "CrowdUserAgent",
     "MemoryKeeperAgent",
+    "SupervisorAgent",
     "ALL_AGENTS",
 ]
