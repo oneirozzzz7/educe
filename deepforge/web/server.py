@@ -182,40 +182,51 @@ AGENT_SUMMARIES = {
 
 
 def _extract_summary(sender: str, content: str, msg_type: str) -> str:
-    """从Agent输出中提取一行关键摘要，不暴露全部内容"""
+    """提取一行干净的摘要给前端展示，绝不暴露内部协议"""
     if msg_type == "handoff":
         return ""
 
-    lines = content.strip().split("\n")
-    first_meaningful = ""
-    for line in lines[:10]:
-        stripped = line.strip().strip("#").strip()
-        if stripped and len(stripped) > 4 and not stripped.startswith("```") and not stripped.startswith("|"):
-            first_meaningful = stripped[:80]
-            break
+    import re
 
-    base = AGENT_SUMMARIES.get(sender, "处理中")
+    noise = ["移交", "用户原始需求", "技术架构", "产品设计", "```", "---", "|||"]
 
     if sender == "engineer":
-        import re
         file_count = len(re.findall(r'```filepath:', content))
         if file_count > 0:
-            return f"生成了 {file_count} 个文件"
-        return first_meaningful or "编码中..."
+            return f"已生成 {file_count} 个文件"
+        html_match = re.search(r'<!DOCTYPE', content)
+        if html_match:
+            return "已生成可运行代码"
+        return "编码中..."
 
     if sender == "reviewer":
-        if "通过" in content and "不通过" not in content:
-            return "✅ 审查通过"
-        elif "不通过" in content:
-            return "❌ 审查不通过，需要修改"
-        return first_meaningful or base
+        if "不通过" in content:
+            return "审查未通过，回退修改"
+        if "通过" in content:
+            return "审查通过"
+        return "代码审查中..."
 
     if sender == "crowd_user":
-        import re
         stars = re.findall(r'⭐', content)
-        return f"内测完成 ({len(stars)//4 if stars else '?'}位用户评价)" if stars else first_meaningful or base
+        if stars:
+            return f"内测完成 ({len(stars)//5}位用户评价)"
+        return "用户体验测试完成"
 
-    return first_meaningful or base
+    if sender == "memory_keeper":
+        return "知识沉淀完成"
+
+    lines = content.strip().split("\n")
+    for line in lines[:15]:
+        s = line.strip().lstrip("#").strip()
+        if not s or len(s) < 5:
+            continue
+        if any(n in s for n in noise):
+            continue
+        if s.startswith("|") or s.startswith("```"):
+            continue
+        return s[:60]
+
+    return AGENT_SUMMARIES.get(sender, "完成")
 
 
 def run_web(host: str = "0.0.0.0", port: int = 7860, config: DeepForgeConfig | None = None):
