@@ -62,15 +62,17 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .step-detail.show{display:block}
 
 /* 底部输入 */
-.left-input{border-top:1px solid var(--b1);padding:12px 16px}
-.left-input .wrap{display:flex;gap:8px;align-items:flex-end}
-.left-input textarea{flex:1;background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--t1);font-family:inherit;resize:none;outline:none;min-height:38px;max-height:80px;transition:border .2s;line-height:1.4}
-.left-input textarea:focus{border-color:var(--ac)}
-.left-input textarea::placeholder{color:var(--t4)}
-.left-input .send{width:34px;height:34px;border-radius:50%;background:var(--ac);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .12s}
-.left-input .send:hover{transform:scale(1.05)}
-.left-input .send:disabled{opacity:.3;cursor:not-allowed;transform:none}
-.left-input .send svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.left-input{display:none}
+
+/* 全宽底部输入栏 */
+.bottom-bar{border-top:1px solid var(--b1);padding:10px 16px;background:var(--s1);flex-shrink:0}
+.bottom-inner{max-width:100%;display:flex;gap:8px;align-items:flex-end}
+.bottom-bar textarea{flex:1;background:var(--bg);border:1px solid var(--b1);border-radius:8px;padding:9px 14px;font-size:13px;color:var(--t1);font-family:inherit;resize:none;outline:none;min-height:38px;max-height:80px;transition:border .2s;line-height:1.4}
+.bottom-bar textarea:focus{border-color:var(--ac)}
+.bottom-bar textarea::placeholder{color:var(--t4)}
+.bottom-bar .send{width:34px;height:34px;border-radius:50%;background:var(--ac);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .12s}
+.bottom-bar .send:hover{transform:scale(1.05)}
+.bottom-bar .send svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 
 /* ─── 右侧预览 ─── */
 .right{flex:1;display:flex;flex-direction:column;background:var(--bg);min-width:0}
@@ -167,12 +169,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <span class="time" id="timer"></span>
         </div>
         <div class="step-list" id="stepList"></div>
-        <div class="left-input">
-            <div class="wrap">
-                <textarea id="inp2" placeholder="追加需求..." rows="1"></textarea>
-                <button class="send" onclick="send2()"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-            </div>
-        </div>
     </div>
     <div class="right" id="rightPanel" style="display:none">
         <div class="prev-chrome">
@@ -189,6 +185,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
             <iframe id="pFrame" style="display:none"></iframe>
             <div class="code-view" id="codeView"></div>
         </div>
+    </div>
+</div>
+
+<!-- 全宽底部输入栏 -->
+<div class="bottom-bar" id="bottomBar" style="display:none">
+    <div class="bottom-inner">
+        <textarea id="inp2" placeholder="追加需求或修改..." rows="1"></textarea>
+        <button class="send" onclick="send2()"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
     </div>
 </div>
 
@@ -268,7 +272,7 @@ function markDone(id,summary){
 }
 function startWork(){
     busy=true;$('btn').disabled=true;
-    $('emptyState').style.display='none';$('leftPanel').style.display='';$('rightPanel').style.display='';
+    $('emptyState').style.display='none';$('leftPanel').style.display='';$('rightPanel').style.display='';$('bottomBar').style.display='';
     $('taskTitle').textContent=curTask.slice(0,35)+(curTask.length>35?'...':'');
     $('taskBadge').textContent='进行中';$('taskBadge').className='badge running';
     buildSteps();markOn(AG[0].id);
@@ -289,7 +293,7 @@ function showPreview(content){
     lastHtml=html;
     const blob=new Blob([html],{type:'text/html'});
     const url=URL.createObjectURL(blob);
-    $('pFrame').src=url;$('pLink').href=url;$('pUrl').textContent=name;
+    $('pFrame').src=url;$('pLink').href=url;$('pLink').onclick=e=>{e.preventDefault();window.open(url,'_blank')};$('pUrl').textContent=name;
     $('pEmpty').style.display='none';$('pFrame').style.display='block';$('codeView').style.display='none';
     showTab('preview');
 }
@@ -307,7 +311,7 @@ function showTab(t){
 }
 function newTask(){
     if(busy&&!confirm('当前任务进行中，确定新建？'))return;
-    $('emptyState').style.display='';$('leftPanel').style.display='none';$('rightPanel').style.display='none';
+    $('emptyState').style.display='';$('leftPanel').style.display='none';$('rightPanel').style.display='none';$('bottomBar').style.display='none';
     curSid=sid();busy=false;if(tmr)clearInterval(tmr);
     if(ws)ws.close();setTimeout(connect,200);
     $('inp').focus();
