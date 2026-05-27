@@ -12,13 +12,9 @@ from deepforge.tools.toolbox import ToolBox
 class EngineerAgent(BaseAgent):
     name = "engineer"
     role = "全栈工程师"
-    description = """你是DeepForge的全栈工程师Agent，负责：
-1. 根据架构设计文档进行编码实现
-2. 分步骤创建文件——每次专注一个模块，确保质量
-3. 编写高质量、可运行的代码
-4. 修复审查反馈中指出的问题
-
-核心策略：一次只做一件事，做好做完整。"""
+    description = """你是DeepForge的全栈工程师Agent。
+你的唯一职责是输出完整可运行的代码。
+禁止输出规划、描述、解释——只要代码。"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -26,9 +22,8 @@ class EngineerAgent(BaseAgent):
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         iteration = message.data.get("iteration", 1)
-        is_fix_mode = iteration > 1 and "审查反馈" in message.content
 
-        if is_fix_mode:
+        if iteration > 1 and "审查反馈" in message.content:
             prompt = self._build_fix_prompt(message, context)
         else:
             prompt = self._build_prompt(message, context)
@@ -37,6 +32,16 @@ class EngineerAgent(BaseAgent):
         response = await self.call_model(messages, context)
 
         files = self._extract_files(response)
+
+        if not files:
+            retry_prompt = self._build_retry_prompt(context, response)
+            retry_messages = [{"role": "user", "content": retry_prompt}]
+            retry_response = await self.call_model(retry_messages, context)
+            retry_files = self._extract_files(retry_response)
+            if retry_files:
+                files = retry_files
+                response = retry_response
+
         if files:
             write_results = []
             for filepath, content in files.items():
@@ -48,8 +53,8 @@ class EngineerAgent(BaseAgent):
             context.add_artifact("code_files", all_files)
             context.add_artifact("engineer_output", response)
 
-            summary = f"{response}\n\n---\n### 文件写入结果\n" + "\n".join(write_results)
-            yield self.emit("user", summary)
+            file_summary = "\n".join(f"- {f}" for f in files.keys())
+            yield self.emit("user", f"已生成 {len(files)} 个文件:\n{file_summary}")
         else:
             context.add_artifact("engineer_output", response)
             yield self.emit("user", response)
@@ -59,8 +64,7 @@ class EngineerAgent(BaseAgent):
                 "reviewer",
                 f"## 工程师移交\n\n"
                 f"### 用户原始需求\n{context.user_request}\n\n"
-                f"### 技术架构\n{context.artifacts.get('architecture', '无')[:2000]}\n\n"
-                f"### 实现代码\n{response}\n\n"
+                f"### 实现代码\n{response[:3000]}\n\n"
                 f"### 创建的文件\n{json.dumps(list(files.keys()) if files else [], ensure_ascii=False)}\n\n"
                 f"请对以上代码进行全面审查。",
             )
@@ -72,100 +76,102 @@ class EngineerAgent(BaseAgent):
         architecture = context.artifacts.get("architecture", "")
         prd = context.artifacts.get("prd", "")
 
-        arch_summary = architecture[:4000] if len(architecture) > 4000 else architecture
+        arch_brief = architecture[:2000] if architecture else "无"
+        prd_brief = prd[:1500] if prd else "无"
 
-        return f"""## 输入信息
-### 用户原始需求
+        return f"""你是编码机器。你的输出只有代码，没有解释。
+
+## 用户需求
 {context.user_request}
 
-### 产品需求文档（摘要）
-{prd[:2000] if len(prd) > 2000 else prd}
+## 参考设计
+{prd_brief}
 
-### 技术架构设计
-{arch_summary}
+{arch_brief}
 
-### 架构师移交内容
-{message.content[:2000]}
+## 绝对铁律
+1. 你必须输出完整可运行的代码文件
+2. 禁止输出计划、分析、描述、大纲
+3. 每个文件用这个格式：
 
-## 你的任务
-严格按照技术架构设计完成编码工作。
-
-### ⚠️ 关键编码策略（必须遵守）
-**弱模型友好原则**：不要试图一次写完所有文件。按以下优先级逐步输出：
-
-1. **先写骨架**：项目配置文件（pyproject.toml/requirements.txt）+ 目录结构 + __init__.py
-2. **再写核心模块**：数据模型（Pydantic Model）+ 配置加载
-3. **然后写业务逻辑**：主处理流程 + 工具函数
-4. **最后写入口**：CLI入口 + main函数
-
-每个文件必须：
-- 代码100%完整，禁止省略（如"其余代码类似"）
-- 包含必要的import
-- 有if __name__=="__main__"的简单自测
-
-### 输出格式
-每个文件使用以下格式（filepath:后面是完整路径）：
-
-```filepath:文件路径
-完整代码内容
+```filepath:文件名.扩展名
+完整代码（从第一行到最后一行）
 ```
 
-### 最后附上
-1. 依赖安装命令
-2. 运行命令
-3. 已实现的文件清单（checklist形式，标注✅已完成/❌未完成）"""
+4. 如果用户要的是网页/工具，优先做成单个HTML文件（内嵌CSS和JS）
+5. 代码必须能直接运行——双击HTML能打开，python xxx.py能执行
+6. 不要写TODO、不要省略、不要"其余类似"
+
+## 现在开始写代码"""
 
     def _build_fix_prompt(self, message: Message, context: WorkContext) -> str:
         prev_output = context.artifacts.get("engineer_output", "")
-        existing_files = context.artifacts.get("code_files", [])
+        return f"""审查发现问题，你需要修复。
 
-        return f"""## 修复任务
+## 问题
+{message.content[:2000]}
 
-### 审查反馈
-{message.content}
+## 上一版代码
+{prev_output[:3000]}
 
-### 已有文件清单
-{json.dumps(existing_files, ensure_ascii=False)}
+## 要求
+输出修复后的完整文件，用 ```filepath:文件名 格式。
+只输出代码，不要解释。"""
 
-### 上一轮代码（参考）
-{prev_output[:4000]}
+    def _build_retry_prompt(self, context: WorkContext, failed_response: str) -> str:
+        return f"""你刚才的回答没有包含可提取的代码文件。
+用户需求是：{context.user_request}
 
-## 你的任务
-根据审查反馈修复问题。
+请直接输出完整代码。用这个格式：
 
-### 修复策略
-1. **只修复被指出的问题**，不要重写没有问题的代码
-2. **补全缺失的文件**——如果审查指出某文件缺失，必须完整输出该文件
-3. **修复bug**——给出修复后的完整文件（不要只给diff）
-4. 每个修改/新增文件使用 ```filepath:路径 格式
+```filepath:文件名.html
+<!DOCTYPE html>
+<html>
+...完整代码...
+</html>
+```
 
-### 输出
-1. 修复了哪些问题（对照审查反馈逐条说明）
-2. 修改/新增的完整文件代码
-3. 修复后的文件清单"""
+不要解释，不要规划，直接写代码。现在开始："""
 
     def _extract_files(self, content: str) -> dict[str, str]:
         files = {}
-        pattern = r'```(?:filepath:)?([^\n]+)\n(.*?)```'
-        matches = re.finditer(pattern, content, re.DOTALL)
 
-        skip_prefixes = (
-            "http", "bash", "shell", "json", "yaml", "yml", "markdown", "md",
-            "text", "txt", "sql", "python", "javascript", "typescript",
-            "html", "css", "toml", "xml", "diff", "log", "csv",
-        )
-
-        for match in matches:
+        pattern1 = r'```filepath:([^\n]+)\n([\s\S]*?)```'
+        for match in re.finditer(pattern1, content, re.DOTALL):
             filepath = match.group(1).strip()
             code = match.group(2).strip()
+            if code and len(code) > 20:
+                files[filepath] = code
 
-            if not ("/" in filepath or "." in filepath):
-                continue
-            if filepath.lower().startswith(skip_prefixes):
-                continue
-            if len(code) < 10:
-                continue
+        if files:
+            return files
 
-            files[filepath] = code
+        lang_tags = (
+            "html", "css", "javascript", "js", "python", "py",
+            "json", "yaml", "yml", "typescript", "ts", "jsx", "tsx",
+            "shell", "bash", "sh", "sql", "xml", "svg",
+        )
+        pattern2 = r'```(\w*)\n([\s\S]*?)```'
+        for match in re.finditer(pattern2, content, re.DOTALL):
+            lang = match.group(1).strip().lower()
+            code = match.group(2).strip()
+            if not code or len(code) < 50:
+                continue
+            if "<!DOCTYPE" in code or "<html" in code:
+                files["index.html"] = code
+            elif lang == "python" or lang == "py":
+                if "def main" in code or "if __name__" in code:
+                    files["main.py"] = code
+            elif lang in ("js", "javascript"):
+                files["app.js"] = code
+            elif lang == "json" and "name" in code:
+                files["package.json"] = code
+
+        if files:
+            return files
+
+        html_match = re.search(r'(<!DOCTYPE[^>]*>[\s\S]*?</html>)', content, re.IGNORECASE)
+        if html_match:
+            files["index.html"] = html_match.group(1)
 
         return files
