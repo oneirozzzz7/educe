@@ -1,0 +1,14 @@
+services:
+  deepforge:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ./.deepforge:/app/.deepforge
+    restart: unless-stopped

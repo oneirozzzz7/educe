@@ -90,15 +90,18 @@ def main(ctx, config):
 @click.option("--config", "-c", default=None, help="配置文件路径")
 def chat(config):
     """交互式对话模式"""
+    from deepforge.core.setup_wizard import load_env_file, ensure_configured
+    load_env_file()
     cfg = DeepForgeConfig.load(config)
     show_banner()
+
+    if not cfg.default_model.api_key:
+        ensure_configured()
+        cfg = DeepForgeConfig.load(config)
     show_status(cfg)
 
     if not cfg.default_model.api_key:
-        console.print("\n[yellow]⚠ 未配置API Key，请通过以下方式之一配置：[/yellow]")
-        console.print("  1. 设置环境变量: export DEEPSEEK_API_KEY=your-key")
-        console.print("  2. 创建配置文件: deepforge init")
-        console.print("  3. 命令行指定: deepforge chat --config path/to/config.yaml\n")
+        console.print("\n[red]配置未完成，请重新运行[/red]")
         return
 
     orchestrator = create_orchestrator(cfg)

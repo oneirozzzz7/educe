@@ -3,642 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepForge - AI创作工坊</title>
+    <title>DeepForge - AI 创作工坊</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --bg: #0d1117;
-            --surface: #161b22;
-            --surface-2: #21262d;
-            --border: #30363d;
-            --text: #e6edf3;
-            --text-dim: #8b949e;
-            --accent: #58a6ff;
-            --green: #3fb950;
-            --yellow: #d29922;
-            --red: #f85149;
-            --purple: #bc8cff;
-            --cyan: #39d2c0;
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#0a0e14;--surface:#111820;--surface-2:#1a2332;--surface-3:#243044;
+            --border:#1e2d3d;--border-focus:#3d5a80;
+            --text:#c5d1de;--text-bright:#e6edf3;--text-dim:#6b7f95;
+            --accent:#58a6ff;--cyan:#39d2c0;--green:#3fb950;--yellow:#d29922;
+            --red:#f85149;--purple:#bc8cff;--orange:#f0883e;
+            --gradient:linear-gradient(135deg,var(--cyan),var(--accent));
+            --shadow:0 4px 24px rgba(0,0,0,.4);
+            --radius:10px;
         }
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+        /* ═══ Header ═══ */
+        header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(12px);z-index:10}
+        .logo{display:flex;align-items:center;gap:10px}
+        .logo-icon{width:32px;height:32px;border-radius:8px;background:var(--gradient);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;color:#fff}
+        .logo h1{font-size:18px;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700}
+        .logo-tag{font-size:11px;color:var(--text-dim);background:var(--surface-2);padding:2px 8px;border-radius:4px;border:1px solid var(--border)}
+        .header-right{display:flex;align-items:center;gap:16px;font-size:12px}
+        .status-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border)}
+        .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+        .status-dot.off{background:var(--red);box-shadow:0 0 6px var(--red)}
+        .model-badge{color:var(--accent);font-family:monospace;font-size:11px}
 
-        header {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+        /* ═══ Layout ═══ */
+        .main{flex:1;display:flex;overflow:hidden}
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+        /* ═══ Sidebar ═══ */
+        .sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;gap:16px;overflow-y:auto}
+        .sidebar-section{display:flex;flex-direction:column;gap:4px}
+        .sidebar-title{font-size:10px;text-transform:uppercase;color:var(--text-dim);letter-spacing:1.5px;padding:0 8px 6px;font-weight:600}
+        .agent-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:default;transition:all .2s;position:relative}
+        .agent-card:hover{background:var(--surface-2)}
+        .agent-card.active{background:var(--surface-3);box-shadow:inset 3px 0 0 var(--accent)}
+        .agent-card.done{opacity:.6}
+        .agent-avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+        .agent-avatar.pm{background:rgba(57,210,192,.15)}
+        .agent-avatar.pd{background:rgba(63,185,80,.15)}
+        .agent-avatar.arch{background:rgba(210,153,34,.15)}
+        .agent-avatar.eng{background:rgba(88,166,255,.15)}
+        .agent-avatar.rev{background:rgba(248,81,73,.15)}
+        .agent-avatar.crowd{background:rgba(188,140,255,.15)}
+        .agent-avatar.mem{background:rgba(199,209,220,.15)}
+        .agent-info{flex:1;min-width:0}
+        .agent-name{font-size:12px;font-weight:600;color:var(--text-bright)}
+        .agent-role{font-size:10px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .agent-badge{font-size:9px;padding:1px 6px;border-radius:4px;font-weight:500;flex-shrink:0}
+        .agent-badge.idle{background:var(--surface-3);color:var(--text-dim)}
+        .agent-badge.working{background:rgba(210,153,34,.2);color:var(--yellow);animation:glow 1.5s ease-in-out infinite}
+        .agent-badge.done{background:rgba(63,185,80,.15);color:var(--green)}
+        @keyframes glow{0%,100%{opacity:1}50%{opacity:.5}}
 
-        .logo h1 {
-            font-size: 20px;
-            background: linear-gradient(135deg, var(--cyan), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
+        .sidebar-stats{padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)}
+        .stat-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0}
+        .stat-label{color:var(--text-dim)}
+        .stat-value{color:var(--text-bright);font-family:monospace}
 
-        .logo span { color: var(--text-dim); font-size: 12px; }
+        /* ═══ Chat Area ═══ */
+        .chat{flex:1;display:flex;flex-direction:column;min-width:0}
+        .messages{flex:1;overflow-y:auto;padding:20px 24px;scroll-behavior:smooth}
+        .messages::-webkit-scrollbar{width:6px}
+        .messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
-        .status-bar {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            font-size: 13px;
-        }
+        /* ═══ Welcome ═══ */
+        .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:20px;padding:40px}
+        .welcome-icon{font-size:48px;width:80px;height:80px;border-radius:20px;background:var(--gradient);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(57,210,192,.2)}
+        .welcome h2{font-size:24px;color:var(--text-bright);font-weight:600}
+        .welcome p{color:var(--text-dim);font-size:14px;max-width:420px;text-align:center;line-height:1.6}
+        .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px;width:100%}
+        .quick-btn{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;color:var(--text);font-size:13px;cursor:pointer;transition:all .2s;text-align:left;display:flex;align-items:center;gap:10px}
+        .quick-btn:hover{border-color:var(--accent);background:var(--surface-2);transform:translateY(-1px);box-shadow:var(--shadow)}
+        .quick-btn span{font-size:20px}
 
-        .status-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            background: var(--green);
-            display: inline-block;
-        }
+        /* ═══ Messages ═══ */
+        .msg{margin-bottom:16px;animation:slideUp .3s ease}
+        @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        .msg-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+        .msg-avatar{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+        .msg-sender{font-size:12px;font-weight:600}
+        .msg-time{font-size:10px;color:var(--text-dim);margin-left:auto}
+        .msg-body{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-size:13px;line-height:1.75;overflow-x:auto;max-width:100%}
+        .msg-body h1,.msg-body h2,.msg-body h3{margin:14px 0 6px;color:var(--accent);font-size:15px}
+        .msg-body h1:first-child,.msg-body h2:first-child,.msg-body h3:first-child{margin-top:0}
+        .msg-body ul,.msg-body ol{padding-left:18px;margin:6px 0}
+        .msg-body li{margin:3px 0}
+        .msg-body code{background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:12px;font-family:'SF Mono',Consolas,monospace}
+        .msg-body pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;margin:8px 0}
+        .msg-body pre code{background:none;padding:0}
+        .msg-body table{border-collapse:collapse;width:100%;margin:8px 0;font-size:12px}
+        .msg-body th,.msg-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+        .msg-body th{background:var(--surface-2);color:var(--text-bright)}
+        .msg-body strong{color:var(--text-bright)}
 
-        .status-dot.disconnected { background: var(--red); }
+        .msg.user .msg-body{background:var(--surface-2);border-color:var(--border-focus)}
 
-        .main-container {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
+        .msg-sender.pm{color:var(--cyan)} .msg-sender.pd{color:var(--green)} .msg-sender.arch{color:var(--yellow)}
+        .msg-sender.eng{color:var(--accent)} .msg-sender.rev{color:var(--red)} .msg-sender.crowd{color:var(--purple)}
+        .msg-sender.mem{color:var(--text-bright)} .msg-sender.user-tag{color:var(--cyan)}
 
-        .sidebar {
-            width: 260px;
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-        }
+        /* ═══ Collapse ═══ */
+        .msg-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);cursor:pointer;margin-top:8px;user-select:none}
+        .msg-toggle:hover{color:var(--accent)}
+        .msg-collapsed .msg-body{max-height:200px;overflow:hidden;mask-image:linear-gradient(#000 60%,transparent);-webkit-mask-image:linear-gradient(#000 60%,transparent)}
 
-        .sidebar h3 {
-            font-size: 12px;
-            text-transform: uppercase;
-            color: var(--text-dim);
-            margin-bottom: 12px;
-            letter-spacing: 1px;
-        }
+        /* ═══ Pipeline Progress ═══ */
+        .pipeline{padding:0 24px 10px;display:none}
+        .pipeline.show{display:block}
+        .pipeline-bar{display:flex;gap:3px;align-items:center}
+        .pip-step{flex:1;height:4px;border-radius:2px;background:var(--surface-3);transition:background .4s;position:relative}
+        .pip-step.done{background:var(--green)}
+        .pip-step.active{background:var(--yellow);animation:glow 1.2s infinite}
+        .pip-label{display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--text-dim)}
+        .pip-iter{text-align:center;font-size:10px;color:var(--yellow);margin-top:4px;display:none}
+        .pip-iter.show{display:block}
 
-        .agent-list { list-style: none; }
+        /* ═══ Typing ═══ */
+        .typing{display:none;padding:8px 24px;align-items:center;gap:8px;font-size:12px;color:var(--text-dim)}
+        .typing.show{display:flex}
+        .typing-dots span{width:5px;height:5px;border-radius:50%;background:var(--text-dim);display:inline-block;animation:bounce 1.4s infinite}
+        .typing-dots span:nth-child(2){animation-delay:.2s}
+        .typing-dots span:nth-child(3){animation-delay:.4s}
+        @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
 
-        .agent-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 4px;
-            font-size: 13px;
-            transition: background 0.2s;
-        }
+        /* ═══ Input ═══ */
+        .input-area{background:var(--surface);border-top:1px solid var(--border);padding:14px 24px}
+        .input-wrap{display:flex;gap:10px;max-width:860px;margin:0 auto;align-items:flex-end}
+        .input-field{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text-bright);font-size:14px;font-family:inherit;resize:none;outline:none;min-height:44px;max-height:140px;transition:border-color .2s;line-height:1.5}
+        .input-field:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(88,166,255,.1)}
+        .input-field::placeholder{color:var(--text-dim)}
+        .send-btn{background:var(--gradient);border:none;border-radius:var(--radius);padding:10px 20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;height:44px}
+        .send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(57,210,192,.3)}
+        .send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 
-        .agent-item:hover { background: var(--surface-2); }
-        .agent-item.active { background: var(--surface-2); border-left: 2px solid var(--accent); }
-
-        .agent-icon { font-size: 16px; }
-        .agent-status { margin-left: auto; font-size: 10px; color: var(--text-dim); }
-        .agent-status.working { color: var(--yellow); }
-
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px;
-            scroll-behavior: smooth;
-        }
-
-        .message {
-            margin-bottom: 20px;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .message-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .message-sender {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 4px;
-            background: var(--surface-2);
-        }
-
-        .message-sender.project_manager { color: var(--cyan); }
-        .message-sender.product_manager { color: var(--green); }
-        .message-sender.architect { color: var(--yellow); }
-        .message-sender.engineer { color: var(--accent); }
-        .message-sender.reviewer { color: var(--red); }
-        .message-sender.crowd_user { color: var(--purple); }
-        .message-sender.memory_keeper { color: #e6edf3; }
-        .message-sender.user { color: var(--cyan); background: rgba(88, 166, 255, 0.15); }
-
-        .message-time { font-size: 11px; color: var(--text-dim); }
-
-        .message-content {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 16px;
-            font-size: 14px;
-            line-height: 1.7;
-        }
-
-        .message-content h1, .message-content h2, .message-content h3 {
-            margin: 16px 0 8px 0;
-            color: var(--accent);
-        }
-
-        .message-content h1:first-child, .message-content h2:first-child, .message-content h3:first-child {
-            margin-top: 0;
-        }
-
-        .message-content ul, .message-content ol {
-            padding-left: 20px;
-            margin: 8px 0;
-        }
-
-        .message-content li { margin: 4px 0; }
-
-        .message-content code {
-            background: var(--surface-2);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-
-        .message-content pre {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            overflow-x: auto;
-            margin: 8px 0;
-        }
-
-        .message-content pre code {
-            background: none;
-            padding: 0;
-        }
-
-        .input-area {
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            padding: 16px 24px;
-        }
-
-        .input-wrapper {
-            display: flex;
-            gap: 12px;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .input-field {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: var(--text);
-            font-size: 14px;
-            font-family: inherit;
-            resize: none;
-            outline: none;
-            transition: border-color 0.2s;
-            min-height: 48px;
-            max-height: 120px;
-        }
-
-        .input-field:focus { border-color: var(--accent); }
-
-        .input-field::placeholder { color: var(--text-dim); }
-
-        .send-btn {
-            background: linear-gradient(135deg, var(--cyan), var(--accent));
-            border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            white-space: nowrap;
-        }
-
-        .send-btn:hover { opacity: 0.9; }
-        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .welcome {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .welcome h2 {
-            font-size: 28px;
-            margin-bottom: 12px;
-            background: linear-gradient(135deg, var(--cyan), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .welcome p { color: var(--text-dim); margin-bottom: 24px; }
-
-        .quick-starts {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        .quick-start-btn {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px 20px;
-            color: var(--text);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .quick-start-btn:hover {
-            border-color: var(--accent);
-            background: var(--surface-2);
-        }
-
-        .typing-indicator {
-            display: none;
-            padding: 12px 24px;
-            color: var(--text-dim);
-            font-size: 13px;
-        }
-
-        .typing-indicator.show { display: flex; align-items: center; gap: 8px; }
-
-        .typing-dots span {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: var(--text-dim);
-            display: inline-block;
-            animation: blink 1.4s infinite;
-        }
-
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes blink {
-            0%, 80%, 100% { opacity: 0.3; }
-            40% { opacity: 1; }
-        }
-
-        .progress-bar {
-            display: none;
-            padding: 0 24px 12px;
-        }
-
-        .progress-bar.show { display: block; }
-
-        .progress-steps {
-            display: flex;
-            gap: 4px;
-        }
-
-        .progress-step {
-            flex: 1;
-            height: 3px;
-            background: var(--surface-2);
-            border-radius: 2px;
-            transition: background 0.3s;
-        }
-
-        .progress-step.done { background: var(--green); }
-        .progress-step.active { background: var(--yellow); animation: pulse 1s infinite; }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .quick-starts { flex-direction: column; align-items: center; }
+        /* ═══ Mobile ═══ */
+        @media(max-width:768px){
+            .sidebar{display:none}
+            .quick-grid{grid-template-columns:1fr}
+            .messages{padding:12px}
+            .input-area{padding:10px 12px}
         }
     </style>
 </head>
 <body>
     <header>
         <div class="logo">
+            <div class="logo-icon">D</div>
             <h1>DeepForge</h1>
-            <span>AI 创作工坊</span>
+            <span class="logo-tag">v0.1</span>
         </div>
-        <div class="status-bar">
-            <span><span class="status-dot" id="statusDot"></span> <span id="statusText">连接中...</span></span>
-            <span id="modelName" style="color: var(--text-dim)"></span>
+        <div class="header-right">
+            <div class="status-pill">
+                <span class="status-dot" id="dot"></span>
+                <span id="statusText">connecting</span>
+            </div>
+            <span class="model-badge" id="modelName"></span>
         </div>
     </header>
 
-    <div class="main-container">
+    <div class="main">
         <div class="sidebar">
-            <h3>Agent 团队</h3>
-            <ul class="agent-list" id="agentList">
-                <li class="agent-item" data-agent="project_manager">
-                    <span class="agent-icon">🎯</span> 项目经理
-                    <span class="agent-status" id="status-project_manager">待命</span>
-                </li>
-                <li class="agent-item" data-agent="product_manager">
-                    <span class="agent-icon">📋</span> 产品经理
-                    <span class="agent-status" id="status-product_manager">待命</span>
-                </li>
-                <li class="agent-item" data-agent="architect">
-                    <span class="agent-icon">🏗️</span> 架构师
-                    <span class="agent-status" id="status-architect">待命</span>
-                </li>
-                <li class="agent-item" data-agent="engineer">
-                    <span class="agent-icon">💻</span> 工程师
-                    <span class="agent-status" id="status-engineer">待命</span>
-                </li>
-                <li class="agent-item" data-agent="reviewer">
-                    <span class="agent-icon">🔍</span> 审查专家
-                    <span class="agent-status" id="status-reviewer">待命</span>
-                </li>
-                <li class="agent-item" data-agent="crowd_user">
-                    <span class="agent-icon">👥</span> 内测用户团
-                    <span class="agent-status" id="status-crowd_user">待命</span>
-                </li>
-                <li class="agent-item" data-agent="memory_keeper">
-                    <span class="agent-icon">🧠</span> 记忆守护者
-                    <span class="agent-status" id="status-memory_keeper">待命</span>
-                </li>
-            </ul>
+            <div class="sidebar-section">
+                <div class="sidebar-title">Agent Team</div>
+                <div class="agent-card" data-agent="project_manager">
+                    <div class="agent-avatar pm">🎯</div>
+                    <div class="agent-info"><div class="agent-name">项目经理</div><div class="agent-role">需求理解 &middot; 全局统筹</div></div>
+                    <span class="agent-badge idle" id="s-project_manager">idle</span>
+                </div>
+                <div class="agent-card" data-agent="product_manager">
+                    <div class="agent-avatar pd">📋</div>
+                    <div class="agent-info"><div class="agent-name">产品经理</div><div class="agent-role">需求分析 &middot; PRD</div></div>
+                    <span class="agent-badge idle" id="s-product_manager">idle</span>
+                </div>
+                <div class="agent-card" data-agent="architect">
+                    <div class="agent-avatar arch">🏗</div>
+                    <div class="agent-info"><div class="agent-name">架构师</div><div class="agent-role">技术选型 &middot; 设计</div></div>
+                    <span class="agent-badge idle" id="s-architect">idle</span>
+                </div>
+                <div class="agent-card" data-agent="engineer">
+                    <div class="agent-avatar eng">💻</div>
+                    <div class="agent-info"><div class="agent-name">工程师</div><div class="agent-role">编码 &middot; 测试</div></div>
+                    <span class="agent-badge idle" id="s-engineer">idle</span>
+                </div>
+                <div class="agent-card" data-agent="reviewer">
+                    <div class="agent-avatar rev">🔍</div>
+                    <div class="agent-info"><div class="agent-name">审查专家</div><div class="agent-role">Code Review &middot; 安全</div></div>
+                    <span class="agent-badge idle" id="s-reviewer">idle</span>
+                </div>
+                <div class="agent-card" data-agent="crowd_user">
+                    <div class="agent-avatar crowd">👥</div>
+                    <div class="agent-info"><div class="agent-name">内测用户团</div><div class="agent-role">模拟测试 &middot; 反馈</div></div>
+                    <span class="agent-badge idle" id="s-crowd_user">idle</span>
+                </div>
+                <div class="agent-card" data-agent="memory_keeper">
+                    <div class="agent-avatar mem">🧠</div>
+                    <div class="agent-info"><div class="agent-name">记忆守护者</div><div class="agent-role">知识沉淀 &middot; 进化</div></div>
+                    <span class="agent-badge idle" id="s-memory_keeper">idle</span>
+                </div>
+            </div>
+            <div class="sidebar-stats" id="statsPanel" style="display:none">
+                <div class="sidebar-title" style="padding:0 0 6px">Session Stats</div>
+                <div class="stat-row"><span class="stat-label">Messages</span><span class="stat-value" id="statMsgs">0</span></div>
+                <div class="stat-row"><span class="stat-label">Iteration</span><span class="stat-value" id="statIter">-</span></div>
+                <div class="stat-row"><span class="stat-label">Duration</span><span class="stat-value" id="statTime">0s</span></div>
+            </div>
         </div>
 
-        <div class="chat-area">
+        <div class="chat">
             <div class="messages" id="messages">
                 <div class="welcome" id="welcome">
-                    <h2>欢迎使用 DeepForge</h2>
-                    <p>告诉我你想做什么，7个AI Agent会协作帮你完成</p>
-                    <div class="quick-starts">
-                        <button class="quick-start-btn" onclick="quickStart('帮我做一个番茄钟网页应用，简洁美观')">🍅 番茄钟应用</button>
-                        <button class="quick-start-btn" onclick="quickStart('帮我做一个Markdown编辑器，支持实时预览')">📝 Markdown编辑器</button>
-                        <button class="quick-start-btn" onclick="quickStart('做一个Python命令行工具，可以批量重命名文件')">🐍 文件重命名工具</button>
-                        <button class="quick-start-btn" onclick="quickStart('帮我做一个记账小工具，支持分类统计')">💰 记账工具</button>
+                    <div class="welcome-icon">🔥</div>
+                    <h2>DeepForge</h2>
+                    <p>告诉我你想创造什么，7个AI Agent会协作帮你从想法到成品</p>
+                    <div class="quick-grid">
+                        <button class="quick-btn" onclick="Q('帮我做一个贪吃蛇Chrome扩展小游戏')"><span>🎮</span>Chrome小游戏</button>
+                        <button class="quick-btn" onclick="Q('帮我做一个番茄钟网页应用，简洁美观')"><span>🍅</span>番茄钟应用</button>
+                        <button class="quick-btn" onclick="Q('做一个Markdown编辑器，支持实时预览')"><span>📝</span>Markdown编辑器</button>
+                        <button class="quick-btn" onclick="Q('帮我做一个记账小工具，支持分类统计和图表')"><span>💰</span>记账工具</button>
                     </div>
                 </div>
             </div>
 
-            <div class="progress-bar" id="progressBar">
-                <div class="progress-steps" id="progressSteps">
-                    <div class="progress-step" data-step="project_manager" title="项目经理"></div>
-                    <div class="progress-step" data-step="product_manager" title="产品经理"></div>
-                    <div class="progress-step" data-step="architect" title="架构师"></div>
-                    <div class="progress-step" data-step="engineer" title="工程师"></div>
-                    <div class="progress-step" data-step="reviewer" title="审查"></div>
-                    <div class="progress-step" data-step="crowd_user" title="内测"></div>
-                    <div class="progress-step" data-step="memory_keeper" title="记忆"></div>
+            <div class="pipeline" id="pipeline">
+                <div class="pipeline-bar" id="pipelineBar">
+                    <div class="pip-step" data-step="project_manager"></div>
+                    <div class="pip-step" data-step="product_manager"></div>
+                    <div class="pip-step" data-step="architect"></div>
+                    <div class="pip-step" data-step="engineer"></div>
+                    <div class="pip-step" data-step="reviewer"></div>
+                    <div class="pip-step" data-step="crowd_user"></div>
+                    <div class="pip-step" data-step="memory_keeper"></div>
                 </div>
+                <div class="pip-label"><span>PM</span><span>PD</span><span>Arch</span><span>Eng</span><span>Rev</span><span>QA</span><span>Mem</span></div>
+                <div class="pip-iter" id="pipIter">🔄 Iteration 1</div>
             </div>
 
-            <div class="typing-indicator" id="typingIndicator">
+            <div class="typing" id="typing">
                 <div class="typing-dots"><span></span><span></span><span></span></div>
-                <span id="typingText">正在思考...</span>
+                <span id="typingText">thinking...</span>
             </div>
 
             <div class="input-area">
-                <div class="input-wrapper">
-                    <textarea
-                        class="input-field"
-                        id="inputField"
-                        placeholder="描述你想创建的东西...（按 Enter 发送，Shift+Enter 换行）"
-                        rows="1"
-                    ></textarea>
-                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+                <div class="input-wrap">
+                    <textarea class="input-field" id="input" placeholder="描述你想创建的东西...  Enter 发送 / Shift+Enter 换行" rows="1"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="send()">发送</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        const sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
-        let ws = null;
-        let isProcessing = false;
+<script>
+const sid=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36);
+let ws,busy=false,msgCount=0,startTime=0;
 
-        const AGENT_NAMES = {
-            project_manager: '🎯 项目经理',
-            product_manager: '📋 产品经理',
-            architect: '🏗️ 架构师',
-            engineer: '💻 工程师',
-            reviewer: '🔍 审查专家',
-            crowd_user: '👥 内测用户团',
-            memory_keeper: '🧠 记忆守护者',
-            user: '🔥 你',
-        };
+const NAMES={project_manager:'🎯 项目经理',product_manager:'📋 产品经理',architect:'🏗 架构师',engineer:'💻 工程师',reviewer:'🔍 审查专家',crowd_user:'👥 内测用户团',memory_keeper:'🧠 记忆守护者',user:'🔥 你'};
+const CLS={project_manager:'pm',product_manager:'pd',architect:'arch',engineer:'eng',reviewer:'rev',crowd_user:'crowd',memory_keeper:'mem',user:'user-tag'};
+const ORDER=['project_manager','product_manager','architect','engineer','reviewer','crowd_user','memory_keeper'];
 
-        const AGENT_ORDER = ['project_manager', 'product_manager', 'architect', 'engineer', 'reviewer', 'crowd_user', 'memory_keeper'];
-        let currentAgentIndex = -1;
+function connect(){
+    const p=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(`${p}//${location.host}/ws/${sid}`);
+    ws.onopen=()=>{$('dot').classList.remove('off');$('statusText').textContent='connected';fetch('/api/status').then(r=>r.json()).then(d=>{$('modelName').textContent=d.model||''})};
+    ws.onclose=()=>{$('dot').classList.add('off');$('statusText').textContent='reconnecting';setTimeout(connect,3000)};
+    ws.onmessage=e=>{
+        const d=JSON.parse(e.data);
+        if(d.type==='agent_message'){
+            hideTyping();addMsg(d.sender,d.content);setAgent(d.sender,'done');pip(d.sender,'done');
+            const i=ORDER.indexOf(d.sender);
+            if(i>=0&&i<ORDER.length-1){setAgent(ORDER[i+1],'working');showTyping(NAMES[ORDER[i+1]]+' working...');pip(ORDER[i+1],'active')}
+            msgCount++;$('statMsgs').textContent=msgCount;
+        }else if(d.type==='status'){
+            if(d.content==='processing'){busy=true;$('sendBtn').disabled=true;$('pipeline').classList.add('show');$('statsPanel').style.display='';startTime=Date.now();setAgent('project_manager','working');showTyping('🎯 项目经理正在分析需求...');pip('project_manager','active');tick()}
+            else if(d.content==='done'){busy=false;$('sendBtn').disabled=false;hideTyping();$('pipeline').classList.remove('show');resetAll()}
+        }else if(d.type==='error'){busy=false;$('sendBtn').disabled=false;hideTyping();addMsg('system','❌ '+d.content)}
+    }
+}
 
-        function connectWebSocket() {
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.host}/ws/${sessionId}`);
+function addMsg(who,text){
+    const w=$('welcome');if(w)w.style.display='none';
+    const c=$('messages'),d=document.createElement('div');
+    d.className='msg'+(who==='user'?' user':'');
+    const cls=CLS[who]||'';
+    const t=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    const isLong=text.length>800;
+    d.innerHTML=`<div class="msg-head"><div class="msg-avatar ${cls}" style="font-size:12px">${(NAMES[who]||who).charAt(0)}</div><span class="msg-sender ${cls}">${NAMES[who]||who}</span><span class="msg-time">${t}</span></div><div class="msg-body">${md(text)}</div>${isLong?'<div class="msg-toggle" onclick="toggleMsg(this)">▼ 展开全部</div>':''}`;
+    if(isLong)d.classList.add('msg-collapsed');
+    c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
 
-            ws.onopen = () => {
-                document.getElementById('statusDot').classList.remove('disconnected');
-                document.getElementById('statusText').textContent = '已连接';
-                fetch('/api/status').then(r => r.json()).then(data => {
-                    document.getElementById('modelName').textContent = data.model || '';
-                });
-            };
+function toggleMsg(el){const m=el.closest('.msg');m.classList.toggle('msg-collapsed');el.textContent=m.classList.contains('msg-collapsed')?'▼ 展开全部':'▲ 收起'}
 
-            ws.onclose = () => {
-                document.getElementById('statusDot').classList.add('disconnected');
-                document.getElementById('statusText').textContent = '已断开';
-                setTimeout(connectWebSocket, 3000);
-            };
+function md(t){
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+        .replace(/`([^`]+)`/g,'<code>$1</code>')
+        .replace(/\|(.+)\|/gm,r=>{const cells=r.split('|').filter(c=>c.trim());if(cells.every(c=>/^[-:]+$/.test(c.trim())))return '';return '<tr>'+cells.map(c=>'<td>'+c.trim()+'</td>').join('')+'</tr>'})
+        .replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>')
+        .replace(/^- (.+)$/gm,'<li>$1</li>')
+        .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')
+}
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
+function send(){const el=$('input'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;addMsg('user',t);ws.send(JSON.stringify({message:t}));el.value='';el.style.height='auto'}
+function Q(t){$('input').value=t;send()}
+function showTyping(t){$('typingText').textContent=t;$('typing').classList.add('show')}
+function hideTyping(){$('typing').classList.remove('show')}
+function setAgent(a,s){const el=$('s-'+a);if(!el)return;el.textContent=s;el.className='agent-badge '+s;const card=el.closest('.agent-card');document.querySelectorAll('.agent-card').forEach(c=>c.classList.remove('active'));if(s==='working')card.classList.add('active');if(s==='done')card.classList.add('done')}
+function resetAll(){ORDER.forEach(a=>{setAgent(a,'idle');const c=document.querySelector(`.agent-card[data-agent="${a}"]`);if(c)c.classList.remove('done')});document.querySelectorAll('.pip-step').forEach(s=>{s.classList.remove('done','active')});$('pipIter').classList.remove('show')}
+function pip(a,s){const el=document.querySelector(`.pip-step[data-step="${a}"]`);if(!el)return;el.classList.remove('done','active');el.classList.add(s)}
+function tick(){if(!busy)return;const s=Math.floor((Date.now()-startTime)/1000);const m=Math.floor(s/60);$('statTime').textContent=m>0?m+'m'+s%60+'s':s+'s';setTimeout(tick,1000)}
+function $(id){return document.getElementById(id)}
 
-                if (data.type === 'agent_message') {
-                    hideTyping();
-                    addMessage(data.sender, data.content, data.msg_type);
-                    updateAgentStatus(data.sender, '完成');
-                    advanceProgress(data.sender);
-
-                    const idx = AGENT_ORDER.indexOf(data.sender);
-                    if (idx >= 0 && idx < AGENT_ORDER.length - 1) {
-                        const next = AGENT_ORDER[idx + 1];
-                        updateAgentStatus(next, '工作中');
-                        showTyping(AGENT_NAMES[next] + ' 正在工作...');
-                    }
-                } else if (data.type === 'status') {
-                    if (data.content === 'processing') {
-                        isProcessing = true;
-                        document.getElementById('sendBtn').disabled = true;
-                        document.getElementById('progressBar').classList.add('show');
-                        currentAgentIndex = 0;
-                        updateAgentStatus('project_manager', '工作中');
-                        showTyping('🎯 项目经理正在分析需求...');
-                    } else if (data.content === 'done') {
-                        isProcessing = false;
-                        document.getElementById('sendBtn').disabled = false;
-                        hideTyping();
-                        document.getElementById('progressBar').classList.remove('show');
-                        resetAgentStatuses();
-                        resetProgress();
-                    }
-                } else if (data.type === 'error') {
-                    isProcessing = false;
-                    document.getElementById('sendBtn').disabled = false;
-                    hideTyping();
-                    addMessage('system', '❌ 错误: ' + data.content, 'error');
-                }
-            };
-        }
-
-        function addMessage(sender, content, msgType) {
-            const welcome = document.getElementById('welcome');
-            if (welcome) welcome.style.display = 'none';
-
-            const container = document.getElementById('messages');
-            const div = document.createElement('div');
-            div.className = 'message';
-
-            const name = AGENT_NAMES[sender] || sender;
-            const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
-            div.innerHTML = `
-                <div class="message-header">
-                    <span class="message-sender ${sender}">${name}</span>
-                    <span class="message-time">${time}</span>
-                </div>
-                <div class="message-content">${renderMarkdown(content)}</div>
-            `;
-
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function renderMarkdown(text) {
-            return text
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                .replace(/^- (.+)$/gm, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-                .replace(/\n\n/g, '<br><br>')
-                .replace(/\n/g, '<br>');
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('inputField');
-            const text = input.value.trim();
-            if (!text || isProcessing || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-            addMessage('user', text, 'user_input');
-            ws.send(JSON.stringify({ message: text }));
-            input.value = '';
-            input.style.height = 'auto';
-        }
-
-        function quickStart(text) {
-            document.getElementById('inputField').value = text;
-            sendMessage();
-        }
-
-        function showTyping(text) {
-            const el = document.getElementById('typingIndicator');
-            document.getElementById('typingText').textContent = text;
-            el.classList.add('show');
-        }
-
-        function hideTyping() {
-            document.getElementById('typingIndicator').classList.remove('show');
-        }
-
-        function updateAgentStatus(agent, status) {
-            const el = document.getElementById('status-' + agent);
-            if (!el) return;
-            el.textContent = status;
-            el.className = 'agent-status' + (status === '工作中' ? ' working' : '');
-
-            const item = el.closest('.agent-item');
-            document.querySelectorAll('.agent-item').forEach(i => i.classList.remove('active'));
-            if (status === '工作中' && item) item.classList.add('active');
-        }
-
-        function resetAgentStatuses() {
-            AGENT_ORDER.forEach(a => updateAgentStatus(a, '待命'));
-            document.querySelectorAll('.agent-item').forEach(i => i.classList.remove('active'));
-        }
-
-        function advanceProgress(agent) {
-            const step = document.querySelector(`.progress-step[data-step="${agent}"]`);
-            if (step) {
-                step.classList.remove('active');
-                step.classList.add('done');
-            }
-            const idx = AGENT_ORDER.indexOf(agent);
-            if (idx >= 0 && idx < AGENT_ORDER.length - 1) {
-                const nextStep = document.querySelector(`.progress-step[data-step="${AGENT_ORDER[idx + 1]}"]`);
-                if (nextStep) nextStep.classList.add('active');
-            }
-        }
-
-        function resetProgress() {
-            document.querySelectorAll('.progress-step').forEach(s => {
-                s.classList.remove('done', 'active');
-            });
-        }
-
-        document.getElementById('inputField').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        document.getElementById('inputField').addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        });
-
-        connectWebSocket();
-    </script>
+$('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+$('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'});
+connect();
+</script>
 </body>
 </html>
