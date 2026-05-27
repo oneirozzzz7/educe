@@ -204,6 +204,28 @@ def run(prompt, config):
 
 
 @main.command()
+@click.option("--config", "-c", default=None, help="配置文件路径")
+@click.option("--game", "-g", default=None, help="游戏描述（默认：像素跑酷）")
+def demo(config, game):
+    """一键Demo：生成可玩的Chrome小游戏扩展"""
+    cfg = DeepForgeConfig.load(config)
+    if not cfg.default_model.api_key:
+        console.print("[red]未配置API Key[/red]")
+        return
+
+    game_desc = game or "像素风跑酷小游戏，吃到金币加分，撞到障碍物Game Over，支持排行榜"
+    task = f"帮我做一个Chrome浏览器扩展小游戏：{game_desc}，要求可以直接加载到Chrome使用"
+
+    orchestrator = create_orchestrator(cfg)
+    console.print(f"\n[bold cyan]🎮 DeepForge Demo — Chrome小游戏生成[/bold cyan]")
+    console.print(f"[dim]游戏描述: {game_desc}[/dim]")
+    console.print(f"[dim]7个Agent即将协作为你生成一个完整的Chrome扩展...[/dim]\n")
+
+    asyncio.run(orchestrator.run_iterative_pipeline(task))
+    console.print("\n[green]✅ 游戏生成完成！将生成的文件夹拖入 chrome://extensions 即可体验[/green]")
+
+
+@main.command()
 @click.option("--host", "-h", default="0.0.0.0", help="监听地址")
 @click.option("--port", "-p", default=7860, help="监听端口")
 @click.option("--config", "-c", default=None, help="配置文件路径")
