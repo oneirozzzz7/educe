@@ -1,136 +1,191 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepForge</title>
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        :root{--bg:#0a0e14;--surface:#111820;--surface-2:#1a2332;--border:#1e2d3d;--text:#c5d1de;--text-bright:#e6edf3;--text-dim:#6b7f95;--accent:#58a6ff;--cyan:#39d2c0;--green:#3fb950;--yellow:#d29922;--red:#f85149;--purple:#bc8cff}
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepForge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+    --bg:#09090b;--surface:#18181b;--surface-el:#27272a;--surface-hi:#3f3f46;
+    --border:rgba(255,255,255,.06);--border-hi:rgba(255,255,255,.12);
+    --text:#fafafa;--text-2:#a1a1aa;--text-3:#71717a;--text-4:#52525b;
+    --accent:#06b6d4;--accent-dim:rgba(6,182,212,.12);--accent-glow:rgba(6,182,212,.2);
+    --green:#10b981;--green-dim:rgba(16,185,129,.12);
+    --amber:#f59e0b;--amber-dim:rgba(245,158,11,.12);
+    --red:#ef4444;
+    --radius:14px;--radius-sm:8px;
+}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
 
-        header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between}
-        .logo{display:flex;align-items:center;gap:10px}
-        .logo h1{font-size:18px;background:linear-gradient(135deg,var(--cyan),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        .header-r{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-dim)}
-        .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
-        .dot.off{background:var(--red)}
+/* ── Mesh gradient background ── */
+.bg-mesh{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh::before{content:'';position:absolute;width:600px;height:600px;top:-200px;left:-100px;background:radial-gradient(circle,rgba(6,182,212,.08) 0%,transparent 70%);animation:float 20s ease-in-out infinite}
+.bg-mesh::after{content:'';position:absolute;width:500px;height:500px;bottom:-150px;right:-100px;background:radial-gradient(circle,rgba(139,92,246,.06) 0%,transparent 70%);animation:float 25s ease-in-out infinite reverse}
+@keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,20px)}}
 
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;max-width:900px;width:100%;margin:0 auto;padding:0 20px}
+/* ── Header ── */
+header{position:relative;z-index:10;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;background:rgba(9,9,11,.6);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.logo{font-size:16px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+.logo span{color:var(--accent)}
+.hdr-r{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-3)}
+.hdr-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.hdr-dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
 
-        /* 欢迎 */
-        .welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center}
-        .welcome h2{font-size:26px;color:var(--text-bright)}
-        .welcome p{color:var(--text-dim);font-size:14px;max-width:400px;line-height:1.6}
-        .templates{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:500px}
-        .tpl{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;cursor:pointer;transition:all .15s;text-align:left}
-        .tpl:hover{border-color:var(--accent);transform:translateY(-1px)}
-        .tpl span{font-size:18px;margin-right:6px}
+/* ── Content wrapper ── */
+.content{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;overflow:hidden}
 
-        /* 工作区 */
-        .workspace{flex:1;display:none;flex-direction:column;overflow:hidden;padding:20px 0}
-        .workspace.show{display:flex}
+/* ══ HOME STATE ══ */
+.home{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:40px 24px;animation:fadeUp .6s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.brand{text-align:center}
+.brand-icon{width:56px;height:56px;margin:0 auto 16px;border-radius:16px;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 8px 40px var(--accent-glow);animation:breathe 4s ease-in-out infinite}
+@keyframes breathe{0%,100%{box-shadow:0 8px 40px var(--accent-glow)}50%{box-shadow:0 12px 60px rgba(6,182,212,.3)}}
+.brand h1{font-size:32px;font-weight:700;letter-spacing:-.03em}
+.brand p{margin-top:8px;font-size:15px;color:var(--text-2);max-width:360px}
 
-        /* 进度终端 */
-        .terminal{background:var(--surface);border:1px solid var(--border);border-radius:10px;flex:1;display:flex;flex-direction:column;overflow:hidden}
-        .terminal-header{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim)}
-        .terminal-header .dots{display:flex;gap:5px}
-        .terminal-header .dots span{width:10px;height:10px;border-radius:50%}
-        .terminal-header .dots span:nth-child(1){background:#f85149}
-        .terminal-header .dots span:nth-child(2){background:#d29922}
-        .terminal-header .dots span:nth-child(3){background:#3fb950}
-        .terminal-body{flex:1;overflow-y:auto;padding:12px 16px;font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:12px;line-height:1.8}
-        .terminal-body::-webkit-scrollbar{width:5px}
-        .terminal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+/* Input box */
+.input-box{width:100%;max-width:620px;position:relative}
+.input-box textarea{width:100%;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius);padding:14px 52px 14px 18px;font-size:15px;color:var(--text);font-family:inherit;resize:none;outline:none;min-height:52px;max-height:120px;transition:border-color .2s,box-shadow .2s;line-height:1.5}
+.input-box textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-dim)}
+.input-box textarea::placeholder{color:var(--text-4)}
+.input-box .send{position:absolute;right:8px;bottom:8px;width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,opacity .15s}
+.input-box .send:hover{transform:scale(1.08)}
+.input-box .send:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.input-box .send svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 
-        .log-line{display:flex;gap:8px;margin:2px 0;animation:fadein .2s}
-        @keyframes fadein{from{opacity:0}to{opacity:1}}
-        .log-time{color:var(--text-dim);flex-shrink:0}
-        .log-agent{font-weight:600;flex-shrink:0;min-width:70px}
-        .log-agent.pm{color:var(--cyan)}.log-agent.pd{color:var(--green)}.log-agent.arch{color:var(--yellow)}
-        .log-agent.eng{color:var(--accent)}.log-agent.rev{color:var(--red)}.log-agent.crowd{color:var(--purple)}.log-agent.mem{color:var(--text-bright)}
-        .log-msg{color:var(--text)}
-        .log-line.success .log-msg{color:var(--green)}
-        .log-line.error .log-msg{color:var(--red)}
-        .log-line.info .log-msg{color:var(--text-dim)}
+/* Templates */
+.templates{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:620px}
+.tpl{padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:100px;font-size:13px;color:var(--text-2);cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tpl:hover{border-color:var(--accent);color:var(--text);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.tpl span{font-size:15px}
 
-        .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:6px}
-        @keyframes spin{to{transform:rotate(360deg)}}
+/* ══ WORKING STATE ══ */
+.workspace{flex:1;display:none;flex-direction:column;padding:24px 28px;gap:16px;overflow:hidden;animation:fadeUp .4s ease}
+.workspace.show{display:flex}
 
-        /* 预览区 */
-        .preview-area{display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;overflow:hidden;height:50vh;position:relative}
-        .preview-area.show{display:block}
-        .preview-bar{padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px}
-        .preview-bar a{color:var(--accent);text-decoration:none}
-        .preview-bar a:hover{text-decoration:underline}
-        .preview-frame{width:100%;height:calc(100% - 30px);border:none;background:#fff}
+/* Timeline steps */
+.timeline{display:flex;flex-direction:column;gap:0;max-width:620px;width:100%;margin:0 auto}
+.step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;position:relative}
+.step::before{content:'';position:absolute;left:11px;top:32px;bottom:0;width:1px;background:var(--border)}
+.step:last-child::before{display:none}
+.step-dot{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--surface-hi);background:var(--surface);transition:all .3s}
+.step.done .step-dot{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.step.active .step-dot{background:var(--amber-dim);border-color:var(--amber);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--amber-dim)}50%{box-shadow:0 0 0 6px transparent}}
+.step.pending .step-dot{opacity:.3}
+.step-info{flex:1;min-width:0}
+.step-name{font-size:13px;font-weight:500;color:var(--text)}
+.step.pending .step-name{color:var(--text-4)}
+.step-summary{font-size:12px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step.active .step-summary{color:var(--amber)}
+.step-time{font-size:10px;color:var(--text-4);margin-left:auto;flex-shrink:0;padding-top:2px}
 
-        /* 详情面板 */
-        .detail-toggle{margin-top:8px;font-size:11px;color:var(--text-dim);cursor:pointer;text-align:center}
-        .detail-toggle:hover{color:var(--accent)}
-        .detail-panel{display:none;margin-top:8px;max-height:300px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;line-height:1.6}
-        .detail-panel.show{display:block}
-        .detail-panel pre{white-space:pre-wrap;word-break:break-all}
+/* Preview */
+.preview{display:none;flex:1;min-height:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;animation:slideUp .4s ease}
+.preview.show{display:flex;flex-direction:column}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.preview-bar{padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-3)}
+.preview-bar .url{flex:1;background:var(--surface-el);border-radius:6px;padding:4px 10px;font-family:monospace;font-size:10px;color:var(--text-4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-bar a{color:var(--accent);text-decoration:none;font-size:12px}
+.preview iframe{flex:1;border:none;background:#fff;width:100%}
 
-        /* 输入 */
-        .input-area{padding:14px 0;display:flex;gap:10px}
-        .input-field{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-bright);font-size:14px;font-family:inherit;resize:none;outline:none;min-height:44px;max-height:100px}
-        .input-field:focus{border-color:var(--accent)}
-        .input-field::placeholder{color:var(--text-dim)}
-        .send-btn{background:linear-gradient(135deg,var(--cyan),var(--accent));border:none;border-radius:8px;padding:10px 20px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;height:44px}
-        .send-btn:disabled{opacity:.4;cursor:not-allowed}
+/* Bottom bar in workspace */
+.ws-input{max-width:620px;width:100%;margin:0 auto}
+.ws-input textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:var(--text);font-family:inherit;resize:none;outline:none;min-height:40px;max-height:80px;transition:border-color .2s}
+.ws-input textarea:focus{border-color:var(--accent)}
+.ws-input textarea::placeholder{color:var(--text-4)}
 
-        @media(max-width:768px){.templates{grid-template-columns:1fr}.main{padding:0 12px}}
-    </style>
+/* Timer badge */
+.timer{position:fixed;top:14px;right:140px;font-size:11px;color:var(--text-3);font-family:monospace;z-index:20;display:none}
+.timer.show{display:block}
+
+/* Detail drawer */
+.drawer-toggle{text-align:center;font-size:11px;color:var(--text-4);cursor:pointer;padding:4px}
+.drawer-toggle:hover{color:var(--accent)}
+.drawer{display:none;max-height:200px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-family:'JetBrains Mono','SF Mono',monospace;font-size:11px;line-height:1.6;color:var(--text-3)}
+.drawer.show{display:block}
+
+@media(max-width:640px){
+    .home{padding:24px 16px;gap:24px}
+    .brand h1{font-size:24px}
+    .templates{gap:6px}
+    .tpl{padding:6px 12px;font-size:12px}
+    .workspace{padding:16px}
+}
+</style>
 </head>
 <body>
-    <header>
-        <div class="logo"><h1>DeepForge</h1></div>
-        <div class="header-r"><span class="dot" id="dot"></span><span id="st">connecting</span><span id="mdl" style="color:var(--accent);font-family:monospace"></span></div>
-    </header>
+<div class="bg-mesh"></div>
 
-    <div class="main">
-        <div class="welcome" id="welcome">
-            <h2>想做点什么？</h2>
-            <p>描述你想创建的东西，7个AI Agent会协作帮你做出来</p>
-            <div class="templates">
-                <div class="tpl" onclick="go('帮我做一个番茄钟网页，25分钟倒计时，简洁美观')"><span>🍅</span>番茄钟</div>
-                <div class="tpl" onclick="go('做一个贪吃蛇Chrome扩展小游戏')"><span>🎮</span>Chrome小游戏</div>
-                <div class="tpl" onclick="go('帮我做一个Markdown实时预览编辑器')"><span>📝</span>Markdown编辑器</div>
-                <div class="tpl" onclick="go('做一个简洁的个人博客首页')"><span>🌐</span>个人网站</div>
-            </div>
+<header>
+    <div class="logo">Deep<span>Forge</span></div>
+    <div class="hdr-r">
+        <span class="hdr-dot" id="dot"></span>
+        <span id="st">connecting</span>
+        <span id="mdl" style="font-family:monospace;color:var(--accent)"></span>
+    </div>
+</header>
+
+<div class="content">
+    <!-- Home -->
+    <div class="home" id="home">
+        <div class="brand">
+            <div class="brand-icon">⚡</div>
+            <h1>What will you build?</h1>
+            <p>Describe what you want, 7 AI agents collaborate to build it for you</p>
         </div>
-
-        <div class="workspace" id="workspace">
-            <div class="terminal">
-                <div class="terminal-header">
-                    <div class="dots"><span></span><span></span><span></span></div>
-                    <span>DeepForge — 7 Agents Working</span>
-                    <span style="margin-left:auto" id="elapsed"></span>
-                </div>
-                <div class="terminal-body" id="logs"></div>
-            </div>
-            <div class="preview-area" id="preview">
-                <div class="preview-bar">
-                    <span>产出物预览</span>
-                    <a href="#" id="previewLink" target="_blank">在新窗口打开 ↗</a>
-                </div>
-                <iframe class="preview-frame" id="previewFrame"></iframe>
-            </div>
-            <div class="detail-toggle" id="detailToggle" onclick="toggleDetail()">▼ 查看Agent详细输出</div>
-            <div class="detail-panel" id="detailPanel"><pre id="detailContent"></pre></div>
+        <div class="input-box">
+            <textarea id="input" placeholder="描述你想创建的东西..." rows="1"></textarea>
+            <button class="send" id="btn" onclick="send()"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
-
-        <div class="input-area">
-            <textarea class="input-field" id="input" placeholder="描述你想创建的东西... Enter发送" rows="1"></textarea>
-            <button class="send-btn" id="btn" onclick="send()">开始</button>
+        <div class="templates">
+            <div class="tpl" onclick="go('帮我做一个番茄钟网页，简洁美观，25分钟倒计时')"><span>🍅</span>番茄钟</div>
+            <div class="tpl" onclick="go('做一个贪吃蛇Chrome扩展小游戏')"><span>🎮</span>Chrome游戏</div>
+            <div class="tpl" onclick="go('帮我做一个Markdown实时预览编辑器')"><span>📝</span>Markdown编辑器</div>
+            <div class="tpl" onclick="go('做一个简洁的个人博客首页')"><span>🌐</span>个人网站</div>
+            <div class="tpl" onclick="go('帮我做一个记账工具，支持分类统计图表')"><span>💰</span>记账工具</div>
         </div>
     </div>
 
+    <!-- Workspace -->
+    <div class="workspace" id="workspace">
+        <div class="timeline" id="timeline">
+            <div class="step pending" data-agent="project_manager"><div class="step-dot">1</div><div class="step-info"><div class="step-name">项目经理</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="product_manager"><div class="step-dot">2</div><div class="step-info"><div class="step-name">产品经理</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="architect"><div class="step-dot">3</div><div class="step-info"><div class="step-name">架构师</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="engineer"><div class="step-dot">4</div><div class="step-info"><div class="step-name">工程师</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="reviewer"><div class="step-dot">5</div><div class="step-info"><div class="step-name">审查</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="crowd_user"><div class="step-dot">6</div><div class="step-info"><div class="step-name">内测</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+            <div class="step pending" data-agent="memory_keeper"><div class="step-dot">7</div><div class="step-info"><div class="step-name">沉淀</div><div class="step-summary">等待中</div></div><div class="step-time"></div></div>
+        </div>
+
+        <div class="preview" id="preview">
+            <div class="preview-bar">
+                <span>●</span>
+                <span class="url" id="prevUrl">preview</span>
+                <a href="#" id="prevLink" target="_blank">↗ 新窗口</a>
+            </div>
+            <iframe id="prevFrame"></iframe>
+        </div>
+
+        <div class="drawer-toggle" id="drawerTog" onclick="toggleDrawer()">● 查看详细日志</div>
+        <div class="drawer" id="drawer"></div>
+
+        <div class="ws-input">
+            <textarea id="input2" placeholder="继续对话或修改需求..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send2()}"></textarea>
+        </div>
+    </div>
+</div>
+
+<div class="timer" id="timer">0s</div>
+
 <script>
 const sid=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36);
-let ws,busy=false,t0=0,timer=null,details=[];
-const AGENTS={project_manager:['PM','pm'],product_manager:['PD','pd'],architect:['Arch','arch'],engineer:['Eng','eng'],reviewer:['Rev','rev'],crowd_user:['QA','crowd'],memory_keeper:['Mem','mem']};
+let ws,busy=false,t0=0,tmr=null,logs=[];
+const ORDER=['project_manager','product_manager','architect','engineer','reviewer','crowd_user','memory_keeper'];
 
 function connect(){
     const p=location.protocol==='https:'?'wss:':'ws:';
@@ -140,74 +195,60 @@ function connect(){
     ws.onmessage=e=>{
         const d=JSON.parse(e.data);
         if(d.type==='agent_message'){
-            const [label,cls]=AGENTS[d.sender]||[d.sender,''];
             if(d.msg_type!=='handoff'&&d.summary){
-                log(label,cls,d.summary);
+                stepDone(d.sender,d.summary);
+                const i=ORDER.indexOf(d.sender);
+                if(i>=0&&i<ORDER.length-1)stepActive(ORDER[i+1]);
             }
-            details.push({sender:d.sender,content:d.content});
-            $('detailContent').textContent=details.map(x=>`[${x.sender}]\n${x.content}\n`).join('\n---\n');
-            if(d.has_files){
-                log('SYS','info','📁 文件已生成，准备预览...');
-                setTimeout(()=>showPreview(d.content),500);
-            }
+            logs.push(`[${d.sender}] ${d.content}`);
+            $('drawer').textContent=logs.join('\n\n---\n\n');
+            if(d.has_files)setTimeout(()=>showPreview(d.content),300);
         }else if(d.type==='status'){
-            if(d.content==='processing'){start()}
-            else if(d.content==='done'){done()}
+            if(d.content==='processing')startWork();
+            else if(d.content==='done')endWork();
         }else if(d.type==='error'){
-            log('ERR','',d.content,'error');
-            busy=false;$('btn').disabled=false;
+            endWork();stepErr(d.content);
         }
     };
 }
 
-function log(agent,cls,msg,type=''){
-    const el=$('logs'),div=document.createElement('div');
-    div.className='log-line'+(type?' '+type:'');
-    const t=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    div.innerHTML=`<span class="log-time">${t}</span><span class="log-agent ${cls}">${agent}</span><span class="log-msg">${esc(msg)}</span>`;
-    el.appendChild(div);el.scrollTop=el.scrollHeight;
-}
-
-function start(){
-    busy=true;$('btn').disabled=true;$('btn').textContent='工作中...';
-    $('welcome').style.display='none';$('workspace').classList.add('show');
-    details=[];$('detailContent').textContent='';
+function startWork(){
+    busy=true;$('btn').disabled=true;
+    $('home').style.display='none';$('workspace').classList.add('show');
+    $('timer').classList.add('show');
+    resetSteps();stepActive(ORDER[0]);
+    logs=[];$('drawer').textContent='';
     $('preview').classList.remove('show');
     t0=Date.now();tick();
-    log('SYS','info','🚀 任务启动，7个Agent开始协作...','info');
 }
-
-function done(){
-    busy=false;$('btn').disabled=false;$('btn').textContent='开始';
-    if(timer)clearInterval(timer);
-    const s=((Date.now()-t0)/1000).toFixed(0);
-    log('SYS','info',`✅ 完成！耗时 ${s}s`,'success');
+function endWork(){
+    busy=false;$('btn').disabled=false;
+    if(tmr)clearInterval(tmr);$('timer').classList.remove('show');
+    ORDER.forEach(a=>{const s=document.querySelector(`.step[data-agent="${a}"]`);if(s&&s.classList.contains('pending')){}});
 }
+function resetSteps(){ORDER.forEach(a=>{const s=document.querySelector(`.step[data-agent="${a}"]`);if(s){s.className='step pending';s.querySelector('.step-summary').textContent='等待中';s.querySelector('.step-time').textContent=''}})}
+function stepActive(a){const s=document.querySelector(`.step[data-agent="${a}"]`);if(!s)return;s.className='step active';s.querySelector('.step-summary').textContent='进行中...'}
+function stepDone(a,summary){const s=document.querySelector(`.step[data-agent="${a}"]`);if(!s)return;s.className='step done';s.querySelector('.step-dot').innerHTML='✓';s.querySelector('.step-summary').textContent=summary;s.querySelector('.step-time').textContent=elapsed()}
+function stepErr(msg){const last=document.querySelector('.step.active');if(last){last.querySelector('.step-summary').textContent='❌ '+msg.slice(0,60)}}
 
 function showPreview(content){
     const m=content.match(/```filepath:([^\n]+\.html)\n([\s\S]*?)```/);
     if(!m)return;
-    const html=m[2];
-    const blob=new Blob([html],{type:'text/html'});
+    const blob=new Blob([m[2]],{type:'text/html'});
     const url=URL.createObjectURL(blob);
-    $('previewFrame').src=url;
-    $('previewLink').href=url;
+    $('prevFrame').src=url;$('prevLink').href=url;$('prevUrl').textContent=m[1];
     $('preview').classList.add('show');
-    log('SYS','info','🎉 预览已就绪！','success');
 }
 
-function toggleDetail(){
-    const p=$('detailPanel');p.classList.toggle('show');
-    $('detailToggle').textContent=p.classList.contains('show')?'▲ 收起详细输出':'▼ 查看Agent详细输出';
-}
-
-function tick(){timer=setInterval(()=>{const s=((Date.now()-t0)/1000).toFixed(0);$('elapsed').textContent=s+'s'},1000)}
+function toggleDrawer(){$('drawer').classList.toggle('show');$('drawerTog').textContent=$('drawer').classList.contains('show')?'● 收起日志':'● 查看详细日志'}
+function tick(){tmr=setInterval(()=>{$('timer').textContent=elapsed()},1000)}
+function elapsed(){return Math.floor((Date.now()-t0)/1000)+'s'}
 function send(){const el=$('input'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({message:t}));el.value='';el.style.height='auto'}
+function send2(){const el=$('input2'),t=el.value.trim();if(!t||busy||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({message:t}));el.value=''}
 function go(t){$('input').value=t;send()}
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function $(id){return document.getElementById(id)}
 $('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-$('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'});
+$('input').addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'});
 connect();
 </script>
 </body>
