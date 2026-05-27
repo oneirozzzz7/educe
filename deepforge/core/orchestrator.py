@@ -255,7 +255,41 @@ class Orchestrator:
                 current_content = response.content
                 current_sender = agent_name
 
+        await self._auto_preview()
         return self.context
+
+    async def _auto_preview(self) -> None:
+        """任务完成后自动启动产出物预览"""
+        output_dir = self.context.artifacts.get("output_dir")
+        project_type = self.context.artifacts.get("project_type")
+        if not output_dir or not project_type:
+            return
+
+        from pathlib import Path
+        out = Path(output_dir)
+
+        if project_type == "static_html":
+            html_files = list(out.rglob("*.html"))
+            if html_files:
+                import subprocess
+                port = 8899
+                subprocess.Popen(
+                    ["python", "-m", "http.server", str(port), "--directory", str(out)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                url = f"http://localhost:{port}/{html_files[0].relative_to(out)}"
+                console.print(f"\n[bold green]🎉 产出物预览: {url}[/bold green]")
+                import webbrowser
+                webbrowser.open(url)
+        elif project_type == "python_script":
+            py_files = list(out.rglob("*.py"))
+            if py_files:
+                console.print(f"\n[bold green]🎉 运行: python {py_files[0]}[/bold green]")
+        elif project_type == "chrome_extension":
+            console.print(f"\n[bold green]🎉 Chrome扩展已生成: {out}[/bold green]")
+            console.print("[dim]打开 chrome://extensions → 开发者模式 → 加载已解压扩展[/dim]")
+        else:
+            console.print(f"\n[bold green]🎉 产出物目录: {out}[/bold green]")
 
     def _check_review_passed(self, review_content: str) -> bool:
         """判断审查是否通过：基于评分和关键标记"""

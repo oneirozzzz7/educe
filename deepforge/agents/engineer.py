@@ -7,6 +7,7 @@ from typing import AsyncIterator
 from deepforge.core.agent import BaseAgent
 from deepforge.core.message import Message, MessageType, WorkContext
 from deepforge.tools.toolbox import ToolBox
+from deepforge.tools.artifacts import ArtifactManager
 
 
 class EngineerAgent(BaseAgent):
@@ -19,6 +20,7 @@ class EngineerAgent(BaseAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.toolbox = ToolBox()
+        self.artifacts = ArtifactManager()
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         iteration = message.data.get("iteration", 1)
@@ -43,18 +45,18 @@ class EngineerAgent(BaseAgent):
                 response = retry_response
 
         if files:
-            write_results = []
-            for filepath, content in files.items():
-                result = await self.toolbox.write_file(filepath, content)
-                write_results.append(result)
+            saved = self.artifacts.save_files(files)
+            project_type = self.artifacts.detect_project_type(files)
 
             prev_files = context.artifacts.get("code_files", [])
-            all_files = list(set(prev_files + list(files.keys())))
+            all_files = list(set(prev_files + [str(p) for p in saved]))
             context.add_artifact("code_files", all_files)
             context.add_artifact("engineer_output", response)
+            context.add_artifact("project_type", project_type)
+            context.add_artifact("output_dir", str(self.artifacts.work_dir))
 
             file_summary = "\n".join(f"- {f}" for f in files.keys())
-            yield self.emit("user", f"已生成 {len(files)} 个文件:\n{file_summary}")
+            yield self.emit("user", f"已生成 {len(files)} 个文件 ({project_type}):\n{file_summary}")
         else:
             context.add_artifact("engineer_output", response)
             yield self.emit("user", response)
