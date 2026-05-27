@@ -138,19 +138,15 @@ class Orchestrator:
         return len(text) > 15
 
     async def _quick_reply(self, user_input: str) -> str:
-        """对闲聊/简单问题直接用模型回复，不走pipeline"""
-        if not self.agents:
-            return '你好！输入你想创建的东西，比如"帮我做一个番茄钟"，我会调动7个Agent帮你完成。'
-
-        agent = next(iter(self.agents.values()))
-        try:
-            response = await agent.call_model(
-                [{"role": "user", "content": f"{user_input}\n\n（请简短回复，如果用户想创建什么东西，引导他描述具体需求）"}],
-                self.context,
-            )
-            return response
-        except Exception:
-            return '你好！描述你想创建的东西，我会帮你完成。比如"帮我做一个番茄钟网页"。'
+        """对闲聊/简单问题直接回复，引导用户使用创作功能"""
+        return (
+            f'我是 DeepForge，一个多Agent协作创作工具。\n\n'
+            f'告诉我你想做什么，比如：\n'
+            f'- "帮我做一个番茄钟网页"\n'
+            f'- "做一个JSON格式化工具"\n'
+            f'- "做一个贪吃蛇游戏"\n\n'
+            f'我会调动7个AI Agent帮你从想法到成品。'
+        )
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
         self.context.user_request = user_input

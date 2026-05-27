@@ -7,7 +7,7 @@ import { HomeView } from "@/components/home-view";
 import { WorkView } from "@/components/work-view";
 import { ResultView } from "@/components/result-view";
 
-type AppState = "home" | "working" | "done";
+type AppState = "home" | "working" | "done" | "chat";
 
 interface StepState {
   id: AgentId;
@@ -18,6 +18,7 @@ interface StepState {
 
 export default function Page() {
   const [state, setState] = useState<AppState>("home");
+  const [chatReply, setChatReply] = useState("");
   const [task, setTask] = useState("");
   const [model, setModel] = useState("");
   const [connected, setConnected] = useState(false);
@@ -49,6 +50,11 @@ export default function Page() {
 
     ws.onMessage((msg: ServerMessage) => {
       if (msg.type === "agent_message") {
+        if (state === "home" || state === "chat") {
+          setChatReply(msg.content);
+          setState("chat");
+          return;
+        }
         if (msg.msg_type !== "handoff" && msg.summary) {
           setSteps((prev) => {
             const next = [...prev];
@@ -109,6 +115,7 @@ export default function Page() {
   function newTask() {
     setState("home");
     setTask("");
+    setChatReply("");
     setSteps(initSteps());
     setHtml("");
     setCode("");
@@ -121,6 +128,16 @@ export default function Page() {
       <TopBar model={model} connected={connected} onNew={newTask} />
       <main className="flex-1 overflow-hidden flex flex-col">
         {state === "home" && <HomeView onSend={send} />}
+        {state === "chat" && (
+          <div className="flex-1 flex flex-col items-center justify-center px-5">
+            <div className="max-w-lg w-full bg-surface rounded-xl border border-border p-6 mb-6">
+              <p className="text-sm text-neutral-300 whitespace-pre-line">{chatReply}</p>
+            </div>
+            <div className="max-w-lg w-full">
+              <HomeView onSend={(t) => { setChatReply(""); send(t); }} />
+            </div>
+          </div>
+        )}
         {state === "working" && (
           <WorkView task={task} steps={steps} elapsed={elapsed} onSend={send} />
         )}
