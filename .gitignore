@@ -23,3 +23,7 @@ node_modules/
 .local_test/
 tests/local_*
 deepforge.yaml
+
+# Agent原始输出日志 - 不上传到开源仓库
+docs/*_output_*.md
+docs/agent_raw_*
