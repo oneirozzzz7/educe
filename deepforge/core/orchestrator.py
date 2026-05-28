@@ -130,10 +130,11 @@ class Orchestrator:
                 messages=[
                     {"role": "system", "content": (
                         "你是DeepForge助手。判断用户需求并执行：\n"
-                        "- 需要编程做复杂产品(多页面/复杂交互/需设计)→只回复：NEED_CODE_COMPLEX\n"
-                        "- 需要编程做简单工具(单文件/小脚本/简单网页)→只回复：NEED_CODE_SIMPLE\n"
+                        "- 需要编程做大型系统(多页面/前后端分离/数据库/多模块协作)→只回复：NEED_CODE_COMPLEX\n"
+                        "- 需要编程做单页面工具/网页/游戏/编辑器/可视化→只回复：NEED_CODE_SIMPLE\n"
                         "- 其他(聊天/写文章/攻略/翻译/分析等)→直接输出完整内容\n\n"
-                        "注意：番茄钟、计算器、格式化工具、密码生成器、倒计时等都是SIMPLE。"
+                        "重要：单个HTML文件能完成的都是SIMPLE，包括画板、编辑器、看板、可视化、游戏等。\n"
+                        "只有需要多个服务/多个页面协作的才是COMPLEX。"
                     )},
                     {"role": "user", "content": user_input},
                 ],
@@ -170,14 +171,14 @@ class Orchestrator:
 
         for agent_name in pre_review:
             current_content, current_sender = await self._run_agent(
-                agent_name, current_content, current_sender
+                agent_name, current_content, current_sender, timeout=60
             )
 
         for iteration in range(1, self.max_iterations + 1):
             console.print(f"\n[bold yellow]🔄 迭代 {iteration}/{self.max_iterations}[/bold yellow]")
 
             current_content, current_sender = await self._run_agent(
-                "engineer", current_content, current_sender, data={"iteration": iteration}
+                "engineer", current_content, current_sender, data={"iteration": iteration}, timeout=120
             )
 
             validation = self.context.artifacts.get("validation", {})
@@ -236,8 +237,8 @@ class Orchestrator:
     # 通用Agent执行
     # ═══════════════════════════════════════════
 
-    async def _run_agent(self, agent_name: str, content: str, sender: str, data: dict | None = None) -> tuple[str, str]:
-        """执行单个Agent，返回(output_content, agent_name)"""
+    async def _run_agent(self, agent_name: str, content: str, sender: str, data: dict | None = None, timeout: int = 120) -> tuple[str, str]:
+        """执行单个Agent，带独立超时和断点恢复"""
         agent = self.agents.get(agent_name)
         if not agent:
             return content, sender
@@ -254,13 +255,20 @@ class Orchestrator:
 
         output = content
         try:
-            async for response in agent.handle(msg, self.context):
+            async for response in asyncio.wait_for(
+                self._collect_responses(agent, msg),
+                timeout=timeout
+            ):
                 self.context.add_message(response)
                 if response.sender not in HIDDEN_FROM_USER:
                     self._notify(response)
                 self._display(response)
                 output = response.content
             self.observer.finish_agent(agent_name, success=True, summary=output[:80])
+        except asyncio.TimeoutError:
+            console.print(f"[yellow]⚠ [{agent_name}] 超时({timeout}s)，跳过继续[/yellow]")
+            self.observer.finish_agent(agent_name, success=False, error=f"timeout({timeout}s)")
+            self.context.metadata[f"checkpoint_{agent_name}"] = content
         except Exception as e:
             console.print(f"[red]⚠ [{agent_name}] 失败: {e}[/red]")
             self.observer.finish_agent(agent_name, success=False, error=str(e))
@@ -268,6 +276,11 @@ class Orchestrator:
                 raise
 
         return output, agent_name
+
+    async def _collect_responses(self, agent, msg):
+        """包装agent.handle为可await的协程"""
+        async for response in agent.handle(msg, self.context):
+            yield response
 
     # ═══════════════════════════════════════════
     # 工具方法
