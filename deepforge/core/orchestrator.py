@@ -237,20 +237,21 @@ class Orchestrator:
 
         output = content
         try:
-            response_gen = agent.handle(msg, self.context)
-            async for response in asyncio.wait_for(self._drain(response_gen), timeout=timeout):
-                self.context.add_message(response)
-                if response.sender not in HIDDEN_FROM_USER:
-                    self._notify(response)
-                self._display(response)
-                output = response.content
+            async def _execute():
+                nonlocal output
+                async for response in agent.handle(msg, self.context):
+                    self.context.add_message(response)
+                    if response.sender not in HIDDEN_FROM_USER:
+                        self._notify(response)
+                    self._display(response)
+                    output = response.content
+                    await self.bus.emit(Event(
+                        type=EventType.AGENT_DONE,
+                        sender=agent_name,
+                        data={"content": output[:200]},
+                    ))
 
-                await self.bus.emit(Event(
-                    type=EventType.AGENT_DONE if response.type != MessageType.HANDOFF else EventType.CONTENT_READY,
-                    sender=agent_name,
-                    data={"content": output[:200], "has_files": bool(self.context.artifacts.get("code_files"))},
-                ))
-
+            await asyncio.wait_for(_execute(), timeout=timeout)
             self.observer.finish_agent(agent_name, success=True, summary=output[:80])
         except asyncio.TimeoutError:
             console.print(f"[yellow]⚠ [{agent_name}] 超时({timeout}s)[/yellow]")
@@ -262,10 +263,6 @@ class Orchestrator:
                 raise
 
         return output, agent_name
-
-    async def _drain(self, gen):
-        async for item in gen:
-            yield item
 
     # ═══════════════════════════════════════
     #  工具方法
