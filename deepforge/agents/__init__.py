@@ -1,32 +1,22 @@
-from deepforge.agents.project_manager import ProjectManagerAgent
-from deepforge.agents.product_manager import ProductManagerAgent
-from deepforge.agents.architect import ArchitectAgent
-from deepforge.agents.engineer import EngineerAgent
-from deepforge.agents.reviewer import ReviewerAgent
-from deepforge.agents.crowd_user import CrowdUserAgent
-from deepforge.agents.memory_keeper import MemoryKeeperAgent
-from deepforge.agents.supervisor import SupervisorAgent
+"""
+DeepForge Agent Registry
+3-Agent架构：Builder + Tester + Planner
+旧Agent文件保留但不再注册到主pipeline
+"""
 from deepforge.agents.builder import BuilderAgent
+from deepforge.agents.tester import TesterAgent
+from deepforge.agents.planner import PlannerAgent
 
+# 核心3-Agent
 ALL_AGENTS = [
-    ProjectManagerAgent,
-    ProductManagerAgent,
-    ArchitectAgent,
-    EngineerAgent,
-    ReviewerAgent,
-    CrowdUserAgent,
-    MemoryKeeperAgent,
     BuilderAgent,
+    TesterAgent,
+    PlannerAgent,
 ]
 
 __all__ = [
-    "ProjectManagerAgent",
-    "ProductManagerAgent",
-    "ArchitectAgent",
-    "EngineerAgent",
-    "ReviewerAgent",
-    "CrowdUserAgent",
-    "MemoryKeeperAgent",
-    "SupervisorAgent",
+    "BuilderAgent",
+    "TesterAgent",
+    "PlannerAgent",
     "ALL_AGENTS",
 ]
