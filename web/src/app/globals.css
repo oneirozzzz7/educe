@@ -62,3 +62,7 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+@media (max-width: 768px) {
+  :root { --sidebar-width: 0px; }
+}

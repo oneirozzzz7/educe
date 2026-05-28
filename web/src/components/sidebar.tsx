@@ -74,7 +74,7 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
           {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
         </button>
         <div className="flex-1" />
-        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>v1.1</span>
+        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>v1.5</span>
       </div>
     </div>
   );

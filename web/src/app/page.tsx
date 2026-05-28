@@ -32,6 +32,10 @@ export default function Page() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarCollapsed(true);
+  }, []);
+
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
