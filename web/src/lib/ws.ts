@@ -19,7 +19,13 @@ export interface AgentMessage {
 
 export interface StatusMessage {
   type: "status";
-  content: "processing" | "done";
+  content: "processing" | "done" | "chat_done";
+}
+
+export interface ChunkMessage {
+  type: "chunk";
+  sender: string;
+  content: string;
 }
 
 export interface ErrorMessage {
@@ -27,7 +33,7 @@ export interface ErrorMessage {
   content: string;
 }
 
-export type ServerMessage = AgentMessage | StatusMessage | ErrorMessage;
+export type ServerMessage = AgentMessage | StatusMessage | ChunkMessage | ErrorMessage;
 
 export interface DeepForgeWS {
   send: (message: string) => void;
