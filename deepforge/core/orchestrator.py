@@ -163,7 +163,7 @@ chat — 闲聊/问答/打招呼/问问题等日常对话
         return "chat"
 
     async def _generate_content(self, user_input: str) -> str:
-        """内容生成——直接调用模型，不走pipeline"""
+        """内容生成——直接输出成果，不反问"""
         if not self.agents:
             return "暂时无法处理"
         client = next(iter(self.agents.values())).model_client
@@ -172,7 +172,7 @@ chat — 闲聊/问答/打招呼/问问题等日常对话
         try:
             return await client.chat(
                 messages=[
-                    {"role": "system", "content": "你是一个专业的内容创作助手。根据用户需求输出高质量、结构化的内容。使用Markdown格式，内容详实、有条理。"},
+                    {"role": "system", "content": "你是一个专业的内容创作助手。如果用户需求明确，直接输出完整内容。如果需要澄清，简短反问并给出2-4个可选选项（用数字标注）。使用Markdown格式。"},
                     {"role": "user", "content": user_input},
                 ],
                 model=self.config.default_model.model,

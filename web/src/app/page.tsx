@@ -198,7 +198,11 @@ export default function Page() {
                   ) : msg.role === "system" ? (
                     <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{msg.text}</div>
                   ) : (
-                    <div className="text-[14px] text-gray-600 leading-relaxed whitespace-pre-line px-1">{msg.text}</div>
+                    msg.text.length > 200 ? (
+                      <ContentCard content={msg.text} />
+                    ) : (
+                      <div className="text-[14px] text-gray-600 leading-relaxed whitespace-pre-line px-1">{msg.text}</div>
+                    )
                   )}
                 </motion.div>
               ))}
@@ -275,6 +279,47 @@ export default function Page() {
   );
 }
 
+/* ═══ ContentCard — 长内容产出物展示（区别于聊天） ═══ */
+function ContentCard({ content }: { content: string }) {
+  const [collapsed, setCollapsed] = useState(content.length > 800);
+
+  const rendered = content
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, '<h3 class="text-[15px] font-semibold text-gray-800 mt-4 mb-1">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-[17px] font-semibold text-gray-900 mt-5 mb-2">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold text-gray-900 mt-6 mb-2">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-gray-600">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal text-gray-600">$1</li>')
+    .replace(/\n\n/g, '<div class="h-3"></div>')
+    .replace(/\n/g, '<br/>');
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="px-5 py-1.5 bg-brand-50 border-b border-brand-100 flex items-center gap-2">
+        <Sparkles size={12} className="text-brand" />
+        <span className="text-xs font-medium text-brand">内容产出</span>
+      </div>
+      <div className="px-5 py-4">
+        <div
+          className={cn("text-[14px] text-gray-700 leading-relaxed", collapsed && "max-h-[300px] overflow-hidden")}
+          style={collapsed ? { maskImage: "linear-gradient(black 60%, transparent)", WebkitMaskImage: "linear-gradient(black 60%, transparent)" } : {}}
+          dangerouslySetInnerHTML={{ __html: rendered }}
+        />
+      </div>
+      {content.length > 800 && (
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full px-5 py-2.5 text-xs font-medium text-brand border-t border-gray-100 hover:bg-gray-50 transition-colors"
+        >
+          {collapsed ? "展开全部 ▼" : "收起 ▲"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// End of file
 /* ═══ WorkCard ═══ */
 function WorkCard({ steps, html, isActive, currentAgent }: { steps: StepInfo[]; html?: string; isActive: boolean; currentAgent: string }) {
   const [expanded, setExpanded] = useState(true);
@@ -337,3 +382,4 @@ function WorkCard({ steps, html, isActive, currentAgent }: { steps: StepInfo[]; 
     </div>
   );
 }
+
