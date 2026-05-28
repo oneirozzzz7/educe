@@ -38,8 +38,12 @@ export default function Page() {
   const [model, setModel] = useState("");
   const [connected, setConnected] = useState(false);
   const [working, setWorking] = useState(false);
+  const workingRef = useRef(false);
   const [curAgent, setCurAgent] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [settingsUrl, setSettingsUrl] = useState("");
+  const [settingsKey, setSettingsKey] = useState("");
 
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -55,11 +59,16 @@ export default function Page() {
     ws.onMessage((msg: ServerMessage) => {
       if (msg.type === "status") {
         if (msg.content === "processing") {
+          if (workingRef.current) return;
+          workingRef.current = true;
           setWorking(true); setCurAgent("");
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: "", steps: [] }]);
-        } else if (msg.content === "done") setWorking(false);
+        } else if (msg.content === "done") {
+          workingRef.current = false;
+          setWorking(false);
+        }
       } else if (msg.type === "agent_message" && msg.msg_type !== "handoff") {
-        if (!working) {
+        if (!workingRef.current) {
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: msg.content }]);
         } else {
           setCurAgent(msg.sender);
@@ -139,7 +148,11 @@ export default function Page() {
             <span className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500" : "bg-red-500")} />
             {model || "..."}
           </div>
-          <button onClick={() => setShowSettings(true)} className="w-7 h-7 rounded-lg border border-gray-200/60 bg-white/60 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand/30 transition-colors">
+          <button onClick={() => {
+            setShowSettings(true);
+            fetch(`http://${API_HOST}/api/models`).then(r => r.json()).then(d => setModels(d.models || [])).catch(() => {});
+            fetch(`http://${API_HOST}/api/status`).then(r => r.json()).then(d => { setSettingsUrl(d.base_url || ""); setModel(d.model || "") }).catch(() => {});
+          }} className="w-7 h-7 rounded-lg border border-gray-200/60 bg-white/60 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand/30 transition-colors">
             <Settings size={13} />
           </button>
         </div>
@@ -205,13 +218,55 @@ export default function Page() {
       <AnimatePresence>
         {showSettings && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/15 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setShowSettings(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-2xl p-6 w-[380px] shadow-xl border border-gray-100" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900 text-[15px]">设置</h3>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-2xl p-6 w-[420px] shadow-xl border border-gray-100" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-semibold text-gray-900 text-[15px]">模型设置</h3>
                 <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
               </div>
-              <p className="text-sm text-gray-500">当前模型: {model}</p>
-              <p className="text-xs text-gray-400 mt-2">通过 http://localhost:7860 的设置面板切换模型</p>
+
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">切换模型</label>
+              <select
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand mb-4 cursor-pointer"
+              >
+                {models.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">API Base URL</label>
+              <input
+                value={settingsUrl}
+                onChange={e => setSettingsUrl(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand mb-4"
+                placeholder="https://api.example.com/v1"
+              />
+
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">API Key</label>
+              <input
+                type="password"
+                value={settingsKey}
+                onChange={e => setSettingsKey(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand mb-1"
+                placeholder="留空则保留当前Key"
+              />
+              <p className="text-[11px] text-gray-400 mb-5">仅保存在本地，不会上传</p>
+
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowSettings(false)} className="px-4 py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">取消</button>
+                <button
+                  onClick={async () => {
+                    const body: Record<string, string> = { model };
+                    if (settingsUrl) body.base_url = settingsUrl;
+                    if (settingsKey) body.api_key = settingsKey;
+                    try {
+                      const r = await fetch(`http://${API_HOST}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                      const d = await r.json();
+                      if (d.status === "ok") { setModel(d.model); setShowSettings(false); }
+                    } catch (e) { alert("保存失败") }
+                  }}
+                  className="px-4 py-2 text-sm text-white bg-brand rounded-lg hover:bg-brand-hover transition-colors"
+                >保存</button>
+              </div>
             </motion.div>
           </motion.div>
         )}
