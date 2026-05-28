@@ -86,3 +86,14 @@
 - WorkCard：进度步骤+耗时+预览iframe+代码查看
 - 时间戳、消息布局、输入框品牌样式
 - 2048游戏端到端验证：生成+预览+可玩
+
+### v1.3 自进化引擎v2——五层闭环
+- 五层架构：检测(弱模型)→诊断(规则)→修复(知识追加)→验证(A/B对比)→沉淀(L1编译)
+- 检测层：14种测试任务×8维度评分（doctype/closing/css_vars/animation/responsive/error_handling/size）
+- 诊断层：规则引擎分类（timeout/no_output/truncated/quality_gap/all_good）
+- 修复层：安全约束——只追加知识不修改代码（append-only）
+- 验证层：A/B对比，修复前后同任务重跑对比分数
+- 沉淀层：改进确认后编译进L1热知识
+- 记忆裁剪：LayeredCache.prune()按价值排序保留top-N，merge_duplicates()合并相似条目
+- 进化统计API：/api/evolution 端点返回实时进化数据
+- 安全：不修改框架核心代码，只通过知识追加影响模型行为

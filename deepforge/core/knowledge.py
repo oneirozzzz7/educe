@@ -198,6 +198,49 @@ class LayeredCache:
                     tokens.add(seg[i:i+3])  # 3-gram
         return tokens
 
+    def prune(self, max_entries: int = 1000) -> int:
+        """裁剪低价值条目——保留高价值，淘汰低价值"""
+        if len(self._entries) <= max_entries:
+            return 0
+
+        entries = list(self._entries.values())
+        entries.sort(key=lambda e: e.usage_count * e.success_rate, reverse=True)
+
+        keep_ids = {e.id for e in entries[:max_entries]}
+        to_remove = [e.id for e in entries if e.id not in keep_ids]
+
+        for eid in to_remove:
+            del self._entries[eid]
+
+        self._rebuild_index()
+        self._compile_l1()
+        self._save()
+        return len(to_remove)
+
+    def merge_duplicates(self) -> int:
+        """合并内容相似的条目"""
+        entries = list(self._entries.values())
+        merged = 0
+        seen_content: dict[str, str] = {}
+
+        for entry in entries:
+            key = entry.content[:60].strip()
+            if key in seen_content:
+                existing = self._entries.get(seen_content[key])
+                if existing:
+                    existing.usage_count += entry.usage_count
+                    existing.success_count += entry.success_count
+                    existing.triggers |= entry.triggers
+                    del self._entries[entry.id]
+                    merged += 1
+            else:
+                seen_content[key] = entry.id
+
+        if merged > 0:
+            self._rebuild_index()
+            self._save()
+        return merged
+
     def stats(self) -> dict:
         return {
             "total": len(self._entries),

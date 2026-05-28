@@ -92,6 +92,37 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         obs = Observer()
         return obs.get_stats()
 
+    @app.get("/api/evolution")
+    async def evolution_stats():
+        """进化引擎运行状态——读最新的evo2日志"""
+        import glob
+        evo_dir = Path(".deepforge/evolution")
+        if not evo_dir.exists():
+            return {"status": "not_started", "rounds": 0}
+        logs = sorted(evo_dir.glob("evo2_*.jsonl"), reverse=True)
+        if not logs:
+            return {"status": "not_started", "rounds": 0}
+        entries = []
+        with open(logs[0]) as f:
+            for line in f:
+                try:
+                    entries.append(json.loads(line))
+                except Exception:
+                    pass
+        passes = sum(1 for e in entries if e.get("event") == "detect_pass")
+        fails = sum(1 for e in entries if e.get("event") in ("detect_fail", "detect_timeout", "detect_error"))
+        deposits = sum(1 for e in entries if e.get("event") == "deposited")
+        return {
+            "status": "running" if entries else "idle",
+            "log_file": str(logs[0]),
+            "total_events": len(entries),
+            "passes": passes,
+            "fails": fails,
+            "pass_rate": round(passes / max(passes + fails, 1) * 100, 1),
+            "deposits": deposits,
+            "recent": entries[-5:] if entries else [],
+        }
+
     @app.get("/api/tasks")
     async def list_tasks():
         from deepforge.core.task_store import TaskStore
