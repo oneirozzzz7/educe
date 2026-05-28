@@ -92,8 +92,13 @@ export default function Page() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }) }, [msgs, elapsed]);
 
   function extractHtml(c: string) {
-    const m = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?)```/) || c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
-    return m ? m[1] : undefined;
+    // 方法1: filepath格式——贪婪匹配到</html>
+    const m1 = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?<\/html>)/i);
+    if (m1) return m1[1];
+    // 方法2: 裸HTML
+    const m2 = c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
+    if (m2) return m2[1];
+    return undefined;
   }
 
   function send(text?: string) {

@@ -261,10 +261,12 @@ def _extract_summary(sender: str, content: str, msg_type: str) -> str:
 
     noise = ["移交", "用户原始需求", "技术架构", "产品设计", "```", "---", "|||"]
 
-    if sender == "engineer":
+    if sender == "engineer" or sender == "builder":
         file_count = len(re.findall(r'```filepath:', content))
         if file_count > 0:
-            return f"已生成 {file_count} 个文件"
+            # 提取文件名
+            fnames = re.findall(r'```filepath:([^\n]+)', content)
+            return f"已生成 {', '.join(fnames)}" if fnames else f"已生成 {file_count} 个文件"
         html_match = re.search(r'<!DOCTYPE', content)
         if html_match:
             return "已生成可运行代码"
