@@ -77,3 +77,12 @@
 - 原因：工具快速检查通过直接跳过LLM Tester
 - 评分：达到Claude Agent代码级水平（18-20/20）
 - 仍存在UI问题：布局靠下、无中间过程、无预览、无时间戳（记入待办33）
+
+### v1.2 品牌级UI重设计完成（commit 775c535 - 4a8ea9a）
+- 6个React组件拆分（ThemeProvider/Sidebar/TopBar/WorkCard/SettingsModal/Logo）
+- 双主题CSS变量系统（浅色/暗色切换，localStorage持久化）
+- 品牌Logo SVG（淬炼晶体概念）
+- 侧栏：任务历史+新建+主题切换
+- WorkCard：进度步骤+耗时+预览iframe+代码查看
+- 时间戳、消息布局、输入框品牌样式
+- 2048游戏端到端验证：生成+预览+可玩
