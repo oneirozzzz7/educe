@@ -108,6 +108,14 @@ class EngineerAgent(BaseAgent):
 5. 代码必须能直接运行——双击HTML能打开，python xxx.py能执行
 6. 不要写TODO、不要省略、不要"其余类似"
 
+## 代码质量标准（从历史项目经验中学到）
+- HTML必须有完整的DOCTYPE和闭合标签
+- 暗色模式：优先使用 prefers-color-scheme 或默认暗色
+- 防抖自动保存：input事件1s防抖写localStorage
+- Canvas动画：维护唯一requestAnimationFrame ID，新动画前cancel旧帧
+- 高DPI适配：canvas.width=clientWidth*devicePixelRatio
+- 事件监听：方向键/空格必须preventDefault防止页面滚动
+
 ## 现在开始写代码"""
 
     def _build_fix_prompt(self, message: Message, context: WorkContext) -> str:
