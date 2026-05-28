@@ -119,7 +119,10 @@ class Orchestrator:
     # ═══════════════════════════════════════════
 
     async def _run_code_pipeline(self, user_input: str) -> WorkContext:
-        """完整的编码pipeline：PM→PD→Arch→Eng→Review（迭代）→完成"""
+        """完整的编码pipeline"""
+        pipeline_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                              content="__PIPELINE_START__")
+        self._notify(pipeline_msg)
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 

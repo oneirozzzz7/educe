@@ -196,6 +196,9 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         orchestrator = get_orchestrator(session_id)
 
         async def send_message(msg: Message):
+            if msg.content == "__PIPELINE_START__":
+                await websocket.send_json({"type": "status", "content": "pipeline_start"})
+                return
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",
@@ -224,12 +227,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if not user_input:
                     continue
 
-                await websocket.send_json({"type": "status", "content": "processing"})
+                await websocket.send_json({"type": "status", "content": "thinking"})
                 try:
                     await orchestrator.run(user_input)
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
-                await websocket.send_json({"type": "status", "content": "done"})
+                await websocket.send_json({"type": "status", "content": "idle"})
 
         except WebSocketDisconnect:
             if session_id in sessions:

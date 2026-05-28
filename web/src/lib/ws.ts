@@ -19,7 +19,7 @@ export interface AgentMessage {
 
 export interface StatusMessage {
   type: "status";
-  content: "processing" | "done" | "chat_done";
+  content: "thinking" | "idle" | "pipeline_start" | "processing" | "done" | "chat_done";
 }
 
 export interface ChunkMessage {

@@ -58,12 +58,12 @@ export default function Page() {
     ws.onDisconnect(() => setConnected(false));
     ws.onMessage((msg: ServerMessage) => {
       if (msg.type === "status") {
-        if (msg.content === "processing") {
+        if (msg.content === "pipeline_start") {
           if (workingRef.current) return;
           workingRef.current = true;
           setWorking(true); setCurAgent("");
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: "", steps: [] }]);
-        } else if (msg.content === "done") {
+        } else if (msg.content === "idle") {
           workingRef.current = false;
           setWorking(false);
         }
@@ -187,8 +187,8 @@ export default function Page() {
       {/* ─── Chat State: 对话流 + 底部固定输入 ─── */}
       {hasMessages && (
         <>
-          <main className="flex-1 overflow-y-auto">
-            <div className="max-w-[700px] mx-auto px-5 py-6 pb-28">
+          <main className="flex-1 overflow-y-auto flex flex-col justify-end">
+            <div className="max-w-[700px] mx-auto px-5 py-6 pb-28 w-full">
               {msgs.map(msg => (
                 <motion.div key={msg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className={cn("mb-5", msg.role === "user" && "flex justify-end")}>
                   {msg.role === "user" ? (
