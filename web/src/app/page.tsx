@@ -285,38 +285,43 @@ function WorkCard({ steps, html, isActive, currentAgent }: { steps: StepInfo[]; 
     if (html) { const u = URL.createObjectURL(new Blob([html], { type: "text/html" })); setBlobUrl(u); return () => URL.revokeObjectURL(u) }
   }, [html]);
 
+  const doneSteps = steps.filter(s => s.done);
+
   return (
-    <div className="bg-white border border-gray-200/60 rounded-2xl overflow-hidden shadow-sm">
-      <button onClick={() => setExpanded(!expanded)} className="w-full px-4 py-3 flex items-center gap-2.5 hover:bg-gray-50/50 transition-colors">
-        {isActive ? <Loader2 size={14} className="text-brand animate-spin" /> : <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center"><Check size={10} className="text-emerald-600" /></div>}
-        <span className="text-[13px] font-medium text-gray-700 flex-1 text-left">{isActive ? `${AL[currentAgent] || "处理"}中...` : `完成 · ${steps.length} 步`}</span>
-        <ChevronDown size={14} className={cn("text-gray-400 transition-transform", !expanded && "-rotate-90")} />
+    <div className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden">
+      {/* Header — 只有一个状态指示 */}
+      <button onClick={() => setExpanded(!expanded)} className="w-full px-4 py-3 flex items-center gap-2.5 hover:bg-gray-100/50 transition-colors">
+        {isActive ? (
+          <Loader2 size={15} className="text-brand animate-spin shrink-0" />
+        ) : (
+          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0"><Check size={11} className="text-emerald-600" /></div>
+        )}
+        <span className="text-[13px] font-medium text-gray-700 flex-1 text-left">
+          {isActive
+            ? (currentAgent ? `${AL[currentAgent]}中...` : "启动中...")
+            : `完成 · ${doneSteps.length} 步`}
+        </span>
+        {doneSteps.length > 0 && (
+          <ChevronDown size={14} className={cn("text-gray-400 transition-transform", !expanded && "-rotate-90")} />
+        )}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden border-t border-gray-100">
-            <div className="px-4 py-2">
-              {steps.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 py-1.5">
-                  <div className="w-4 h-4 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center"><Check size={9} className="text-emerald-500" /></div>
-                  <span className="text-xs text-gray-600">{AL[s.agent] || s.agent}</span>
-                  <span className="text-xs text-gray-400 truncate flex-1 text-right">{s.summary}</span>
-                </div>
-              ))}
-              {isActive && (
-                <div className="flex items-center gap-2 py-1.5">
-                  <Loader2 size={13} className="text-brand animate-spin" />
-                  <span className="text-xs text-brand font-medium">{AL[currentAgent] || "处理中"}...</span>
-                </div>
-              )}
+      {/* 已完成步骤列表 */}
+      {expanded && doneSteps.length > 0 && (
+        <div className="border-t border-gray-200 px-4 py-2">
+          {doneSteps.map((s, i) => (
+            <div key={i} className="flex items-center gap-2 py-1">
+              <Check size={12} className="text-emerald-500 shrink-0" />
+              <span className="text-xs text-gray-600">{AL[s.agent] || s.agent}</span>
+              <span className="text-xs text-gray-400 truncate flex-1 text-right">{s.summary}</span>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      )}
 
+      {/* 产出物预览 */}
       {html && (
-        <div className="border-t border-gray-100 px-4 py-3">
+        <div className="border-t border-gray-200 px-4 py-3">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowPreview(!showPreview)} className="text-xs font-medium text-brand hover:text-brand-hover flex items-center gap-1">
               {showPreview ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -324,13 +329,9 @@ function WorkCard({ steps, html, isActive, currentAgent }: { steps: StepInfo[]; 
             </button>
             {blobUrl && <a href={blobUrl} target="_blank" rel="noopener" className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-0.5">新窗口 <ExternalLink size={10} /></a>}
           </div>
-          <AnimatePresence>
-            {showPreview && blobUrl && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 420, opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <iframe src={blobUrl} className="w-full h-[400px] mt-3 border border-gray-200/60 rounded-xl bg-white" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {showPreview && blobUrl && (
+            <iframe src={blobUrl} className="w-full h-[400px] mt-3 border border-gray-200 rounded-xl bg-white" />
+          )}
         </div>
       )}
     </div>
