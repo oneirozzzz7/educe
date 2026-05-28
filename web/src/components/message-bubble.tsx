@@ -65,6 +65,17 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
     });
   }
 
+  const cleanText = useMemo(() => {
+    let t = text;
+    // 清理 ```filepath:xxx 格式——转换为标准 ```html 等
+    t = t.replace(/```filepath:([^\n]+)\n/g, (_, name) => {
+      const ext = name.trim().split(".").pop()?.toLowerCase() || "";
+      const langMap: Record<string, string> = { html: "html", css: "css", js: "javascript", ts: "typescript", py: "python", json: "json", md: "markdown" };
+      return `\`\`\`${langMap[ext] || ext}\n`;
+    });
+    return t;
+  }, [text]);
+
   function safeRender() {
     try {
       return (
@@ -87,11 +98,12 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
             code: ({ className, children }) => {
               const lang = className?.replace("language-", "") || "";
               const content = String(children).replace(/\n$/, "");
-              if (className?.includes("language-") || content.includes("\n")) {
+              const isMultiLine = content.includes("\n");
+              if (className?.includes("language-") || isMultiLine) {
                 return <CodeBlock language={lang}>{content}</CodeBlock>;
               }
               return (
-                <code className="px-1 py-0.5 rounded text-[13px] font-mono"
+                <code className="px-1.5 py-0.5 rounded text-[13px] font-mono"
                   style={{ background: "var(--bg-sunken)", color: "var(--brand)" }}>
                   {children}
                 </code>
@@ -120,11 +132,11 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
             ),
           }}
         >
-          {text}
+          {cleanText}
         </ReactMarkdown>
       );
     } catch {
-      return <div className="whitespace-pre-wrap">{text}</div>;
+      return <div className="whitespace-pre-wrap text-[14px] leading-relaxed">{text}</div>;
     }
   }
 
