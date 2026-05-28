@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, Loader2, ChevronDown, Eye, Code2, ExternalLink, Clock } from "lucide-react";
+import { Check, Loader2, ChevronDown, Eye, Code2, ExternalLink, Clock, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StepInfo { agent: string; summary: string; done: boolean }
@@ -17,6 +17,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
   const [showPreview, setShowPreview] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const [blobUrl, setBlobUrl] = useState("");
+  const [codeCopied, setCodeCopied] = useState(false);
 
   useEffect(() => {
     if (html) {
@@ -26,10 +27,17 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
     }
   }, [html]);
 
-  // 产出物就绪后自动展开预览
   useEffect(() => {
     if (html && !isActive) setShowPreview(true);
   }, [html, isActive]);
+
+  function copyCode() {
+    if (!html) return;
+    navigator.clipboard.writeText(html).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
+  }
 
   const doneSteps = steps.filter(s => s.done);
 
@@ -83,6 +91,11 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
               style={{ color: showCode ? "var(--brand)" : "var(--text-3)" }}>
               <Code2 size={12} />{showCode ? "收起" : "代码"}
             </button>
+            <button onClick={copyCode}
+              className="text-xs font-medium flex items-center gap-1 transition-colors"
+              style={{ color: codeCopied ? "var(--success)" : "var(--text-3)" }}>
+              {codeCopied ? <Check size={12} /> : <Copy size={12} />}{codeCopied ? "已复制" : "复制"}
+            </button>
             {blobUrl && (
               <a href={blobUrl} target="_blank" rel="noopener" className="text-[11px] flex items-center gap-0.5 ml-auto transition-colors"
                 style={{ color: "var(--text-3)" }}>
@@ -91,7 +104,9 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
             )}
           </div>
           {showPreview && blobUrl && (
-            <iframe src={blobUrl} className="w-full h-[420px] bg-white" style={{ borderTop: "1px solid var(--border-light)" }} />
+            <iframe src={blobUrl} className="w-full h-[420px] bg-white"
+              style={{ borderTop: "1px solid var(--border-light)" }}
+              tabIndex={0} />
           )}
           {showCode && (
             <pre className="w-full max-h-[300px] overflow-auto px-4 py-3 text-[11px] font-mono whitespace-pre-wrap"

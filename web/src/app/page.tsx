@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/top-bar";
 import { WorkCard } from "@/components/work-card";
 import { SettingsModal } from "@/components/settings-modal";
+import { MessageBubble } from "@/components/message-bubble";
 
 interface ChatMsg {
   id: string;
@@ -38,6 +39,8 @@ export default function Page() {
   const composingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
+  const userScrolledRef = useRef(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   const [thinking, setThinking] = useState(false);
 
@@ -96,7 +99,18 @@ export default function Page() {
     return () => ws.close();
   }, []);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }) }, [msgs, elapsed]);
+  useEffect(() => {
+    if (!userScrolledRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [msgs, elapsed]);
+
+  function handleMainScroll() {
+    const el = mainRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    userScrolledRef.current = !atBottom;
+  }
 
   function extractHtml(c: string) {
     // 方法1: filepath格式——贪婪匹配到</html>
@@ -119,6 +133,7 @@ export default function Page() {
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: t, timestamp: Date.now() }]);
     w.send(t);
     setInput("");
+    userScrolledRef.current = false;
   }
 
   function fmtTime(ts: number) {
@@ -138,7 +153,7 @@ export default function Page() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar model={model} connected={connected} onOpenSettings={() => setShowSettings(true)} />
 
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 overflow-y-auto" onScroll={handleMainScroll}>
           <div className="max-w-[740px] mx-auto px-5 py-6 pb-28 min-h-full flex flex-col">
 
             {/* 空状态 */}
@@ -181,10 +196,7 @@ export default function Page() {
                     ) : msg.role === "system" ? (
                       <div className="text-sm rounded-xl px-4 py-3" style={{ background: "var(--error-light)", color: "var(--error)", border: "1px solid var(--error)" }}>{msg.text}</div>
                     ) : (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="text-[14px] leading-relaxed whitespace-pre-line px-1" style={{ color: "var(--text-2)" }}>{msg.text}</div>
-                        <span className="text-[10px] px-1" style={{ color: "var(--text-4)" }}>{fmtTime(msg.timestamp)}</span>
-                      </div>
+                      <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} />
                     )}
                   </motion.div>
                 ))}
