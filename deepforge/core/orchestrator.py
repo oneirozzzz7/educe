@@ -122,34 +122,38 @@ class Orchestrator:
                 await self._process_message(response, depth + 1)
 
     def _needs_pipeline(self, user_input: str) -> bool:
-        """判断用户输入是否需要启动完整pipeline"""
+        """简单判断：包含创建动词就走pipeline，否则先用模型判断"""
         text = user_input.strip()
-        if len(text) < 5:
+        if len(text) < 3:
             return False
-
-        chat_patterns = [
-            "你好", "hello", "hi", "hey", "嗨", "在吗", "你是谁",
-            "谢谢", "thanks", "再见", "bye", "ok", "好的",
-            "什么是", "怎么用", "如何使用", "帮助", "help",
-        ]
-        text_lower = text.lower()
-        for p in chat_patterns:
-            if text_lower == p or text_lower == p + "啊" or text_lower == p + "吗":
-                return False
-
         create_signals = [
             "做", "创建", "生成", "开发", "写", "搭建", "实现", "构建", "设计",
             "build", "create", "make", "develop", "write", "generate",
             "帮我", "我想要", "我需要",
         ]
         for s in create_signals:
-            if s in text_lower:
+            if s in text.lower():
                 return True
-
-        return len(text) > 15
+        return False
 
     async def _quick_reply(self, user_input: str) -> str:
-        return '你好！试试告诉我你想做什么，比如"做一个番茄钟"'
+        """普通对话——直接调用模型，不带Agent角色prompt"""
+        if not self.agents:
+            return '你好！'
+        client = next(iter(self.agents.values())).model_client
+        if not client:
+            return '你好！'
+        try:
+            return await client.chat(
+                messages=[
+                    {"role": "system", "content": "你是DeepForge，一个AI创作助手。简洁友好地回答用户问题。如果用户想创建什么东西，引导他描述具体需求。"},
+                    {"role": "user", "content": user_input},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=500,
+            )
+        except Exception:
+            return '你好！'
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
         is_followup = bool(self.context.artifacts.get("engineer_output"))
