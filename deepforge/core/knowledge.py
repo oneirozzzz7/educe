@@ -182,12 +182,21 @@ class LayeredCache:
         return bool(query_tokens & triggers)
 
     def _tokenize(self, text: str) -> set[str]:
-        """分词——简单但有效"""
+        """分词——生成多粒度token确保召回率"""
         import re
-        # 中文按字符，英文按单词
-        cn = set(re.findall(r'[一-鿿]{2,}', text))
-        en = set(re.findall(r'[a-zA-Z]{3,}', text.lower()))
-        return cn | en
+        tokens = set()
+        # 英文单词
+        tokens.update(re.findall(r'[a-zA-Z]{3,}', text.lower()))
+        # 中文：2字、3字、4字 ngram
+        cn_chars = re.findall(r'[一-鿿]+', text)
+        for seg in cn_chars:
+            tokens.add(seg)  # 完整词
+            for i in range(len(seg)):
+                if i + 2 <= len(seg):
+                    tokens.add(seg[i:i+2])  # 2-gram
+                if i + 3 <= len(seg):
+                    tokens.add(seg[i:i+3])  # 3-gram
+        return tokens
 
     def stats(self) -> dict:
         return {
