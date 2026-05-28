@@ -234,15 +234,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if not user_input:
                     continue
 
-                needs_pipeline = orchestrator._needs_pipeline(user_input)
-                is_content = orchestrator._is_content_task(user_input) and not needs_pipeline
+                intent = await orchestrator._classify_intent(user_input)
 
-                if needs_pipeline:
+                if intent == "code":
                     await websocket.send_json({"type": "status", "content": "processing"})
 
                 try:
                     await orchestrator.run_pipeline(user_input)
-                    if needs_pipeline:
+                    if intent == "code":
                         await websocket.send_json({"type": "status", "content": "done"})
                     else:
                         await websocket.send_json({"type": "status", "content": "chat_done"})

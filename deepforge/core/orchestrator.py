@@ -121,38 +121,46 @@ class Orchestrator:
             if response.type == MessageType.HANDOFF:
                 await self._process_message(response, depth + 1)
 
-    def _needs_pipeline(self, user_input: str) -> bool:
-        """判断是否需要编码pipeline"""
-        text = user_input.strip().lower()
-        if len(text) < 3:
-            return False
-        if self._is_content_task(user_input):
-            return False
+    async def _classify_intent(self, user_input: str) -> str:
+        """用模型做意图分类——比关键词匹配准确得多"""
+        if not self.agents:
+            return "chat"
+        client = next(iter(self.agents.values())).model_client
+        if not client:
+            return "chat"
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": """你是一个意图分类器。根据用户输入，判断属于以下哪种类型，只回复一个英文单词：
 
-        code_signals = [
-            "做一个", "帮我做", "创建一个", "开发一个", "写一个",
-            "搭建", "实现", "build", "create", "make", "develop",
-            "网页", "网站", "app", "工具", "游戏", "扩展", "插件",
-            "html", "python", "脚本", "chrome",
-        ]
-        for s in code_signals:
-            if s in text:
-                return True
-        return False
+code — 需要写代码/做网页/做工具/做游戏/做App/做扩展等技术产品
+content — 需要写文章/做攻略/写报告/写方案/翻译/总结/分析等文本内容
+chat — 闲聊/问答/打招呼/问问题等日常对话
 
-    def _is_content_task(self, user_input: str) -> bool:
-        """判断是否是内容生成任务（攻略/报告/文案/翻译等）——不需要编码"""
+只回复: code 或 content 或 chat"""},
+                    {"role": "user", "content": user_input},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=10,
+                temperature=0,
+            )
+            intent = result.strip().lower().split()[0] if result else "chat"
+            if intent in ("code", "content", "chat"):
+                return intent
+            return "chat"
+        except Exception:
+            return self._classify_intent_fallback(user_input)
+
+    def _classify_intent_fallback(self, user_input: str) -> str:
+        """模型不可用时的关键词回退"""
         text = user_input.strip().lower()
-        content_signals = [
-            "攻略", "报告", "文案", "总结", "翻译", "分析",
-            "计划", "方案", "建议", "对比", "评测", "介绍",
-            "写一篇", "写一份", "帮我写", "列一个", "给我",
-            "story", "article", "report", "summary", "plan",
-        ]
-        for s in content_signals:
-            if s in text:
-                return True
-        return False
+        content_kw = ["攻略", "报告", "文案", "总结", "翻译", "分析", "计划", "方案", "建议", "介绍", "写一篇", "写一份"]
+        code_kw = ["网页", "网站", "工具", "游戏", "扩展", "插件", "html", "python", "脚本", "app"]
+        for k in content_kw:
+            if k in text: return "content"
+        for k in code_kw:
+            if k in text: return "code"
+        return "chat"
 
     async def _generate_content(self, user_input: str) -> str:
         """内容生成——直接调用模型，不走pipeline"""
@@ -197,7 +205,9 @@ class Orchestrator:
         self.context.user_request = user_input
         self.context.metadata["on_chunk"] = lambda agent, chunk: self._notify_chunk(agent, chunk)
 
-        if self._is_content_task(user_input):
+        intent = await self._classify_intent(user_input)
+
+        if intent == "content":
             content = await self._generate_content(user_input)
             msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
             self.context.add_message(msg)
@@ -205,9 +215,9 @@ class Orchestrator:
             self._display_message(msg)
             return self.context
 
-        if not self._needs_pipeline(user_input):
+        if intent == "chat":
             reply = await self._quick_reply(user_input)
-            msg = Message(type=MessageType.RESULT, sender="project_manager", receiver="user", content=reply)
+            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=reply)
             self.context.add_message(msg)
             self._notify(msg)
             self._display_message(msg)
@@ -319,7 +329,9 @@ class Orchestrator:
         """带迭代循环的流水线"""
         self.context.user_request = user_input
 
-        if self._is_content_task(user_input):
+        intent = await self._classify_intent(user_input)
+
+        if intent == "content":
             content = await self._generate_content(user_input)
             msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
             self.context.add_message(msg)
@@ -327,9 +339,9 @@ class Orchestrator:
             self._display_message(msg)
             return self.context
 
-        if not self._needs_pipeline(user_input):
+        if intent != "code":
             reply = await self._quick_reply(user_input)
-            msg = Message(type=MessageType.RESULT, sender="project_manager", receiver="user", content=reply)
+            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=reply)
             self.context.add_message(msg)
             self._notify(msg)
             self._display_message(msg)
