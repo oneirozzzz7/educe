@@ -92,6 +92,21 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         obs = Observer()
         return obs.get_stats()
 
+    @app.get("/api/tasks")
+    async def list_tasks():
+        from deepforge.core.task_store import TaskStore
+        store = TaskStore()
+        return {"tasks": store.list_tasks()}
+
+    @app.get("/api/tasks/{task_id}")
+    async def get_task(task_id: str):
+        from deepforge.core.task_store import TaskStore
+        store = TaskStore()
+        data = store.load_task(task_id)
+        if data:
+            return data
+        return {"error": "not found"}
+
     @app.get("/api/providers")
     async def providers():
         from deepforge.models.router import PROVIDER_PRESETS

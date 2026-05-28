@@ -11,6 +11,7 @@ from deepforge.core.agent import BaseAgent
 from deepforge.core.config import DeepForgeConfig
 from deepforge.core.message import Message, MessageType, WorkContext, TaskStatus
 from deepforge.core.observer import Observer
+from deepforge.core.task_store import TaskStore
 
 console = Console()
 
@@ -44,6 +45,7 @@ class Orchestrator:
         self._on_chunk: list[Callable[[str, str], None]] = []
         self.max_iterations = max_iterations
         self.observer = Observer()
+        self.task_store = TaskStore()
 
     def register(self, agent: BaseAgent) -> None:
         self.agents[agent.name] = agent
@@ -233,6 +235,7 @@ class Orchestrator:
             project_type=self.context.artifacts.get("project_type", ""),
             file_count=len(self.context.artifacts.get("code_files", [])),
         )
+        self.task_store.save_from_context(task_id, self.context)
         return self.context
 
     async def _run_followup(self, user_input: str) -> WorkContext:
