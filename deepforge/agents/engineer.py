@@ -118,13 +118,19 @@ class EngineerAgent(BaseAgent):
 5. 代码必须能直接运行——双击HTML能打开，python xxx.py能执行
 6. 不要写TODO、不要省略、不要"其余类似"
 
-## 代码质量标准（从历史项目经验中学到）
-- HTML必须有完整的DOCTYPE和闭合标签
-- 暗色模式：优先使用 prefers-color-scheme 或默认暗色
-- 防抖自动保存：input事件1s防抖写localStorage
-- Canvas动画：维护唯一requestAnimationFrame ID，新动画前cancel旧帧
-- 高DPI适配：canvas.width=clientWidth*devicePixelRatio
-- 事件监听：方向键/空格必须preventDefault防止页面滚动
+## UI质量标准（达到专业产品级别）
+- 配色方案：使用和谐的色彩系统，不要纯黑白
+- 渐变和阴影：按钮/卡片使用subtle的渐变和阴影增加质感
+- 动效：hover状态有transition(0.2s)，操作有反馈动效
+- 排版：合理的间距(padding/margin)、字体大小层级、行高
+- 响应式：必须适配移动端(@media查询)
+- 细节：圆角(border-radius)、输入框focus样式、空状态提示
+
+## 功能质量标准
+- 错误处理：try/catch包裹关键操作，用户友好的错误提示
+- 数据持久化：适当使用localStorage保存用户数据
+- 复制功能：文本输出类工具必须有一键复制按钮
+- 键盘支持：支持常用快捷键(Enter提交、Esc关闭等)
 
 ## 现在开始写代码"""
 
