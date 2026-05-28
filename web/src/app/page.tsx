@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Loader2 } from "lucide-react";
-import { Logo } from "@/components/logo";
+import { Logo, LogoBrand } from "@/components/logo";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar";
@@ -177,11 +177,11 @@ export default function Page() {
             {!hasMessages && !working && (
               <div className="flex-1 flex items-center justify-center">
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center w-full max-w-[560px]">
-                  <div className="mx-auto mb-5">
-                  <Logo size={56} />
-                </div>
-                  <h1 className="text-2xl font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>What will you build?</h1>
-                  <p className="text-sm mb-8" style={{ color: "var(--text-3)" }}>Idea → Product, powered by multi-agent collaboration</p>
+                  <div className="flex justify-center mb-6">
+                    <LogoBrand size={52} />
+                  </div>
+                  <h1 className="text-[26px] font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>What will you build?</h1>
+                  <p className="text-[14px] mb-10" style={{ color: "var(--text-3)" }}>Describe your idea, and agents will build it for you</p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {[["🍅", "番茄钟"], ["🔧", "JSON工具"], ["🎮", "小游戏"], ["📝", "编辑器"], ["🧮", "计算器"]].map(([icon, label]) => (
                       <button key={label} onClick={() => send(`做一个${label}`)}
