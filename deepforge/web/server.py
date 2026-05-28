@@ -235,6 +235,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     continue
 
                 needs_pipeline = orchestrator._needs_pipeline(user_input)
+                is_content = orchestrator._is_content_task(user_input) and not needs_pipeline
 
                 if needs_pipeline:
                     await websocket.send_json({"type": "status", "content": "processing"})
