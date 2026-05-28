@@ -100,9 +100,8 @@ export default function Page() {
 
   const composingRef = useRef(false);
 
-  /* ── Input Box Component ── */
-  const InputBox = ({ className }: { className?: string }) => (
-    <div className={cn("relative w-full", className)}>
+  const inputEl = (
+    <div className="relative w-full">
       <textarea
         ref={inputRef}
         value={input}
@@ -156,7 +155,9 @@ export default function Page() {
             <h1 className="text-[28px] font-semibold text-gray-900 tracking-tight">What will you build?</h1>
             <p className="mt-1.5 text-[14px] text-gray-400">Idea → Product, powered by multi-agent collaboration</p>
 
-            <InputBox className="mt-8 mb-5" />
+            <div className="mt-8 mb-5">
+              {inputEl}
+            </div>
 
             <div className="flex flex-wrap gap-2 justify-center">
               {TEMPLATES.map(([icon, label, prompt]) => (
@@ -194,7 +195,7 @@ export default function Page() {
 
           <div className="fixed bottom-0 inset-x-0 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/95 to-transparent pt-4 pb-4 px-5 z-40">
             <div className="max-w-[700px] mx-auto">
-              <InputBox />
+              {inputEl}
             </div>
           </div>
         </>
