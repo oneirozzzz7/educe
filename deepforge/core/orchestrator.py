@@ -75,8 +75,10 @@ class Orchestrator:
 
         decision = await self._smart_decide(user_input)
 
-        if decision["action"] == "code":
+        if decision["action"] == "code_complex":
             return await self._run_code_pipeline(user_input)
+        elif decision["action"] == "code_simple":
+            return await self._run_quick_code(user_input)
         else:
             msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=decision["content"])
             self.context.add_message(msg)
@@ -84,8 +86,41 @@ class Orchestrator:
             self._display(msg)
             return self.context
 
+    async def _run_quick_code(self, user_input: str) -> WorkContext:
+        """简单编码任务：直接让工程师写，跳过PM/PD/Arch"""
+        pipeline_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                              content="__PIPELINE_START__")
+        self._notify(pipeline_msg)
+
+        task_id = uuid.uuid4().hex[:8]
+        self.observer.start_task(task_id, user_input, self.config.default_model.model)
+
+        output, _ = await self._run_agent("engineer", user_input, "user")
+
+        validation = self.context.artifacts.get("validation", {})
+        if validation and not validation.get("passed", True):
+            output, _ = await self._run_agent("engineer",
+                f"上次代码有问题({validation.get('summary','')})\n原始需求：{user_input}\n请重新输出完整代码。",
+                "reviewer", data={"iteration": 2})
+
+        has_output = bool(self.context.artifacts.get("code_files"))
+        self.observer.finish_task(
+            success=has_output,
+            project_type=self.context.artifacts.get("project_type", ""),
+            file_count=len(self.context.artifacts.get("code_files", [])),
+        )
+        self.task_store.save_from_context(task_id, self.context)
+
+        if not has_output:
+            fail_msg = Message(type=MessageType.RESULT, sender="system", receiver="user",
+                              content="未能生成产出物，请更具体描述需求。")
+            self.context.add_message(fail_msg)
+            self._notify(fail_msg)
+
+        return self.context
+
     async def _smart_decide(self, user_input: str) -> dict:
-        """一次模型调用：要么直接回复，要么决定启动编码pipeline"""
+        """一次模型调用：判断任务类型和复杂度"""
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "暂时无法处理，请检查模型配置。"}
@@ -94,11 +129,11 @@ class Orchestrator:
             result = await client.chat(
                 messages=[
                     {"role": "system", "content": (
-                        "你是DeepForge，一个AI创作助手。\n\n"
-                        "判断用户需求：\n"
-                        "- 如果需要写代码、做网页、做工具、做游戏、做App、做Chrome扩展等需要编程的产品 → 只回复三个字：NEED_CODE\n"
-                        "- 其他所有情况（聊天、写文章、做攻略、翻译、分析等）→ 直接输出完整回复内容\n\n"
-                        "记住：只有需要编程时才回复NEED_CODE，其他一律直接回答。"
+                        "你是DeepForge助手。判断用户需求并执行：\n"
+                        "- 需要编程做复杂产品(多页面/复杂交互/需设计)→只回复：NEED_CODE_COMPLEX\n"
+                        "- 需要编程做简单工具(单文件/小脚本/简单网页)→只回复：NEED_CODE_SIMPLE\n"
+                        "- 其他(聊天/写文章/攻略/翻译/分析等)→直接输出完整内容\n\n"
+                        "注意：番茄钟、计算器、格式化工具、密码生成器、倒计时等都是SIMPLE。"
                     )},
                     {"role": "user", "content": user_input},
                 ],
@@ -106,8 +141,11 @@ class Orchestrator:
                 max_tokens=self.config.default_model.max_tokens,
             )
 
-            if result.strip().startswith("NEED_CODE"):
-                return {"action": "code"}
+            text = result.strip()
+            if text.startswith("NEED_CODE_COMPLEX"):
+                return {"action": "code_complex"}
+            elif text.startswith("NEED_CODE_SIMPLE"):
+                return {"action": "code_simple"}
             else:
                 return {"action": "reply", "content": result}
 
