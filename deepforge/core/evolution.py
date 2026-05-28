@@ -65,7 +65,7 @@ def _detect(engineer_output: str) -> dict:
     if not engineer_output or len(engineer_output) < 50:
         return {"passed": False, "checks": {"has_file": False}, "checks_passed": 0, "checks_total": 1}
 
-    has_output = bool(re.search(r'<!DOCTYPE|```filepath:', engineer_output, re.I))
+    has_output = bool(re.search(r'<!DOCTYPE|```filepath:|```html', engineer_output, re.I))
     checks = {}
 
     if has_output:

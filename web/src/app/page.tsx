@@ -102,9 +102,12 @@ export default function Page() {
     // 方法1: filepath格式——贪婪匹配到</html>
     const m1 = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?<\/html>)/i);
     if (m1) return m1[1];
-    // 方法2: 裸HTML
-    const m2 = c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
+    // 方法2: ```html代码块
+    const m2 = c.match(/```html\n([\s\S]*?<\/html>)/i);
     if (m2) return m2[1];
+    // 方法3: 裸HTML
+    const m3 = c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
+    if (m3) return m3[1];
     return undefined;
   }
 

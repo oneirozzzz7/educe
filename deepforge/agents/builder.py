@@ -240,6 +240,13 @@ class BuilderAgent(BaseAgent):
                 files[filepath] = code
 
         if not files:
+            for match in re.finditer(r'```(?:html|htm)\n([\s\S]*?)```', content, re.DOTALL | re.IGNORECASE):
+                code = match.group(1).strip()
+                if code and len(code) > 20 and ('<html' in code.lower() or '<!doctype' in code.lower()):
+                    files["index.html"] = code
+                    break
+
+        if not files:
             html_match = re.search(r'(<!DOCTYPE[\s\S]*?</html>)', content, re.IGNORECASE)
             if html_match:
                 files["index.html"] = html_match.group(1)
