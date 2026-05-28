@@ -149,15 +149,7 @@ class Orchestrator:
         return len(text) > 15
 
     async def _quick_reply(self, user_input: str) -> str:
-        """对闲聊/简单问题直接回复，引导用户使用创作功能"""
-        return (
-            f'我是 DeepForge，一个多Agent协作创作工具。\n\n'
-            f'告诉我你想做什么，比如：\n'
-            f'- "帮我做一个番茄钟网页"\n'
-            f'- "做一个JSON格式化工具"\n'
-            f'- "做一个贪吃蛇游戏"\n\n'
-            f'我会调动7个AI Agent帮你从想法到成品。'
-        )
+        return '你好！试试告诉我你想做什么，比如"做一个番茄钟"'
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
         is_followup = bool(self.context.artifacts.get("engineer_output"))

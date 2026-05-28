@@ -185,7 +185,7 @@ export default function Page() {
                   ) : msg.role === "system" ? (
                     <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{msg.text}</div>
                   ) : (
-                    <div className="text-[14px] text-gray-600 leading-relaxed whitespace-pre-line bg-white border border-gray-200/60 rounded-2xl px-4 py-3 shadow-sm">{msg.text}</div>
+                    <div className="text-[14px] text-gray-600 leading-relaxed whitespace-pre-line px-1">{msg.text}</div>
                   )}
                 </motion.div>
               ))}
