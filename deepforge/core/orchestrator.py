@@ -158,6 +158,7 @@ class Orchestrator:
         )
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
+        is_followup = bool(self.context.artifacts.get("engineer_output"))
         self.context.user_request = user_input
         self.context.metadata["on_chunk"] = lambda agent, chunk: self._notify_chunk(agent, chunk)
 
@@ -168,6 +169,9 @@ class Orchestrator:
             self._notify(msg)
             self._display_message(msg)
             return self.context
+
+        if is_followup:
+            return await self._run_followup(user_input)
 
         import uuid
         task_id = uuid.uuid4().hex[:8]
@@ -229,6 +233,42 @@ class Orchestrator:
             project_type=self.context.artifacts.get("project_type", ""),
             file_count=len(self.context.artifacts.get("code_files", [])),
         )
+        return self.context
+
+    async def _run_followup(self, user_input: str) -> WorkContext:
+        """多轮对话：基于上次产出进行修改"""
+        console.print(f"\n[bold cyan]🔄 基于上次产出修改...[/bold cyan]\n")
+
+        prev_output = self.context.artifacts.get("engineer_output", "")
+        prev_files = self.context.artifacts.get("code_files", [])
+
+        engineer = self.agents.get("engineer")
+        if not engineer:
+            return self.context
+
+        self.context.current_phase = "engineer"
+        modify_prompt = (
+            f"用户要求修改：{user_input}\n\n"
+            f"当前已有代码：\n{prev_output[:4000]}\n\n"
+            f"请基于已有代码进行修改，输出修改后的完整文件。"
+        )
+
+        msg = Message(
+            type=MessageType.TASK,
+            sender="user",
+            receiver="engineer",
+            content=modify_prompt,
+        )
+        self.context.add_message(msg)
+
+        try:
+            async for response in engineer.handle(msg, self.context):
+                self.context.add_message(response)
+                self._notify(response)
+                self._display_message(response)
+        except Exception as e:
+            console.print(f"[red]修改失败: {e}[/red]")
+
         return self.context
 
     async def run_iterative_pipeline(self, user_input: str) -> WorkContext:
