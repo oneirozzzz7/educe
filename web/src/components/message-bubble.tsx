@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Copy, Check, Eye, EyeOff } from "lucide-react";
 
@@ -53,9 +53,13 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
   const isLong = text.length > 500;
 
   const embeddedHtml = useMemo(() => hasHtmlContent(text) ? extractEmbeddedHtml(text) : null, [text]);
-  const blobUrl = useMemo(() => {
-    if (!embeddedHtml) return null;
-    return URL.createObjectURL(new Blob([embeddedHtml], { type: "text/html" }));
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!embeddedHtml) { setBlobUrl(null); return; }
+    const u = URL.createObjectURL(new Blob([embeddedHtml], { type: "text/html" }));
+    setBlobUrl(u);
+    return () => URL.revokeObjectURL(u);
   }, [embeddedHtml]);
 
   function handleCopy() {
