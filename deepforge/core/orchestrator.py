@@ -111,7 +111,7 @@ class Orchestrator:
             return {"action": "reply", "content": f"出错了: {e}"}
 
     # ═══════════════════════════════════════
-    #  快速编码（直接走工程师）
+    #  编码（Builder Agent — 带工具循环）
     # ═══════════════════════════════════════
 
     async def _run_quick_code(self, user_input: str) -> WorkContext:
@@ -121,7 +121,9 @@ class Orchestrator:
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
-        output, _ = await self._run_agent("engineer", user_input, "user", timeout=120)
+        # 优先使用Builder（带工具调用），回退到Engineer
+        agent_name = "builder" if "builder" in self.agents else "engineer"
+        output, _ = await self._run_agent(agent_name, user_input, "user", timeout=180)
 
         validation = self.context.artifacts.get("validation", {})
         if validation and not validation.get("passed", True):
@@ -166,8 +168,9 @@ class Orchestrator:
         for iteration in range(1, self.max_iterations + 1):
             console.print(f"\n[bold yellow]🔄 迭代 {iteration}/{self.max_iterations}[/bold yellow]")
 
-            eng_out, _ = await self._run_agent("engineer", current_content, current_sender,
-                                               data={"iteration": iteration}, timeout=120)
+            agent_name = "builder" if "builder" in self.agents else "engineer"
+            eng_out, _ = await self._run_agent(agent_name, current_content, current_sender,
+                                               data={"iteration": iteration}, timeout=180)
 
             validation = self.context.artifacts.get("validation", {})
             if validation and not validation.get("passed", True) and iteration < self.max_iterations:
