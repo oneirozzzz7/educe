@@ -15,6 +15,7 @@ from deepforge.core.tools import (
     Tool, WriteFileTool, ReadFileTool, RunHTMLTool,
     RunPythonTool, CheckJSSyntaxTool, ALL_TOOLS, execute_tool,
 )
+from deepforge.core.knowledge import LayeredCache
 from deepforge.tools.artifacts import ArtifactManager
 
 
@@ -27,6 +28,7 @@ class BuilderAgent(BaseAgent):
         super().__init__(*args, **kwargs)
         self.artifacts = ArtifactManager()
         self.memory_store = memory_store
+        self.knowledge = LayeredCache()
         self.tools: list[Tool] = [
             WriteFileTool(),
             ReadFileTool(),
@@ -111,6 +113,8 @@ class BuilderAgent(BaseAgent):
                     self._record_failure(verify_result['report'])
                     continue
                 else:
+                    # 验证通过——记录成功模式到知识库（进化闭环）
+                    self._record_success(context.user_request, files)
                     yield self.emit("user", f"✅ 已生成并验证通过:\n" + "\n".join(f"- {f}" for f in files.keys()))
                     break
             else:
@@ -161,49 +165,44 @@ class BuilderAgent(BaseAgent):
         }
 
     def _record_failure(self, report: str):
-        """记录失败到记忆，驱动进化"""
-        if not self.memory_store:
-            return
-        import uuid
-        from deepforge.memory.store import MemoryEntry
-        self.memory_store.add(MemoryEntry(
-            id=uuid.uuid4().hex[:12],
-            category="builder_failure",
-            title=f"Builder验证失败",
-            content=report[:500],
-            tags=["builder", "verification", "failure"],
-            source="builder",
-        ))
+        """记录失败到知识库"""
+        triggers = self.knowledge._tokenize(report)
+        self.knowledge.add(f"[失败] {report[:200]}", triggers, category="failure")
+
+    def _record_success(self, user_request: str, files: dict):
+        """记录成功模式到知识库——驱动L1编译进化"""
+        triggers = self.knowledge._tokenize(user_request)
+        file_types = ", ".join(f.split(".")[-1] for f in files.keys())
+        self.knowledge.add(
+            f"[成功] {user_request[:60]} → {file_types} ({sum(len(c) for c in files.values())}B)",
+            triggers,
+            category="success",
+        )
 
     def _build_prompt(self, message: Message, context: WorkContext) -> str:
-        # 层1: 记忆——加载相关经验（不只是失败教训）
-        lessons = ""
-        if self.memory_store:
-            # 搜索与任务相关的记忆
-            relevant = self.memory_store.search(context.user_request, limit=3)
-            failures = self.memory_store.search("failure", category="builder_failure", limit=2)
-            all_lessons = []
-            for m in relevant:
-                if m.category == "pattern":
-                    all_lessons.append(f"[模式] {m.content[:80]}")
-                elif m.category == "lesson":
-                    all_lessons.append(f"[教训] {m.content[:80]}")
-            for f in failures:
-                all_lessons.append(f"[避坑] {f.content[:80]}")
-            if all_lessons:
-                lessons = "\n## 历史经验（参考）\n" + "\n".join(f"- {l}" for l in all_lessons[:5])
+        # L1: 编译层——高频成功模式零成本注入
+        l1 = self.knowledge.get_l1_compiled()
+        compiled_knowledge = ""
+        if l1:
+            compiled_knowledge = "\n## 已验证的最佳实践\n" + "\n".join(f"- {k}" for k in l1[:5])
 
-        # 层2: Skill——如果匹配到模板，用模板增强
+        # L2+L3: 召回与当前任务相关的知识
+        recalled = self.knowledge.recall(context.user_request, max_results=3)
+        recall_section = ""
+        if recalled:
+            recall_section = "\n## 相关经验\n" + "\n".join(f"- {r[:100]}" for r in recalled)
+
+        # Skill模板
         skill_hint = ""
         skill_prompt = context.metadata.get("skill_prompt")
         if skill_prompt:
-            skill_hint = f"\n## 已验证的最佳实践模板\n{skill_prompt}\n"
+            skill_hint = f"\n## 已验证模板\n{skill_prompt}\n"
 
         return f"""你是DeepForge Builder——一个能写代码、运行验证、修复bug的全能开发者。
 
 ## 用户需求
 {message.content}
-{skill_hint}
+{skill_hint}{compiled_knowledge}{recall_section}
 ## 你的工作方式
 1. 直接写出完整可运行的代码
 2. 代码写完后会自动运行验证
