@@ -98,6 +98,8 @@ export default function Page() {
     setInput("");
   }
 
+  const composingRef = useRef(false);
+
   /* ── Input Box Component ── */
   const InputBox = ({ className }: { className?: string }) => (
     <div className={cn("relative w-full", className)}>
@@ -105,7 +107,9 @@ export default function Page() {
         ref={inputRef}
         value={input}
         onChange={e => setInput(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send() } }}
+        onCompositionStart={() => { composingRef.current = true }}
+        onCompositionEnd={(e) => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
+        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !composingRef.current) { e.preventDefault(); send() } }}
         placeholder="做一个番茄钟、一个网页游戏、一个数据看板..."
         rows={1}
         className="w-full bg-white border border-gray-300/70 rounded-2xl px-5 py-3.5 pr-14 text-[15px] text-gray-800 resize-none outline-none min-h-[52px] max-h-[120px] shadow-[0_4px_20px_rgba(0,0,0,0.08)] focus:shadow-[0_4px_20px_rgba(0,0,0,0.1),0_0_0_3px_rgba(99,102,241,0.15)] focus:border-brand/50 transition-all placeholder:text-gray-400"

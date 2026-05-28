@@ -53,14 +53,18 @@ export function createWS(sessionId: string): DeepForgeWS {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   function connect() {
+    console.log("[DeepForge] Connecting to", url);
     ws = new WebSocket(url);
-    ws.onopen = () => connectHandlers.forEach((h) => h());
-    ws.onclose = () => {
+    ws.onopen = () => { console.log("[DeepForge] Connected"); connectHandlers.forEach((h) => h()) };
+    ws.onclose = (e) => {
+      console.log("[DeepForge] Disconnected", e.code, e.reason);
       disconnectHandlers.forEach((h) => h());
       reconnectTimer = setTimeout(connect, 3000);
     };
+    ws.onerror = (e) => { console.error("[DeepForge] WebSocket error", e) };
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data) as ServerMessage;
+      console.log("[DeepForge] Received", data.type, (data as any).sender || "");
       messageHandlers.forEach((h) => h(data));
     };
   }
