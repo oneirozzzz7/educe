@@ -87,11 +87,15 @@ export default function Page() {
 
   function send(text?: string) {
     const t = (text || input).trim();
-    if (!t || !wsRef.current) return;
+    if (!t) return;
+    const w = wsRef.current;
+    if (!w || w.readyState !== 1) {
+      alert("未连接到后端，请确保 deepforge web 已启动 (端口7860)");
+      return;
+    }
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: t }]);
-    wsRef.current.send(t);
+    w.send(t);
     setInput("");
-    inputRef.current?.focus();
   }
 
   /* ── Input Box Component ── */

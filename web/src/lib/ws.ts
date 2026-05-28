@@ -31,6 +31,7 @@ export type ServerMessage = AgentMessage | StatusMessage | ErrorMessage;
 
 export interface DeepForgeWS {
   send: (message: string) => void;
+  readonly readyState: number;
   close: () => void;
   onMessage: (handler: (msg: ServerMessage) => void) => void;
   onConnect: (handler: () => void) => void;
@@ -68,6 +69,7 @@ export function createWS(sessionId: string): DeepForgeWS {
 
   return {
     send: (message: string) => ws?.send(JSON.stringify({ message })),
+    get readyState() { return ws?.readyState ?? 3; },
     close: () => {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
