@@ -106,3 +106,12 @@
 - 配置持久化：.env DEEPFORGE_EVOLUTION=true/false
 - 核心逻辑抽离：deepforge/core/evolution.py 纯函数式，不依赖Orchestrator
 - 记忆防膨胀：知识>1000条时自动裁剪+去重
+
+### v1.5 UI体验打磨
+- Markdown渲染：react-markdown组件，支持标题/粗体/列表/代码块/表格/引用
+- 复制按钮：hover显示一键复制全文（助手消息+WorkCard代码）
+- 长内容滚动：单条消息>300字符时限高500px+可滚动
+- 智能滚动：用户手动上滚时不自动跳底部，发新消息时重置
+- 移动端响应式：<768px侧栏自动收起
+- iframe键盘事件：tabIndex=0允许iframe获得焦点
+- HTML提取修复：新增```html/```htm代码块格式支持（修复Emoji搜索等Kimi输出）
