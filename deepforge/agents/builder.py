@@ -219,8 +219,10 @@ class BuilderAgent(BaseAgent):
 - 必须输出完整可运行的代码文件，不要输出描述或摘要
 - 用```filepath:文件名格式包裹代码
 - 单HTML文件优先（内嵌CSS+JS）
-- 精致UI：渐变、阴影、圆角、hover动效、响应式
-- 完整功能：错误处理、localStorage持久化、复制按钮
+- CSS必须用:root变量系统（--primary、--bg、--text等），不要硬编码颜色
+- CSS必须有@keyframes动画（loading、pulse、fadeIn等至少1个）
+- 精致UI：渐变、阴影、圆角、hover动效(transition:0.2s)、响应式(@media)
+- 完整功能：try/catch错误处理、localStorage持久化、复制按钮(navigator.clipboard)
 - HTML必须有DOCTYPE和完整闭合标签
 - JS不能有语法错误
 
