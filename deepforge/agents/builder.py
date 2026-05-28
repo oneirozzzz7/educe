@@ -115,7 +115,9 @@ class BuilderAgent(BaseAgent):
                 else:
                     # 验证通过——记录成功模式到知识库（进化闭环）
                     self._record_success(context.user_request, files)
-                    yield self.emit("user", f"✅ 已生成并验证通过:\n" + "\n".join(f"- {f}" for f in files.keys()))
+                    # 把完整代码带在消息里，让前端能展示预览
+                    code_content = "\n\n".join(f"```filepath:{fp}\n{code}\n```" for fp, code in files.items())
+                    yield self.emit("user", code_content)
                     break
             else:
                 # 纯文本回复
