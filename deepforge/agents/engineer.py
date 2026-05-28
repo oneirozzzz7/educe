@@ -48,15 +48,19 @@ class EngineerAgent(BaseAgent):
             saved = self.artifacts.save_files(files)
             project_type = self.artifacts.detect_project_type(files)
 
+            validation = await self._validate_output(files, project_type)
+
             prev_files = context.artifacts.get("code_files", [])
             all_files = list(set(prev_files + [str(p) for p in saved]))
             context.add_artifact("code_files", all_files)
             context.add_artifact("engineer_output", response)
             context.add_artifact("project_type", project_type)
             context.add_artifact("output_dir", str(self.artifacts.work_dir))
+            context.add_artifact("validation", validation)
 
             file_summary = "\n".join(f"- {f}" for f in files.keys())
-            yield self.emit("user", f"已生成 {len(files)} 个文件 ({project_type}):\n{file_summary}")
+            status = "✅" if validation["passed"] else "⚠️"
+            yield self.emit("user", f"{status} 已生成 {len(files)} 个文件 ({project_type}):\n{file_summary}\n验证: {validation['summary']}")
         else:
             context.add_artifact("engineer_output", response)
             yield self.emit("user", response)
@@ -177,3 +181,55 @@ class EngineerAgent(BaseAgent):
             files["index.html"] = html_match.group(1)
 
         return files
+
+    async def _validate_output(self, files: dict[str, str], project_type: str) -> dict:
+        """验证产出物质量——空壳和语法错误直接标记"""
+        issues = []
+        checks_passed = 0
+        checks_total = 0
+
+        for filepath, content in files.items():
+            if filepath.endswith(".html"):
+                checks_total += 4
+                if "<!DOCTYPE" in content or "<!doctype" in content:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: 缺少DOCTYPE")
+                if "</html>" in content:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: HTML未闭合")
+                if "<script" in content and len(content) > 500:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: 缺少JS逻辑或内容过少")
+                if "TODO" not in content and "// ..." not in content:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: 包含TODO/占位符")
+
+            elif filepath.endswith(".py"):
+                checks_total += 2
+                try:
+                    compile(content, filepath, "exec")
+                    checks_passed += 1
+                except SyntaxError as e:
+                    issues.append(f"{filepath}: Python语法错误 L{e.lineno}")
+                if len(content) > 100:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: 内容过少")
+
+            elif filepath.endswith(".js"):
+                checks_total += 1
+                if len(content) > 50:
+                    checks_passed += 1
+                else:
+                    issues.append(f"{filepath}: JS内容过少")
+
+        passed = checks_total == 0 or (checks_passed / checks_total >= 0.75)
+        summary = f"{checks_passed}/{checks_total} 检查通过" if checks_total else "无可验证文件"
+        if issues:
+            summary += f", 问题: {'; '.join(issues[:3])}"
+
+        return {"passed": passed, "checks_passed": checks_passed, "checks_total": checks_total, "issues": issues, "summary": summary}
