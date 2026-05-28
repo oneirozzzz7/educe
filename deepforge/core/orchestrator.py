@@ -279,6 +279,18 @@ class Orchestrator:
                 self._display_message(response)
                 eng_output = response.content
 
+            validation = self.context.artifacts.get("validation", {})
+            if validation and not validation.get("passed", True):
+                console.print(f"[yellow]⚠ 产出物验证未通过: {validation.get('summary', '')}[/yellow]")
+                if iteration < self.max_iterations:
+                    current_content = (
+                        f"## 产出物验证失败\n\n"
+                        f"问题: {'; '.join(validation.get('issues', []))}\n\n"
+                        f"请修复以上问题，输出完整代码。"
+                    )
+                    current_sender = "reviewer"
+                    continue
+
             self.context.current_phase = "reviewer"
             review_msg = Message(
                 type=MessageType.TASK,
