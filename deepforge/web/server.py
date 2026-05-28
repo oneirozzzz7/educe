@@ -195,7 +195,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator = get_orchestrator(session_id)
 
+        HIDDEN_AGENTS = {"memory_keeper", "crowd_user"}
+
         async def send_message(msg: Message):
+            if msg.sender in HIDDEN_AGENTS and msg.type.value != "error":
+                return
+
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",

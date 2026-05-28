@@ -376,30 +376,43 @@ class Orchestrator:
                 current_sender = "reviewer"
 
                 if iteration == self.max_iterations:
-                    console.print(f"\n[yellow]⚠ 达到最大迭代次数({self.max_iterations})，继续后续流程[/yellow]\n")
+                    console.print(f"\n[yellow]⚠ 达到最大迭代次数({self.max_iterations})[/yellow]\n")
                     current_content = eng_output
 
-        post_review = ["crowd_user", "memory_keeper"]
-        for agent_name in post_review:
-            if agent_name not in self.agents:
-                continue
-            self.context.current_phase = agent_name
-            msg = Message(
-                type=MessageType.TASK,
-                sender=current_sender,
-                receiver=agent_name,
-                content=current_content,
+        has_deliverable = bool(self.context.artifacts.get("code_files"))
+
+        if has_deliverable:
+            post_review = ["crowd_user", "memory_keeper"]
+            for agent_name in post_review:
+                if agent_name not in self.agents:
+                    continue
+                self.context.current_phase = agent_name
+                msg = Message(
+                    type=MessageType.TASK,
+                    sender=current_sender,
+                    receiver=agent_name,
+                    content=current_content,
+                )
+                self.context.add_message(msg)
+
+                async for response in self.agents[agent_name].handle(msg, self.context):
+                    self.context.add_message(response)
+                    self._notify(response)
+                    current_content = response.content
+                    current_sender = agent_name
+
+            await self._auto_preview()
+        else:
+            fail_msg = Message(
+                type=MessageType.RESULT,
+                sender="system",
+                receiver="user",
+                content="未能生成可用的产出物，请尝试更具体地描述需求。",
             )
-            self.context.add_message(msg)
+            self.context.add_message(fail_msg)
+            self._notify(fail_msg)
+            self._display_message(fail_msg)
 
-            async for response in self.agents[agent_name].handle(msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-                current_content = response.content
-                current_sender = agent_name
-
-        await self._auto_preview()
         return self.context
 
     async def _auto_preview(self) -> None:
@@ -436,10 +449,8 @@ class Orchestrator:
             console.print(f"\n[bold green]🎉 产出物目录: {out}[/bold green]")
 
     def _check_review_passed(self, review_content: str) -> bool:
-        """判断审查是否通过：基于评分和关键标记"""
-        content_lower = review_content.lower()
-
-        fail_signals = ["🔴 必须修复", "必须修复", "严重问题", "阻塞性问题", "不通过"]
+        """判断审查是否通过——默认不通过，必须有明确通过信号"""
+        fail_signals = ["🔴", "必须修复", "严重问题", "阻塞性问题", "不通过", "❌"]
         for signal in fail_signals:
             if signal in review_content:
                 return False
@@ -447,15 +458,14 @@ class Orchestrator:
         import re
         score_match = re.search(r'(?:总体评分|评分|score)[：:\s]*(\d+)', review_content)
         if score_match:
-            score = int(score_match.group(1))
-            return score >= 7
+            return int(score_match.group(1)) >= 7
 
-        pass_signals = ["审查通过", "✅ 通过", "无阻塞性问题", "整体良好", "可以发布"]
+        pass_signals = ["审查通过", "✅ 通过", "✅ 审查通过", "无阻塞性问题", "可以发布"]
         for signal in pass_signals:
             if signal in review_content:
                 return True
 
-        return True
+        return False
 
     def _extract_fix_instructions(self, review_content: str) -> str:
         """从审查报告中提取修复指令"""
