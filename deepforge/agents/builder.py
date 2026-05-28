@@ -215,7 +215,9 @@ class BuilderAgent(BaseAgent):
 - 运行Python: <tool>run_python</tool><params>{{"path":"脚本.py"}}</params>
 - 读文件: <tool>read_file</tool><params>{{"path":"文件路径"}}</params>
 
-## 代码质量标准
+## 绝对规则
+- 必须输出完整可运行的代码文件，不要输出描述或摘要
+- 用```filepath:文件名格式包裹代码
 - 单HTML文件优先（内嵌CSS+JS）
 - 精致UI：渐变、阴影、圆角、hover动效、响应式
 - 完整功能：错误处理、localStorage持久化、复制按钮
