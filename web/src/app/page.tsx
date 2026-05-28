@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,8 @@ export default function Page() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
 
+  const [thinking, setThinking] = useState(false);
+
   useEffect(() => {
     const sid = crypto.randomUUID?.() ?? Date.now().toString(36);
     const ws = createWS(sid);
@@ -52,7 +54,10 @@ export default function Page() {
 
     ws.onMessage((msg: ServerMessage) => {
       if (msg.type === "status") {
-        if (msg.content === "pipeline_start") {
+        if (msg.content === "thinking") {
+          setThinking(true);
+        } else if (msg.content === "pipeline_start") {
+          setThinking(false);
           if (workingRef.current) return;
           workingRef.current = true;
           setWorking(true); setCurAgent(""); setElapsed(0);
@@ -60,10 +65,12 @@ export default function Page() {
           timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: "", steps: [], timestamp: Date.now() }]);
         } else if (msg.content === "idle") {
+          setThinking(false);
           workingRef.current = false; setWorking(false);
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         }
       } else if (msg.type === "agent_message" && msg.msg_type !== "handoff") {
+        setThinking(false);
         if (!workingRef.current) {
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: msg.content, timestamp: Date.now() }]);
         } else {
@@ -178,6 +185,13 @@ export default function Page() {
                     )}
                   </motion.div>
                 ))}
+                {/* Thinking indicator */}
+                {thinking && !working && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-1 py-2">
+                    <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand)" }} />
+                    <span className="text-sm" style={{ color: "var(--text-2)" }}>思考中...</span>
+                  </motion.div>
+                )}
                 <div ref={endRef} />
               </div>
             )}
