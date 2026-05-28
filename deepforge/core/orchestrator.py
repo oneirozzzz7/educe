@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
+import uuid
 from typing import Any, Callable
 
 from rich.console import Console
@@ -15,25 +18,14 @@ from deepforge.core.task_store import TaskStore
 
 console = Console()
 
-AGENT_COLORS = {
-    "project_manager": "bold cyan",
-    "product_manager": "bold green",
-    "architect": "bold yellow",
-    "engineer": "bold blue",
-    "reviewer": "bold red",
-    "crowd_user": "bold magenta",
-    "memory_keeper": "bold white",
+AGENT_ICONS = {
+    "project_manager": "🎯", "product_manager": "📋", "architect": "🏗️",
+    "engineer": "💻", "reviewer": "🔍", "crowd_user": "👥", "memory_keeper": "🧠",
 }
 
-AGENT_ICONS = {
-    "project_manager": "🎯",
-    "product_manager": "📋",
-    "architect": "🏗️",
-    "engineer": "💻",
-    "reviewer": "🔍",
-    "crowd_user": "👥",
-    "memory_keeper": "🧠",
-}
+HIDDEN_FROM_USER = {"memory_keeper", "crowd_user"}
+
+PIPELINE = ["project_manager", "product_manager", "architect", "engineer", "reviewer", "crowd_user", "memory_keeper"]
 
 
 class Orchestrator:
@@ -61,498 +53,204 @@ class Orchestrator:
             cb(msg)
 
     def _notify_chunk(self, agent_name: str, chunk: str) -> None:
-        """流式chunk通知——逐字推送给前端"""
         for cb in self._on_chunk:
             cb(agent_name, chunk)
 
-    def _display_message(self, msg: Message) -> None:
+    def _display(self, msg: Message) -> None:
+        if msg.sender in HIDDEN_FROM_USER:
+            return
         icon = AGENT_ICONS.get(msg.sender, "🤖")
-        color = AGENT_COLORS.get(msg.sender, "white")
-        agent = self.agents.get(msg.sender)
-        title = f"{icon} {agent.role if agent else msg.sender}"
+        console.print(Panel(Markdown(msg.content[:500]), title=f"{icon} {msg.sender}", border_style="cyan", padding=(0, 1)))
 
-        console.print()
-        console.print(Panel(
-            Markdown(msg.content),
-            title=title,
-            title_align="left",
-            border_style=color,
-            padding=(1, 2),
-        ))
+    # ═══════════════════════════════════════════
+    # 唯一入口 — 不分类意图，模型自己决定
+    # ═══════════════════════════════════════════
 
     async def run(self, user_input: str) -> WorkContext:
+        """Claude Code风格：所有请求走同一入口，模型自己决定怎么做"""
         self.context.user_request = user_input
-        self.context.current_phase = "planning"
 
-        initial_msg = Message(
-            type=MessageType.USER_INPUT,
-            sender="user",
-            receiver="project_manager",
-            content=user_input,
-        )
-        self.context.add_message(initial_msg)
+        if self.context.artifacts.get("engineer_output"):
+            return await self._run_followup(user_input)
 
-        await self._process_message(initial_msg)
-        return self.context
+        decision = await self._smart_decide(user_input)
 
-    async def _process_message(self, msg: Message, depth: int = 0) -> None:
-        if depth > 30:
-            console.print("[red]⚠ 达到最大递归深度，停止处理[/red]")
-            return
+        if decision["action"] == "code":
+            return await self._run_code_pipeline(user_input)
+        else:
+            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=decision["content"])
+            self.context.add_message(msg)
+            self._notify(msg)
+            self._display(msg)
+            return self.context
 
-        receiver = msg.receiver
-        if receiver == "user":
-            self._display_message(msg)
-            return
-
-        agent = self.agents.get(receiver)
-        if agent is None:
-            console.print(f"[red]⚠ 未找到Agent: {receiver}[/red]")
-            return
-
-        responses: list[Message] = []
-        async for response in agent.handle(msg, self.context):
-            self.context.add_message(response)
-            self._notify(response)
-            self._display_message(response)
-            responses.append(response)
-
-        for response in responses:
-            if response.type == MessageType.HANDOFF:
-                await self._process_message(response, depth + 1)
-
-    async def _classify_intent(self, user_input: str) -> str:
-        """用模型做意图分类——比关键词匹配准确得多"""
-        if not self.agents:
-            return "chat"
-        client = next(iter(self.agents.values())).model_client
+    async def _smart_decide(self, user_input: str) -> dict:
+        """一次模型调用：要么直接回复，要么决定启动编码pipeline"""
+        client = self._get_client()
         if not client:
-            return "chat"
+            return {"action": "reply", "content": "暂时无法处理，请检查模型配置。"}
+
         try:
             result = await client.chat(
                 messages=[
-                    {"role": "system", "content": """你是一个意图分类器。根据用户输入，判断属于以下哪种类型，只回复一个英文单词：
-
-code — 需要写代码/做网页/做工具/做游戏/做App/做扩展等技术产品
-content — 需要写文章/做攻略/写报告/写方案/翻译/总结/分析等文本内容
-chat — 闲聊/问答/打招呼/问问题等日常对话
-
-只回复: code 或 content 或 chat"""},
-                    {"role": "user", "content": user_input},
-                ],
-                model=self.config.default_model.model,
-                max_tokens=10,
-                temperature=0,
-            )
-            intent = result.strip().lower().split()[0] if result else "chat"
-            if intent in ("code", "content", "chat"):
-                return intent
-            return "chat"
-        except Exception:
-            return self._classify_intent_fallback(user_input)
-
-    def _classify_intent_fallback(self, user_input: str) -> str:
-        """模型不可用时的关键词回退"""
-        text = user_input.strip().lower()
-        content_kw = ["攻略", "报告", "文案", "总结", "翻译", "分析", "计划", "方案", "建议", "介绍", "写一篇", "写一份"]
-        code_kw = ["网页", "网站", "工具", "游戏", "扩展", "插件", "html", "python", "脚本", "app"]
-        for k in content_kw:
-            if k in text: return "content"
-        for k in code_kw:
-            if k in text: return "code"
-        return "chat"
-
-    async def _generate_content(self, user_input: str) -> str:
-        """内容生成——直接输出成果，不反问"""
-        if not self.agents:
-            return "暂时无法处理"
-        client = next(iter(self.agents.values())).model_client
-        if not client:
-            return "暂时无法处理"
-        try:
-            return await client.chat(
-                messages=[
-                    {"role": "system", "content": "你是一个专业的内容创作助手。如果用户需求明确，直接输出完整内容。如果需要澄清，简短反问并给出2-4个可选选项（用数字标注）。使用Markdown格式。"},
+                    {"role": "system", "content": (
+                        "你是DeepForge，一个AI创作助手。\n\n"
+                        "判断用户需求：\n"
+                        "- 如果需要写代码、做网页、做工具、做游戏、做App、做Chrome扩展等需要编程的产品 → 只回复三个字：NEED_CODE\n"
+                        "- 其他所有情况（聊天、写文章、做攻略、翻译、分析等）→ 直接输出完整回复内容\n\n"
+                        "记住：只有需要编程时才回复NEED_CODE，其他一律直接回答。"
+                    )},
                     {"role": "user", "content": user_input},
                 ],
                 model=self.config.default_model.model,
                 max_tokens=self.config.default_model.max_tokens,
             )
+
+            if result.strip().startswith("NEED_CODE"):
+                return {"action": "code"}
+            else:
+                return {"action": "reply", "content": result}
+
         except Exception as e:
-            return f"生成失败: {e}"
+            return {"action": "reply", "content": f"出错了: {e}"}
 
-    async def _quick_reply(self, user_input: str) -> str:
-        """普通对话——直接调用模型，不带Agent角色prompt"""
-        if not self.agents:
-            return '你好！'
-        client = next(iter(self.agents.values())).model_client
-        if not client:
-            return '你好！'
-        try:
-            return await client.chat(
-                messages=[
-                    {"role": "system", "content": "你是DeepForge，一个AI创作助手。简洁友好地回答用户问题。如果用户想创建什么东西，引导他描述具体需求。"},
-                    {"role": "user", "content": user_input},
-                ],
-                model=self.config.default_model.model,
-                max_tokens=500,
-            )
-        except Exception:
-            return '你好！'
+    # ═══════════════════════════════════════════
+    # 编码 Pipeline（带迭代）
+    # ═══════════════════════════════════════════
 
-    async def run_pipeline(self, user_input: str) -> WorkContext:
-        is_followup = bool(self.context.artifacts.get("engineer_output"))
-        self.context.user_request = user_input
-        self.context.metadata["on_chunk"] = lambda agent, chunk: self._notify_chunk(agent, chunk)
-
-        intent = await self._classify_intent(user_input)
-
-        if intent == "content":
-            content = await self._generate_content(user_input)
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
-            self.context.add_message(msg)
-            self._notify(msg)
-            self._display_message(msg)
-            return self.context
-
-        if intent == "chat":
-            reply = await self._quick_reply(user_input)
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=reply)
-            self.context.add_message(msg)
-            self._notify(msg)
-            self._display_message(msg)
-            return self.context
-
-        if is_followup:
-            return await self._run_followup(user_input)
-
-        import uuid
+    async def _run_code_pipeline(self, user_input: str) -> WorkContext:
+        """完整的编码pipeline：PM→PD→Arch→Eng→Review（迭代）→完成"""
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
-
-        pipeline = [
-            "project_manager",
-            "product_manager",
-            "architect",
-            "engineer",
-            "reviewer",
-            "crowd_user",
-            "memory_keeper",
-        ]
-
-        current_content = user_input
-        current_sender = "user"
-        pipeline_success = True
-
-        for agent_name in pipeline:
-            if agent_name not in self.agents:
-                continue
-            if not self.config.agents.get(agent_name, None):
-                continue
-
-            self.context.current_phase = agent_name
-            self.observer.start_agent(agent_name)
-
-            msg = Message(
-                type=MessageType.TASK if current_sender != "user" else MessageType.USER_INPUT,
-                sender=current_sender,
-                receiver=agent_name,
-                content=current_content,
-            )
-            self.context.add_message(msg)
-
-            try:
-                async for response in self.agents[agent_name].handle(msg, self.context):
-                    self.context.add_message(response)
-                    self._notify(response)
-                    self._display_message(response)
-                    current_content = response.content
-                    current_sender = agent_name
-                self.observer.finish_agent(agent_name, success=True, summary=current_content[:80])
-            except Exception as e:
-                error_msg = f"[{agent_name}] 执行失败: {e}"
-                console.print(f"[red]⚠ {error_msg}[/red]")
-                self.observer.finish_agent(agent_name, success=False, error=str(e))
-                err = Message(type=MessageType.ERROR, sender=agent_name, receiver="user", content=error_msg)
-                self.context.add_message(err)
-                self._notify(err)
-                if agent_name in ("project_manager", "engineer"):
-                    console.print("[red]关键Agent失败，停止流水线[/red]")
-                    pipeline_success = False
-                    break
-
-        self.observer.finish_task(
-            success=pipeline_success,
-            project_type=self.context.artifacts.get("project_type", ""),
-            file_count=len(self.context.artifacts.get("code_files", [])),
-        )
-        self.task_store.save_from_context(task_id, self.context)
-        return self.context
-
-    async def _run_followup(self, user_input: str) -> WorkContext:
-        """多轮对话：基于上次产出进行修改"""
-        console.print(f"\n[bold cyan]🔄 基于上次产出修改...[/bold cyan]\n")
-
-        prev_output = self.context.artifacts.get("engineer_output", "")
-        prev_files = self.context.artifacts.get("code_files", [])
-
-        engineer = self.agents.get("engineer")
-        if not engineer:
-            return self.context
-
-        self.context.current_phase = "engineer"
-        modify_prompt = (
-            f"用户要求修改：{user_input}\n\n"
-            f"当前已有代码：\n{prev_output[:4000]}\n\n"
-            f"请基于已有代码进行修改，输出修改后的完整文件。"
-        )
-
-        msg = Message(
-            type=MessageType.TASK,
-            sender="user",
-            receiver="engineer",
-            content=modify_prompt,
-        )
-        self.context.add_message(msg)
-
-        try:
-            async for response in engineer.handle(msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-        except Exception as e:
-            console.print(f"[red]修改失败: {e}[/red]")
-
-        return self.context
-
-    async def run_iterative_pipeline(self, user_input: str) -> WorkContext:
-        """带迭代循环的流水线"""
-        self.context.user_request = user_input
-
-        intent = await self._classify_intent(user_input)
-
-        if intent == "content":
-            content = await self._generate_content(user_input)
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
-            self.context.add_message(msg)
-            self._notify(msg)
-            self._display_message(msg)
-            return self.context
-
-        if intent != "code":
-            reply = await self._quick_reply(user_input)
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=reply)
-            self.context.add_message(msg)
-            self._notify(msg)
-            self._display_message(msg)
-            return self.context
-
-        self.context.metadata["iteration"] = 0
 
         pre_review = ["project_manager", "product_manager", "architect"]
         current_content = user_input
         current_sender = "user"
 
         for agent_name in pre_review:
-            if agent_name not in self.agents:
-                continue
-            self.context.current_phase = agent_name
-            msg = Message(
-                type=MessageType.TASK if current_sender != "user" else MessageType.USER_INPUT,
-                sender=current_sender,
-                receiver=agent_name,
-                content=current_content,
+            current_content, current_sender = await self._run_agent(
+                agent_name, current_content, current_sender
             )
-            self.context.add_message(msg)
-
-            async for response in self.agents[agent_name].handle(msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-                current_content = response.content
-                current_sender = agent_name
 
         for iteration in range(1, self.max_iterations + 1):
-            self.context.metadata["iteration"] = iteration
-            console.print(f"\n[bold yellow]🔄 迭代轮次 {iteration}/{self.max_iterations}[/bold yellow]\n")
+            console.print(f"\n[bold yellow]🔄 迭代 {iteration}/{self.max_iterations}[/bold yellow]")
 
-            self.context.current_phase = "engineer"
-            eng_msg = Message(
-                type=MessageType.TASK,
-                sender=current_sender,
-                receiver="engineer",
-                content=current_content,
-                data={"iteration": iteration},
+            current_content, current_sender = await self._run_agent(
+                "engineer", current_content, current_sender, data={"iteration": iteration}
             )
-            self.context.add_message(eng_msg)
-
-            eng_output = ""
-            async for response in self.agents["engineer"].handle(eng_msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-                eng_output = response.content
 
             validation = self.context.artifacts.get("validation", {})
-            if validation and not validation.get("passed", True):
-                console.print(f"[yellow]⚠ 产出物验证未通过: {validation.get('summary', '')}[/yellow]")
-                if iteration < self.max_iterations:
-                    current_content = (
-                        f"## 产出物验证失败\n\n"
-                        f"问题: {'; '.join(validation.get('issues', []))}\n\n"
-                        f"请修复以上问题，输出完整代码。"
-                    )
-                    current_sender = "reviewer"
-                    continue
-
-            self.context.current_phase = "reviewer"
-            review_msg = Message(
-                type=MessageType.TASK,
-                sender="engineer",
-                receiver="reviewer",
-                content=f"## 工程师第{iteration}轮产出\n\n{eng_output}",
-                data={"iteration": iteration},
-            )
-            self.context.add_message(review_msg)
-
-            review_result = ""
-            async for response in self.agents["reviewer"].handle(review_msg, self.context):
-                self.context.add_message(response)
-                self._notify(response)
-                self._display_message(response)
-                review_result = response.content
-
-            passed = self._check_review_passed(review_result)
-
-            if passed:
-                console.print(f"\n[bold green]✅ 第{iteration}轮审查通过！[/bold green]\n")
-                current_content = eng_output
+            if validation and not validation.get("passed", True) and iteration < self.max_iterations:
+                current_content = f"验证失败: {validation.get('summary','')}\n请修复并输出完整代码。"
                 current_sender = "reviewer"
+                continue
+
+            review_content, _ = await self._run_agent(
+                "reviewer", f"工程师第{iteration}轮产出:\n{current_content}", "engineer",
+                data={"iteration": iteration}
+            )
+
+            if self._review_passed(review_content):
+                console.print(f"\n[green]✅ 审查通过[/green]")
                 break
-            else:
-                console.print(f"\n[bold red]🔴 第{iteration}轮审查未通过，回退修改[/bold red]\n")
-                fix_instructions = self._extract_fix_instructions(review_result)
-                current_content = (
-                    f"## 审查反馈 - 第{iteration}轮\n\n"
-                    f"### 需要修复的问题\n{fix_instructions}\n\n"
-                    f"### 上一轮代码\n{eng_output}\n\n"
-                    f"请根据审查反馈修复所有问题，输出完整修复后的代码。"
-                )
+            elif iteration < self.max_iterations:
+                console.print(f"\n[red]🔴 审查未通过，回退修改[/red]")
+                fix = self._extract_fixes(review_content)
+                current_content = f"审查反馈:\n{fix}\n\n上一轮代码:\n{current_content}\n\n请修复后输出完整代码。"
                 current_sender = "reviewer"
 
-                if iteration == self.max_iterations:
-                    console.print(f"\n[yellow]⚠ 达到最大迭代次数({self.max_iterations})[/yellow]\n")
-                    current_content = eng_output
+        has_output = bool(self.context.artifacts.get("code_files"))
 
-        has_deliverable = bool(self.context.artifacts.get("code_files"))
+        if has_output:
+            for agent_name in ["crowd_user", "memory_keeper"]:
+                await self._run_agent(agent_name, current_content, current_sender)
 
-        if has_deliverable:
-            post_review = ["crowd_user", "memory_keeper"]
-            for agent_name in post_review:
-                if agent_name not in self.agents:
-                    continue
-                self.context.current_phase = agent_name
-                msg = Message(
-                    type=MessageType.TASK,
-                    sender=current_sender,
-                    receiver=agent_name,
-                    content=current_content,
-                )
-                self.context.add_message(msg)
+        self.observer.finish_task(
+            success=has_output,
+            project_type=self.context.artifacts.get("project_type", ""),
+            file_count=len(self.context.artifacts.get("code_files", [])),
+        )
+        self.task_store.save_from_context(task_id, self.context)
 
-                async for response in self.agents[agent_name].handle(msg, self.context):
-                    self.context.add_message(response)
-                    self._notify(response)
-                    current_content = response.content
-                    current_sender = agent_name
-
-            await self._auto_preview()
-        else:
-            fail_msg = Message(
-                type=MessageType.RESULT,
-                sender="system",
-                receiver="user",
-                content="未能生成可用的产出物，请尝试更具体地描述需求。",
-            )
+        if not has_output:
+            fail_msg = Message(type=MessageType.RESULT, sender="system", receiver="user",
+                              content="未能生成可用的产出物，请尝试更具体地描述需求。")
             self.context.add_message(fail_msg)
             self._notify(fail_msg)
-            self._display_message(fail_msg)
 
         return self.context
 
-    async def _auto_preview(self) -> None:
-        """任务完成后自动启动产出物预览"""
-        output_dir = self.context.artifacts.get("output_dir")
-        project_type = self.context.artifacts.get("project_type")
-        if not output_dir or not project_type:
-            return
+    # ═══════════════════════════════════════════
+    # 修改已有产出物
+    # ═══════════════════════════════════════════
 
-        from pathlib import Path
-        out = Path(output_dir)
+    async def _run_followup(self, user_input: str) -> WorkContext:
+        """基于上次产出物修改"""
+        prev_output = self.context.artifacts.get("engineer_output", "")
+        modify_prompt = f"用户要求修改：{user_input}\n\n当前代码：\n{prev_output[:4000]}\n\n输出修改后的完整文件。"
+        await self._run_agent("engineer", modify_prompt, "user")
+        return self.context
 
-        if project_type == "static_html":
-            html_files = list(out.rglob("*.html"))
-            if html_files:
-                import subprocess
-                port = 8899
-                subprocess.Popen(
-                    ["python", "-m", "http.server", str(port), "--directory", str(out)],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-                url = f"http://localhost:{port}/{html_files[0].relative_to(out)}"
-                console.print(f"\n[bold green]🎉 产出物预览: {url}[/bold green]")
-                import webbrowser
-                webbrowser.open(url)
-        elif project_type == "python_script":
-            py_files = list(out.rglob("*.py"))
-            if py_files:
-                console.print(f"\n[bold green]🎉 运行: python {py_files[0]}[/bold green]")
-        elif project_type == "chrome_extension":
-            console.print(f"\n[bold green]🎉 Chrome扩展已生成: {out}[/bold green]")
-            console.print("[dim]打开 chrome://extensions → 开发者模式 → 加载已解压扩展[/dim]")
-        else:
-            console.print(f"\n[bold green]🎉 产出物目录: {out}[/bold green]")
+    # ═══════════════════════════════════════════
+    # 通用Agent执行
+    # ═══════════════════════════════════════════
 
-    def _check_review_passed(self, review_content: str) -> bool:
-        """判断审查是否通过——默认不通过，必须有明确通过信号"""
-        fail_signals = ["🔴", "必须修复", "严重问题", "阻塞性问题", "不通过", "❌"]
-        for signal in fail_signals:
-            if signal in review_content:
+    async def _run_agent(self, agent_name: str, content: str, sender: str, data: dict | None = None) -> tuple[str, str]:
+        """执行单个Agent，返回(output_content, agent_name)"""
+        agent = self.agents.get(agent_name)
+        if not agent:
+            return content, sender
+
+        self.context.current_phase = agent_name
+        self.observer.start_agent(agent_name)
+
+        msg = Message(
+            type=MessageType.TASK if sender != "user" else MessageType.USER_INPUT,
+            sender=sender, receiver=agent_name, content=content,
+            data=data or {},
+        )
+        self.context.add_message(msg)
+
+        output = content
+        try:
+            async for response in agent.handle(msg, self.context):
+                self.context.add_message(response)
+                if response.sender not in HIDDEN_FROM_USER:
+                    self._notify(response)
+                self._display(response)
+                output = response.content
+            self.observer.finish_agent(agent_name, success=True, summary=output[:80])
+        except Exception as e:
+            console.print(f"[red]⚠ [{agent_name}] 失败: {e}[/red]")
+            self.observer.finish_agent(agent_name, success=False, error=str(e))
+            if agent_name in ("project_manager", "engineer"):
+                raise
+
+        return output, agent_name
+
+    # ═══════════════════════════════════════════
+    # 工具方法
+    # ═══════════════════════════════════════════
+
+    def _get_client(self):
+        if not self.agents:
+            return None
+        agent = next(iter(self.agents.values()))
+        return agent.model_client
+
+    def _review_passed(self, review: str) -> bool:
+        for signal in ["🔴", "❌", "必须修复", "不通过", "严重问题"]:
+            if signal in review:
                 return False
-
-        import re
-        score_match = re.search(r'(?:总体评分|评分|score)[：:\s]*(\d+)', review_content)
-        if score_match:
-            return int(score_match.group(1)) >= 7
-
-        pass_signals = ["审查通过", "✅ 通过", "✅ 审查通过", "无阻塞性问题", "可以发布"]
-        for signal in pass_signals:
-            if signal in review_content:
+        m = re.search(r'(?:评分|score)[：:\s]*(\d+)', review)
+        if m:
+            return int(m.group(1)) >= 7
+        for signal in ["✅ 通过", "✅ 审查通过", "审查通过"]:
+            if signal in review:
                 return True
-
         return False
 
-    def _extract_fix_instructions(self, review_content: str) -> str:
-        """从审查报告中提取修复指令"""
-        lines = review_content.split("\n")
-        fix_lines = []
-        in_fix_section = False
-
-        for line in lines:
-            if any(kw in line for kw in ["🔴", "必须修复", "修复建议", "问题描述"]):
-                in_fix_section = True
-            if in_fix_section:
-                fix_lines.append(line)
-                if line.strip() == "" and len(fix_lines) > 3:
-                    if any(kw in line for kw in ["🟡", "🟢", "总结", "评分"]):
-                        break
-
-        if fix_lines:
-            return "\n".join(fix_lines)
-
-        import re
-        issues = re.findall(r'(?:🔴|❌|问题\d+)[^\n]*\n(?:[^\n]*\n){0,3}', review_content)
-        if issues:
-            return "\n".join(issues)
-
-        return review_content[:1000]
+    def _extract_fixes(self, review: str) -> str:
+        lines = review.split("\n")
+        fixes = [l for l in lines if any(k in l for k in ["🔴", "❌", "修复", "问题"])]
+        return "\n".join(fixes[:10]) if fixes else review[:500]

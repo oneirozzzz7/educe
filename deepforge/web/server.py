@@ -195,12 +195,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator = get_orchestrator(session_id)
 
-        HIDDEN_AGENTS = {"memory_keeper", "crowd_user"}
-
         async def send_message(msg: Message):
-            if msg.sender in HIDDEN_AGENTS and msg.type.value != "error":
-                return
-
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",
@@ -209,18 +204,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 "content": msg.content,
                 "msg_type": msg.type.value,
                 "timestamp": msg.timestamp,
-                "has_files": "```filepath:" in msg.content or "code_files" in str(msg.data),
+                "has_files": "```filepath:" in msg.content or "<!DOCTYPE" in msg.content,
             })
 
         orchestrator.on_message(lambda msg: asyncio.ensure_future(send_message(msg)))
 
         async def send_chunk(agent_name: str, chunk: str):
             try:
-                await websocket.send_json({
-                    "type": "chunk",
-                    "sender": agent_name,
-                    "content": chunk,
-                })
+                await websocket.send_json({"type": "chunk", "sender": agent_name, "content": chunk})
             except Exception:
                 pass
 
@@ -230,23 +221,15 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             while True:
                 data = await websocket.receive_json()
                 user_input = data.get("message", "")
-
                 if not user_input:
                     continue
 
-                intent = await orchestrator._classify_intent(user_input)
-
-                if intent == "code":
-                    await websocket.send_json({"type": "status", "content": "processing"})
-
+                await websocket.send_json({"type": "status", "content": "processing"})
                 try:
-                    await orchestrator.run_pipeline(user_input)
-                    if intent == "code":
-                        await websocket.send_json({"type": "status", "content": "done"})
-                    else:
-                        await websocket.send_json({"type": "status", "content": "chat_done"})
+                    await orchestrator.run(user_input)
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
+                await websocket.send_json({"type": "status", "content": "done"})
 
         except WebSocketDisconnect:
             if session_id in sessions:
