@@ -221,7 +221,6 @@ class BuilderAgent(BaseAgent):
 - 完整功能：错误处理、localStorage持久化、复制按钮
 - HTML必须有DOCTYPE和完整闭合标签
 - JS不能有语法错误
-{lessons}
 
 ## 输出格式
 直接输出代码，用```filepath:文件名格式包裹。"""
