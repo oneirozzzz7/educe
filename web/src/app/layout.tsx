@@ -6,10 +6,14 @@ export const metadata: Metadata = {
   description: "7 AI Agents collaborate to build what you imagine",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body className="bg-[#fafafa] text-gray-800 antialiased">{children}</body>
     </html>
   );
 }
