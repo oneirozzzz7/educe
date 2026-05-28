@@ -8,6 +8,7 @@ from deepforge.core.agent import BaseAgent
 from deepforge.core.message import Message, MessageType, WorkContext
 from deepforge.tools.toolbox import ToolBox
 from deepforge.tools.artifacts import ArtifactManager
+from deepforge.tools.verifier import CodeVerifier
 
 
 class EngineerAgent(BaseAgent):
@@ -17,10 +18,11 @@ class EngineerAgent(BaseAgent):
 你的唯一职责是输出完整可运行的代码。
 禁止输出规划、描述、解释——只要代码。"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, memory_store=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.toolbox = ToolBox()
         self.artifacts = ArtifactManager()
+        self.memory_store = memory_store
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         iteration = message.data.get("iteration", 1)
@@ -58,7 +60,8 @@ class EngineerAgent(BaseAgent):
             saved = self.artifacts.save_files(files)
             project_type = self.artifacts.detect_project_type(files)
 
-            validation = await self._validate_output(files, project_type)
+            # 运行验证——真正执行代码检查，不是LLM猜测
+            validation = await CodeVerifier.verify(files)
 
             prev_files = context.artifacts.get("code_files", [])
             all_files = list(set(prev_files + [str(p) for p in saved]))
@@ -95,7 +98,15 @@ class EngineerAgent(BaseAgent):
         arch_brief = architecture[:2000] if architecture else "无"
         prd_brief = prd[:1500] if prd else "无"
 
+        # 进化闭环：从记忆中提取最近的失败教训注入prompt
+        lessons = ""
+        if hasattr(self, 'memory_store') and self.memory_store:
+            failures = self.memory_store.search("failure", category="evolution_failure", limit=3)
+            if failures:
+                lessons = "\n## 历史教训（必须避免）\n" + "\n".join(f"- {f.content[:100]}" for f in failures)
+
         return f"""你是编码机器。你的输出只有代码，没有解释。
+{lessons}
 
 ## 用户需求
 {context.user_request}
