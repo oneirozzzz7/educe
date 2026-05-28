@@ -36,6 +36,10 @@ class SkillConfig(BaseModel):
     community_dir: str = ".deepforge/community_skills"
 
 
+class EvolutionConfig(BaseModel):
+    enabled: bool = True
+
+
 class DeepForgeConfig(BaseModel):
     project_name: str = "DeepForge"
     work_dir: str = "."
@@ -56,6 +60,7 @@ class DeepForgeConfig(BaseModel):
 
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     skills: SkillConfig = Field(default_factory=SkillConfig)
+    evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> DeepForgeConfig:
@@ -90,6 +95,7 @@ class DeepForgeConfig(BaseModel):
             "QWEN_API_KEY": "default_model.api_key",
             "GLM_API_KEY": "default_model.api_key",
             "KIMI_API_KEY": "default_model.api_key",
+            "DEEPFORGE_EVOLUTION": "evolution.enabled",
         }
         for env_key, config_path in env_mappings.items():
             value = os.environ.get(env_key)
@@ -98,7 +104,10 @@ class DeepForgeConfig(BaseModel):
                 obj: Any = self
                 for part in parts[:-1]:
                     obj = getattr(obj, part)
-                setattr(obj, parts[-1], value)
+                if config_path == "evolution.enabled":
+                    setattr(obj, parts[-1], value.lower() not in ("false", "0", "no", "off"))
+                else:
+                    setattr(obj, parts[-1], value)
 
     def get_model_config(self, agent_name: str) -> ModelConfig:
         agent_cfg = self.agents.get(agent_name)

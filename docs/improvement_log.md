@@ -97,3 +97,12 @@
 - 记忆裁剪：LayeredCache.prune()按价值排序保留top-N，merge_duplicates()合并相似条目
 - 进化统计API：/api/evolution 端点返回实时进化数据
 - 安全：不修改框架核心代码，只通过知识追加影响模型行为
+
+### v1.4 自进化嵌入框架——用户侧无感知
+- 进化触发：每次任务完成后 asyncio.create_task() 后台静默执行
+- 用户无感知：不弹窗、不阻塞、不额外交互
+- 数据隔离：所有进化数据存用户本地 .deepforge/（知识库+日志）
+- 可开关：config.evolution.enabled（默认开启），settings-modal开关切换
+- 配置持久化：.env DEEPFORGE_EVOLUTION=true/false
+- 核心逻辑抽离：deepforge/core/evolution.py 纯函数式，不依赖Orchestrator
+- 记忆防膨胀：知识>1000条时自动裁剪+去重

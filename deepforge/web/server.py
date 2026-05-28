@@ -84,6 +84,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             "base_url": config.default_model.base_url,
             "agents": list(config.agents.keys()),
             "has_api_key": bool(config.default_model.api_key),
+            "evolution": config.evolution.enabled,
         }
 
     @app.get("/api/stats")
@@ -186,6 +187,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         model = body.get("model", "")
         api_key = body.get("api_key", "")
         base_url = body.get("base_url", "")
+        evolution = body.get("evolution")
 
         if model:
             config.default_model.model = model
@@ -203,6 +205,10 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     config.default_model.api_key = val
                     break
 
+        if evolution is not None:
+            config.evolution.enabled = bool(evolution)
+            os.environ["DEEPFORGE_EVOLUTION"] = str(evolution).lower()
+
         env_path = Path.cwd() / ".env"
         lines = []
         if env_path.exists():
@@ -214,11 +220,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             lines.append(f"DEEPFORGE_BASE_URL={base_url}")
         if model:
             lines.append(f"DEEPFORGE_MODEL={model}")
+        lines.append(f"DEEPFORGE_EVOLUTION={str(config.evolution.enabled).lower()}")
         env_path.write_text("\n".join(lines) + "\n")
 
         sessions.clear()
 
-        return {"status": "ok", "model": config.default_model.model}
+        return {"status": "ok", "model": config.default_model.model, "evolution": config.evolution.enabled}
 
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):

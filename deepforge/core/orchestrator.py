@@ -138,6 +138,9 @@ class Orchestrator:
                                  file_count=len(self.context.artifacts.get("code_files", [])))
         self.task_store.save_from_context(task_id, self.context)
 
+        if has_output and self.config.evolution.enabled:
+            asyncio.create_task(self._evolve_from_result())
+
         if not has_output:
             fail_msg = Message(type=MessageType.RESULT, sender="system", receiver="user",
                               content="未能生成可用的产出物，请更具体描述需求。")
@@ -265,3 +268,14 @@ class Orchestrator:
         except Exception:
             pass
         return None
+
+    async def _evolve_from_result(self):
+        """后台静默进化——用户无感知"""
+        try:
+            from deepforge.core.evolution import evolve_from_output
+            engineer_output = self.context.artifacts.get("engineer_output", "")
+            user_request = self.context.user_request
+            if engineer_output:
+                evolve_from_output(engineer_output, user_request, self.knowledge)
+        except Exception:
+            pass
