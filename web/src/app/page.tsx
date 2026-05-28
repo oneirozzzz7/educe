@@ -21,6 +21,8 @@ interface ChatMsg {
   timestamp: number;
 }
 
+interface TaskItem { id: string; request: string; project_type: string; created_at: number; response?: string }
+
 export default function Page() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -151,7 +153,18 @@ export default function Page() {
       {/* 侧栏 */}
       <Sidebar collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onNewTask={() => { setMsgs([]); setWorking(false); }}
-        onTaskSelect={(task) => { setMsgs([{ id: task.id, role: "user", text: task.request, timestamp: task.created_at * 1000 }]); }} />
+        onTaskSelect={(task) => {
+          const newMsgs: ChatMsg[] = [{ id: task.id + "-q", role: "user", text: task.request, timestamp: task.created_at * 1000 }];
+          if (task.response) {
+            const html = extractHtml(task.response);
+            if (html) {
+              newMsgs.push({ id: task.id + "-a", role: "assistant", text: "", steps: [{ agent: "builder", summary: "已生成代码", done: true }], html, timestamp: task.created_at * 1000 + 1 });
+            } else {
+              newMsgs.push({ id: task.id + "-a", role: "assistant", text: task.response, timestamp: task.created_at * 1000 + 1 });
+            }
+          }
+          setMsgs(newMsgs);
+        }} />
 
       {/* 主区域 */}
       <div className="flex-1 flex flex-col min-w-0">
