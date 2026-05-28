@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar";
@@ -114,7 +115,9 @@ export default function Page() {
   return (
     <div className="h-screen flex" style={{ background: "var(--bg)" }}>
       {/* 侧栏 */}
-      <Sidebar collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} />
+      <Sidebar collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onNewTask={() => { setMsgs([]); setWorking(false); }}
+        onTaskSelect={(task) => { setMsgs([{ id: task.id, role: "user", text: task.request, timestamp: task.created_at * 1000 }]); }} />
 
       {/* 主区域 */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -127,9 +130,9 @@ export default function Page() {
             {!hasMessages && !working && (
               <div className="flex-1 flex items-center justify-center">
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center w-full max-w-[560px]">
-                  <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <Sparkles className="text-white" size={24} />
-                  </div>
+                  <div className="mx-auto mb-5">
+                  <Logo size={56} />
+                </div>
                   <h1 className="text-2xl font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>What will you build?</h1>
                   <p className="text-sm mb-8" style={{ color: "var(--text-3)" }}>Idea → Product, powered by multi-agent collaboration</p>
                   <div className="flex flex-wrap gap-2 justify-center">

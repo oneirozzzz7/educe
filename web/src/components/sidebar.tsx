@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Clock, FolderOpen, Settings, Moon, Sun, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
+import { Clock, Moon, Sun, PanelLeftClose, PanelLeft, Plus } from "lucide-react";
 import { useTheme } from "./theme-provider";
+import { Logo, LogoMark } from "./logo";
 import { API_HOST } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 
 interface TaskItem { id: string; request: string; project_type: string; created_at: number }
 
-export function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onCollapse: () => void }) {
+export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
+  collapsed: boolean; onCollapse: () => void; onTaskSelect?: (task: TaskItem) => void; onNewTask?: () => void;
+}) {
   const { theme, toggle } = useTheme();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
 
@@ -22,9 +25,7 @@ export function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onColla
         <button onClick={onCollapse} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--brand-subtle)] transition-colors" style={{ color: "var(--text-2)" }}>
           <PanelLeft size={16} />
         </button>
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mt-1">
-          <Sparkles size={12} className="text-white" />
-        </div>
+        <LogoMark size={28} />
       </div>
     );
   }
@@ -33,9 +34,7 @@ export function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onColla
     <div className="w-[var(--sidebar-width)] shrink-0 flex flex-col border-r overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}>
       {/* 头部 */}
       <div className="h-12 px-4 flex items-center gap-2 border-b" style={{ borderColor: "var(--border)" }}>
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-          <Sparkles size={13} className="text-white" />
-        </div>
+        <Logo size={28} />
         <span className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
           Deep<span style={{ color: "var(--brand)" }}>Forge</span>
         </span>
@@ -47,7 +46,7 @@ export function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onColla
 
       {/* 新建按钮 */}
       <div className="px-3 py-2">
-        <button className="w-full h-8 rounded-lg border flex items-center justify-center gap-1.5 text-xs font-medium hover:bg-[var(--brand-subtle)] transition-colors" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
+        <button onClick={onNewTask} className="w-full h-8 rounded-lg border flex items-center justify-center gap-1.5 text-xs font-medium hover:bg-[var(--brand-subtle)] transition-colors" style={{ borderColor: "var(--border)", color: "var(--text-2)" }}>
           <Plus size={13} /> 新任务
         </button>
       </div>
@@ -61,7 +60,8 @@ export function Sidebar({ collapsed, onCollapse }: { collapsed: boolean; onColla
           <div className="px-2 py-4 text-xs text-center" style={{ color: "var(--text-3)" }}>暂无任务</div>
         ) : (
           tasks.slice(0, 10).map(t => (
-            <button key={t.id} className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate hover:bg-[var(--brand-subtle)] transition-colors mb-0.5" style={{ color: "var(--text-2)" }}>
+            <button key={t.id} onClick={() => onTaskSelect?.(t)}
+              className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate hover:bg-[var(--brand-subtle)] transition-colors mb-0.5" style={{ color: "var(--text-2)" }}>
               {t.request || "未命名任务"}
             </button>
           ))
