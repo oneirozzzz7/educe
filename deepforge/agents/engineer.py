@@ -31,7 +31,17 @@ class EngineerAgent(BaseAgent):
             prompt = self._build_prompt(message, context)
 
         messages = [{"role": "user", "content": prompt}]
-        response = await self.call_model(messages, context)
+
+        on_chunk = context.metadata.get("on_chunk")
+
+        async def chunk_cb(chunk):
+            if on_chunk:
+                on_chunk(self.name, chunk)
+
+        try:
+            response = await self.call_model_streaming(messages, context, on_chunk=chunk_cb)
+        except Exception:
+            response = await self.call_model(messages, context)
 
         files = self._extract_files(response)
 

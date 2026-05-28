@@ -75,6 +75,32 @@ class BaseAgent(abc.ABC):
 
         raise RuntimeError(f"模型调用失败 ({max_retries}次重试后): {last_error}")
 
+    async def call_model_streaming(self, messages: list[dict], context: WorkContext, on_chunk=None) -> str:
+        """流式调用模型，每个chunk通过on_chunk回调通知"""
+        if self.model_client is None:
+            raise RuntimeError(f"Agent {self.name} has no model client configured")
+
+        system_prompt = self.build_system_prompt(context)
+        full_messages = [{"role": "system", "content": system_prompt}] + messages
+
+        full_response = ""
+        try:
+            async for chunk in self.model_client.chat_stream(
+                messages=full_messages,
+                model=self.model_config.model,
+                temperature=self.model_config.temperature,
+                max_tokens=self.model_config.max_tokens,
+            ):
+                full_response += chunk
+                if on_chunk:
+                    await on_chunk(chunk)
+        except Exception as e:
+            if full_response:
+                return full_response
+            raise
+
+        return full_response
+
     async def call_model_stream(self, messages: list[dict], context: WorkContext) -> AsyncIterator[str]:
         if self.model_client is None:
             raise RuntimeError(f"Agent {self.name} has no model client configured")

@@ -194,6 +194,18 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator.on_message(lambda msg: asyncio.ensure_future(send_message(msg)))
 
+        async def send_chunk(agent_name: str, chunk: str):
+            try:
+                await websocket.send_json({
+                    "type": "chunk",
+                    "sender": agent_name,
+                    "content": chunk,
+                })
+            except Exception:
+                pass
+
+        orchestrator.on_chunk(lambda a, c: asyncio.ensure_future(send_chunk(a, c)))
+
         try:
             while True:
                 data = await websocket.receive_json()

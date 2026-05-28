@@ -41,6 +41,7 @@ class Orchestrator:
         self.agents: dict[str, BaseAgent] = {}
         self.context = WorkContext()
         self._on_message: list[Callable[[Message], None]] = []
+        self._on_chunk: list[Callable[[str, str], None]] = []
         self.max_iterations = max_iterations
         self.observer = Observer()
 
@@ -50,9 +51,17 @@ class Orchestrator:
     def on_message(self, callback: Callable[[Message], None]) -> None:
         self._on_message.append(callback)
 
+    def on_chunk(self, callback: Callable[[str, str], None]) -> None:
+        self._on_chunk.append(callback)
+
     def _notify(self, msg: Message) -> None:
         for cb in self._on_message:
             cb(msg)
+
+    def _notify_chunk(self, agent_name: str, chunk: str) -> None:
+        """流式chunk通知——逐字推送给前端"""
+        for cb in self._on_chunk:
+            cb(agent_name, chunk)
 
     def _display_message(self, msg: Message) -> None:
         icon = AGENT_ICONS.get(msg.sender, "🤖")
@@ -150,6 +159,7 @@ class Orchestrator:
 
     async def run_pipeline(self, user_input: str) -> WorkContext:
         self.context.user_request = user_input
+        self.context.metadata["on_chunk"] = lambda agent, chunk: self._notify_chunk(agent, chunk)
 
         if not self._needs_pipeline(user_input):
             reply = await self._quick_reply(user_input)
