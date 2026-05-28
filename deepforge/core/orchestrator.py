@@ -69,6 +69,11 @@ class Orchestrator:
         if self.context.artifacts.get("engineer_output"):
             return await self._run_followup(user_input)
 
+        # Skill匹配——命中已验证模板则增强prompt
+        skill_prompt = self._match_skill(user_input)
+        if skill_prompt:
+            self.context.metadata["skill_prompt"] = skill_prompt
+
         decision = await self._smart_decide(user_input)
 
         if decision["action"] == "code_complex":
@@ -275,6 +280,28 @@ class Orchestrator:
         if not self.agents:
             return None
         return next(iter(self.agents.values())).model_client
+
+    def _match_skill(self, user_input: str) -> str | None:
+        """匹配已验证的Skill模板——命中则返回增强prompt"""
+        try:
+            from deepforge.skills.builtin_skills import match_skill
+            skill = match_skill(user_input)
+            if skill and skill.get("prompt_template"):
+                return skill["prompt_template"]
+        except Exception:
+            pass
+
+        # 搜索自定义skills
+        from deepforge.skills.registry import SkillRegistry
+        try:
+            sr = SkillRegistry(".deepforge/skills", ".deepforge/community_skills")
+            results = sr.search(user_input)
+            if results and results[0].prompt_template:
+                return results[0].prompt_template
+        except Exception:
+            pass
+
+        return None
 
     def _review_passed(self, review: str) -> bool:
         for s in ["🔴", "❌", "必须修复", "不通过", "严重问题"]:

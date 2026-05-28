@@ -176,18 +176,34 @@ class BuilderAgent(BaseAgent):
         ))
 
     def _build_prompt(self, message: Message, context: WorkContext) -> str:
-        # 加载历史教训
+        # 层1: 记忆——加载相关经验（不只是失败教训）
         lessons = ""
         if self.memory_store:
-            failures = self.memory_store.search("failure", category="builder_failure", limit=3)
-            if failures:
-                lessons = "\n## 历史教训（必须避免）\n" + "\n".join(f"- {f.content[:80]}" for f in failures)
+            # 搜索与任务相关的记忆
+            relevant = self.memory_store.search(context.user_request, limit=3)
+            failures = self.memory_store.search("failure", category="builder_failure", limit=2)
+            all_lessons = []
+            for m in relevant:
+                if m.category == "pattern":
+                    all_lessons.append(f"[模式] {m.content[:80]}")
+                elif m.category == "lesson":
+                    all_lessons.append(f"[教训] {m.content[:80]}")
+            for f in failures:
+                all_lessons.append(f"[避坑] {f.content[:80]}")
+            if all_lessons:
+                lessons = "\n## 历史经验（参考）\n" + "\n".join(f"- {l}" for l in all_lessons[:5])
+
+        # 层2: Skill——如果匹配到模板，用模板增强
+        skill_hint = ""
+        skill_prompt = context.metadata.get("skill_prompt")
+        if skill_prompt:
+            skill_hint = f"\n## 已验证的最佳实践模板\n{skill_prompt}\n"
 
         return f"""你是DeepForge Builder——一个能写代码、运行验证、修复bug的全能开发者。
 
 ## 用户需求
 {message.content}
-
+{skill_hint}
 ## 你的工作方式
 1. 直接写出完整可运行的代码
 2. 代码写完后会自动运行验证
