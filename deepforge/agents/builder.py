@@ -90,6 +90,17 @@ class BuilderAgent(BaseAgent):
 
                 context.add_artifact("engineer_output", response)
 
+                # 检测截断——如果HTML未闭合，请求续写
+                for filepath, content in list(files.items()):
+                    if filepath.endswith(".html") and "</html>" not in content:
+                        messages.append({"role": "assistant", "content": response})
+                        messages.append({"role": "user", "content": f"代码被截断了——{filepath}缺少</html>闭合标签。请从断点继续输出剩余代码（从上次结束的地方开始，不要重复已有部分），最后确保有</script></body></html>。"})
+                        continuation = await self.call_model(messages, context)
+                        files[filepath] = content + "\n" + continuation
+                        # 重新写入
+                        full_path = output_dir / filepath
+                        full_path.write_text(files[filepath], encoding="utf-8")
+
                 # 自动运行验证
                 verify_result = await self._auto_verify(files, output_dir)
                 if verify_result["has_issues"]:
