@@ -33,12 +33,14 @@ class Turn:
 class ConversationManager:
     """对话历史管理——token 预算控制 + 文件上下文黏性"""
 
-    def __init__(self, max_turns: int = 30, history_char_budget: int = 6000):
+    def __init__(self, max_turns: int = 30, history_char_budget: int = 6000,
+                 knowledge=None):
         self.turns: list[Turn] = []
         self.max_turns = max_turns
         self.history_char_budget = history_char_budget
         self.file_context: str = ""
         self._last_file_turn: int = -1
+        self._knowledge = knowledge
 
     def add_user(self, content: str, file_content: str | None = None):
         """记录用户消息"""
@@ -53,6 +55,7 @@ class ConversationManager:
         ))
 
         if len(self.turns) > self.max_turns * 2:
+            self._distill_before_compact()
             self.turns = self.turns[-self.max_turns:]
 
     def add_assistant(self, content: str, domain: str = ""):
@@ -114,3 +117,19 @@ class ConversationManager:
         self.turns.clear()
         self.file_context = ""
         self._last_file_turn = -1
+
+    def _distill_before_compact(self):
+        """主动蒸馏——在裁剪前提取有价值的上下文到知识库"""
+        if not self._knowledge:
+            return
+        try:
+            from deepforge.core.knowledge_distiller import KnowledgeDistiller
+            distiller = KnowledgeDistiller(self._knowledge)
+
+            turns_to_drop = self.turns[:self.max_turns]
+            for turn in turns_to_drop:
+                if turn.role == "assistant" and len(turn.content) > 100:
+                    domain = turn.domain or "general"
+                    distiller.distill("", turn.content, domain)
+        except Exception:
+            pass

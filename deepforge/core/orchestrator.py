@@ -37,7 +37,7 @@ class Orchestrator:
         self.knowledge = LayeredCache()
 
         from deepforge.core.conversation import ConversationManager
-        self.conversation = ConversationManager()
+        self.conversation = ConversationManager(knowledge=self.knowledge)
 
         from deepforge.core.quality_tracker import QualityTracker
         self.quality_tracker = QualityTracker()
