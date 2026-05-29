@@ -61,7 +61,8 @@ class QualityTracker:
         """记录一次回答的质量数据"""
         features = self._extract_features(response)
 
-        if user_signal != "unknown" and signal_weight != 0:
+        evaluative_signals = ("grateful", "error", "unsatisfied", "engaged")
+        if user_signal in evaluative_signals and signal_weight != 0:
             composite = signal_weight * 0.6 + features["avg"] * 0.4
         else:
             composite = features["avg"]
