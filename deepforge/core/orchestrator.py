@@ -56,6 +56,13 @@ class Orchestrator:
         except Exception:
             pass
 
+        self.context_analyzer = None
+        try:
+            from deepforge.core.context_analyzer import ContextAnalyzer
+            self.context_analyzer = ContextAnalyzer()
+        except Exception:
+            pass
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -255,9 +262,8 @@ class Orchestrator:
         if has_files:
             files = self.context.metadata["uploaded_files"]
             names = [f.name for f in files]
-            file_hint = f"\n（用户上传了文件：{', '.join(names)}）"
+            file_hint = "\n（用户上传了文件：{}）".format(", ".join(names))
 
-        # 模型自行判断——框架只提供上下文辅助
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -266,6 +272,18 @@ class Orchestrator:
         if has_files:
             from deepforge.core.file_handler import format_for_prompt
             file_context = format_for_prompt(self.context.metadata["uploaded_files"])
+
+        # ContextAnalyzer：生成上下文信号
+        ctx_signals = None
+        if self.context_analyzer:
+            ctx_signals = self.context_analyzer.analyze(
+                user_input, self.conversation.turns, self.context.artifacts
+            )
+            self.context.metadata["_context_signals"] = ctx_signals
+
+            # 快速路径：如果ContextAnalyzer明确判断是代码修改
+            if ctx_signals.user_intent_hint == "modify_code":
+                return {"action": "code"}
 
         judge_system = (
             "你是意图分类器。判断用户是否需要编写代码/网页/工具/游戏/脚本。\n"
@@ -277,6 +295,12 @@ class Orchestrator:
         has_prev_code = bool(self.context.artifacts.get("engineer_output"))
         if has_prev_code:
             judge_system += "\n注意：之前生成过代码。修改/调整/优化/加功能/改颜色/改大小等=NEED_CODE。"
+
+        # 注入上下文信号（帮助弱模型做判断）
+        if ctx_signals and ctx_signals.signals:
+            context_hint = self.context_analyzer.build_context_hint(ctx_signals)
+            if context_hint:
+                judge_system += context_hint
 
         messages = [{"role": "system", "content": judge_system}]
         messages.append({"role": "user", "content": user_input + file_hint})
@@ -293,7 +317,6 @@ class Orchestrator:
         except Exception:
             pass
 
-        # 非代码任务——用专家身份回复
         return await self._direct_reply(user_input, file_hint)
 
     # ═══════════════════════════════════════
@@ -482,7 +505,7 @@ class Orchestrator:
         return code_score == 0
 
     async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
-        """用激发引擎构建prompt——带对话历史"""
+        """用激发引擎构建prompt——带对话历史和上下文信号"""
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -496,24 +519,27 @@ class Orchestrator:
         if self.knowledge:
             recalled = self.knowledge.recall(user_input, max_results=5)
 
-        # 只注入insight类知识，过滤元数据和低相关条目
         all_knowledge = []
         for k in recalled:
             if k in all_knowledge:
                 continue
-            # 只要insight类（从高质量回答中提取的知识点）
             if not k.startswith("["):
                 continue
-            if k.startswith("[成功]") or k.startswith("[seed") or "→ 已回答" in k or "→ html" in k:
+            if k.startswith("[成功]") or k.startswith("[seed") or "已回答" in k or "html" in k:
                 continue
             all_knowledge.append(k[:100])
-        # 限制注入数量——太多反而是噪声
         all_knowledge = all_knowledge[:3]
+
+        # 上下文信号注入
+        ctx_hint = ""
+        ctx_signals = self.context.metadata.get("_context_signals")
+        if ctx_signals and self.context_analyzer:
+            ctx_hint = self.context_analyzer.build_context_hint(ctx_signals)
 
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
                 user_input=user_input,
-                domain_context=domain_context,
+                domain_context=domain_context + ctx_hint,
                 l1_compiled=all_knowledge[:8] if all_knowledge else None,
             )
         else:
