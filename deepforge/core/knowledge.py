@@ -96,8 +96,8 @@ class LayeredCache:
     def _compile_l1(self):
         """把高频成功模式编译为prompt片段"""
         hot = sorted(
-            [e for e in self._entries.values() if e.usage_count >= 5 and e.success_rate >= 0.8],
-            key=lambda e: -e.usage_count
+            [e for e in self._entries.values() if e.usage_count >= 3 and e.success_count >= 2],
+            key=lambda e: -(e.usage_count * e.success_rate)
         )[:10]
         self._compiled_l1 = [e.content[:100] for e in hot]
 
@@ -140,7 +140,6 @@ class LayeredCache:
             if self._matches(query, entry.triggers):
                 results.append(entry.content)
                 self._last_recalled_ids.append(entry.id)
-                self._record_use(entry.id)
                 if len(results) >= max_results:
                     return results
 
@@ -158,7 +157,6 @@ class LayeredCache:
         for _, entry in scored[:max_results - len(results)]:
             results.append(entry.content)
             self._last_recalled_ids.append(entry.id)
-            self._record_use(entry.id)
 
         return results
 

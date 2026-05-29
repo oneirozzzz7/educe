@@ -388,6 +388,11 @@ class Orchestrator:
         domain_context = self.context.metadata.get("domain_knowledge", "")
         l1 = self.knowledge.get_l1_compiled() if self.knowledge else []
 
+        # 召回相关知识（驱动L1反馈循环）
+        recalled = []
+        if self.knowledge:
+            recalled = self.knowledge.recall(user_input, max_results=3)
+
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
                 user_input=user_input,
@@ -412,6 +417,15 @@ class Orchestrator:
                 self.context.metadata["expert_name"] = activated.domain or "DeepForge"
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {activated.domain} | 置信度: {activated.overall_confidence}[/dim]")
+
+                # 成功回复写入知识库（驱动越用越强）
+                if self.knowledge and raw and len(raw) > 50:
+                    domain_tag = activated.domain or "通用"
+                    triggers = self.knowledge._tokenize(user_input)
+                    self.knowledge.add(
+                        f"[{domain_tag}] Q:{user_input[:40]} → 已回答({len(raw)}字)",
+                        triggers, "qa_success"
+                    )
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 
