@@ -213,13 +213,15 @@ class ActivationEngine:
         length = len(user_input)
         multi_part = bool(re.search(r'[；;]|第[一二三]|首先.*其次|以及|还有|另外|并且|同时', user_input))
         deep = bool(re.search(
-            r'原理|机制|架构|算法|病理|法条|对比.*区别|优缺点|为什么|证明|分析.*原因|如何.*实现|详细',
+            r'原理|机制|架构|算法|病理|法条|对比.*区别|优缺点|为什么|证明|分析.*原因|如何.*实现|详细|介绍|历史|解释|讲解',
             user_input
         ))
+        trivial = bool(re.search(r'^(你好|谢谢|再见|好的|嗯|哦|ok|OK)$', user_input.strip()))
+        pure_calc = bool(re.match(r'^[\d\+\-\*\/\.\s\(\)=\^]+$', user_input.strip()))
 
-        if length < 15 and not multi_part and not deep:
+        if (trivial or pure_calc) and length < 10:
             return "simple"
-        elif length > 80 or multi_part or deep:
+        elif length > 50 or multi_part or deep:
             return "complex"
         return "moderate"
 
