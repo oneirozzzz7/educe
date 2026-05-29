@@ -40,6 +40,10 @@ class BuilderAgent(BaseAgent):
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         """核心循环：写代码→运行→看结果→修复→直到通过"""
+        # builder需要更大token空间
+        if self.model_config.max_tokens < 8192:
+            self._model_config.max_tokens = 8192
+
         messages = [{"role": "user", "content": self._build_prompt(message, context)}]
 
         output_dir = Path(".deepforge/output")
@@ -92,14 +96,25 @@ class BuilderAgent(BaseAgent):
 
                 context.add_artifact("engineer_output", response)
 
-                # 检测截断——如果HTML未闭合，请求续写
+                # 检测截断——HTML未闭合或Python语法不完整，请求续写
                 for filepath, content in list(files.items()):
+                    is_truncated = False
                     if filepath.endswith(".html") and "</html>" not in content:
+                        is_truncated = True
+                        hint = "缺少</html>闭合标签。请从断点继续输出剩余代码，确保有</script></body></html>。"
+                    elif filepath.endswith(".py"):
+                        open_parens = content.count("(") - content.count(")")
+                        open_brackets = content.count("[") - content.count("]")
+                        open_braces = content.count("{") - content.count("}")
+                        if open_parens > 0 or open_brackets > 0 or open_braces > 0:
+                            is_truncated = True
+                            hint = "代码括号未闭合。请从断点继续输出剩余代码。"
+
+                    if is_truncated:
                         messages.append({"role": "assistant", "content": response})
-                        messages.append({"role": "user", "content": f"代码被截断了——{filepath}缺少</html>闭合标签。请从断点继续输出剩余代码（从上次结束的地方开始，不要重复已有部分），最后确保有</script></body></html>。"})
+                        messages.append({"role": "user", "content": "代码被截断了——{} {}".format(filepath, hint)})
                         continuation = await self.call_model(messages, context)
                         files[filepath] = content + "\n" + continuation
-                        # 重新写入
                         full_path = output_dir / filepath
                         full_path.write_text(files[filepath], encoding="utf-8")
 

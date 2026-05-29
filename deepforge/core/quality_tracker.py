@@ -114,7 +114,7 @@ class QualityTracker:
             if overlap > 0.5:
                 return "unsatisfied", -0.5
 
-        return "topic_switch", 0.1
+        return "neutral", 0.0
 
     def aggregate(self):
         """聚合质量日志为领域统计"""
