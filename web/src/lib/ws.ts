@@ -36,7 +36,7 @@ export interface ErrorMessage {
 export type ServerMessage = AgentMessage | StatusMessage | ChunkMessage | ErrorMessage;
 
 export interface DeepForgeWS {
-  send: (message: string) => void;
+  send: (message: string, fileIds?: string[]) => void;
   readonly readyState: number;
   close: () => void;
   onMessage: (handler: (msg: ServerMessage) => void) => void;
@@ -78,7 +78,7 @@ export function createWS(sessionId: string): DeepForgeWS {
   connect();
 
   return {
-    send: (message: string) => ws?.send(JSON.stringify({ message })),
+    send: (message: string, fileIds?: string[]) => ws?.send(JSON.stringify({ message, file_ids: fileIds || [] })),
     get readyState() { return ws?.readyState ?? 3; },
     close: () => {
       if (reconnectTimer) clearTimeout(reconnectTimer);

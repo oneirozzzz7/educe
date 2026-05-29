@@ -182,6 +182,12 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     async def _decide(self, user_input: str) -> dict:
+        has_files = bool(self.context.metadata.get("uploaded_files"))
+        file_hint = ""
+        if has_files:
+            names = [f.name for f in self.context.metadata["uploaded_files"]]
+            file_hint = f"\n（用户同时上传了文件：{', '.join(names)}）"
+
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -191,9 +197,10 @@ class Orchestrator:
                     {"role": "system", "content": (
                         "你是DeepForge助手。判断用户需求：\n"
                         "- 需要编程（做网页/工具/游戏/脚本/扩展等）→只回复：NEED_CODE\n"
+                        "- 需要分析/处理上传的文件（转换格式、生成图表、优化代码等）→只回复：NEED_CODE\n"
                         "- 其他（聊天/写文章/分析/翻译等）→直接输出完整内容"
                     )},
-                    {"role": "user", "content": user_input},
+                    {"role": "user", "content": user_input + file_hint},
                 ],
                 model=self.config.default_model.model,
                 max_tokens=self.config.default_model.max_tokens,

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Paperclip } from "lucide-react";
 import { Logo, LogoBrand } from "@/components/logo";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { TopBar } from "@/components/top-bar";
 import { WorkCard } from "@/components/work-card";
 import { SettingsModal } from "@/components/settings-modal";
 import { MessageBubble } from "@/components/message-bubble";
+import { FileChips, type UploadedFile } from "@/components/file-chips";
 
 interface ChatMsg {
   id: string;
@@ -19,9 +20,12 @@ interface ChatMsg {
   steps?: { agent: string; summary: string; done: boolean }[];
   html?: string;
   timestamp: number;
+  files?: UploadedFile[];
 }
 
 interface TaskItem { id: string; request: string; project_type: string; created_at: number; response?: string }
+
+const ACCEPT = ".txt,.py,.js,.ts,.tsx,.jsx,.css,.html,.json,.md,.yaml,.yml,.xml,.csv,.sh,.sql,.go,.java,.c,.cpp,.h,.rb,.rs,.swift,.pdf,.xlsx,.xls,.docx,.png,.jpg,.jpeg,.gif,.webp,.svg";
 
 export default function Page() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -33,25 +37,30 @@ export default function Page() {
   const [elapsed, setElapsed] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (window.innerWidth < 768) setSidebarCollapsed(true);
+    if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarCollapsed(true);
   }, []);
 
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const workingRef = useRef(false);
   const composingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
   const userScrolledRef = useRef(false);
   const mainRef = useRef<HTMLElement>(null);
+  const sidRef = useRef("");
 
   const [thinking, setThinking] = useState(false);
 
   useEffect(() => {
     const sid = crypto.randomUUID?.() ?? Date.now().toString(36);
+    sidRef.current = sid;
     const ws = createWS(sid);
     wsRef.current = ws;
 
@@ -119,26 +128,68 @@ export default function Page() {
   }
 
   function extractHtml(c: string) {
-    // 方法1: filepath格式——贪婪匹配到</html>
     const m1 = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?<\/html>)/i);
     if (m1) return m1[1];
-    // 方法2: ```html代码块
     const m2 = c.match(/```html\n([\s\S]*?<\/html>)/i);
     if (m2) return m2[1];
-    // 方法3: 裸HTML
     const m3 = c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
     if (m3) return m3[1];
     return undefined;
   }
 
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files;
+    if (!selected || selected.length === 0) return;
+
+    setUploading(true);
+    const newFiles: UploadedFile[] = [];
+
+    for (let i = 0; i < Math.min(selected.length, 5); i++) {
+      const file = selected[i];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const r = await fetch(`http://${API_HOST}/api/upload/${sidRef.current}`, { method: "POST", body: formData });
+        const d = await r.json();
+        if (d.status === "ok" && d.file) {
+          newFiles.push(d.file);
+        } else if (d.error) {
+          newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: d.error });
+        }
+      } catch {
+        newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: "上传失败" });
+      }
+    }
+
+    setFiles(prev => [...prev, ...newFiles.filter(f => !f.error)]);
+    if (newFiles.some(f => f.error)) {
+      const errors = newFiles.filter(f => f.error).map(f => `${f.name}: ${f.error}`).join("\n");
+      setMsgs(p => [...p, { id: Date.now().toString(), role: "system", text: errors, timestamp: Date.now() }]);
+    }
+
+    setUploading(false);
+    e.target.value = "";
+  }
+
+  function removeFile(id: string) {
+    setFiles(prev => prev.filter(f => f.id !== id));
+    fetch(`http://${API_HOST}/api/upload/${sidRef.current}/${id}`, { method: "DELETE" }).catch(() => {});
+  }
+
   function send(text?: string) {
     const t = (text || input).trim();
-    if (!t) return;
+    if (!t && files.length === 0) return;
     const w = wsRef.current;
     if (!w || w.readyState !== 1) { alert("未连接到后端(7860)"); return; }
-    setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: t, timestamp: Date.now() }]);
-    w.send(t);
+
+    const displayText = files.length > 0 ? `${t}\n📎 ${files.map(f => f.name).join(", ")}` : t;
+    setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: displayText, timestamp: Date.now(), files: [...files] }]);
+
+    const fileIds = files.map(f => f.id);
+    w.send(t, fileIds.length > 0 ? fileIds : undefined);
     setInput("");
+    setFiles([]);
     userScrolledRef.current = false;
   }
 
@@ -147,12 +198,13 @@ export default function Page() {
   }
 
   const hasMessages = msgs.length > 0;
+  const canSend = input.trim() || files.length > 0;
 
   return (
     <div className="h-screen flex" style={{ background: "var(--bg)" }}>
       {/* 侧栏 */}
       <Sidebar collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        onNewTask={() => { setMsgs([]); setWorking(false); }}
+        onNewTask={() => { setMsgs([]); setWorking(false); setFiles([]); }}
         onTaskSelect={(task) => {
           const newMsgs: ChatMsg[] = [{ id: task.id + "-q", role: "user", text: task.request, timestamp: task.created_at * 1000 }];
           if (task.response) {
@@ -204,7 +256,7 @@ export default function Page() {
 
                     {msg.role === "user" ? (
                       <div className="flex flex-col items-end gap-0.5 max-w-[75%]">
-                        <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-[14px] text-white shadow-sm" style={{ background: "var(--brand)" }}>{msg.text}</div>
+                        <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-[14px] text-white shadow-sm whitespace-pre-line" style={{ background: "var(--brand)" }}>{msg.text}</div>
                         <span className="text-[10px] px-1" style={{ color: "var(--text-4)" }}>{fmtTime(msg.timestamp)}</span>
                       </div>
                     ) : msg.steps !== undefined ? (
@@ -217,7 +269,6 @@ export default function Page() {
                     )}
                   </motion.div>
                 ))}
-                {/* Thinking indicator */}
                 {thinking && !working && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-1 py-2">
                     <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand)" }} />
@@ -230,32 +281,51 @@ export default function Page() {
           </div>
         </main>
 
-        {/* 输入框 */}
+        {/* 输入区 */}
         <div className="fixed bottom-0 right-0 pt-4 pb-4 px-5 z-40" style={{ left: sidebarCollapsed ? "48px" : "var(--sidebar-width)", background: `linear-gradient(transparent, var(--bg) 30%)` }}>
-          <div className="max-w-[740px] mx-auto relative">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onCompositionStart={() => { composingRef.current = true }}
-              onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !composingRef.current) { e.preventDefault(); send() } }}
-              placeholder="描述你想创建的东西..."
-              rows={1}
-              className="w-full rounded-2xl px-5 py-3.5 pr-14 text-[15px] resize-none outline-none min-h-[52px] max-h-[120px] transition-all"
-              style={{
-                background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)",
-                boxShadow: "var(--shadow-input)",
-              }}
-              onFocus={e => { e.target.style.borderColor = "var(--brand)"; e.target.style.boxShadow = "var(--shadow-input), 0 0 0 3px var(--brand-subtle)" }}
-              onBlur={e => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "var(--shadow-input)" }}
-            />
-            <button onClick={() => send()} disabled={!input.trim()}
-              className={cn("absolute right-3 bottom-3 w-9 h-9 rounded-xl flex items-center justify-center transition-all",
-                input.trim() ? "text-white shadow-sm" : "cursor-not-allowed")}
-              style={{ background: input.trim() ? "var(--brand)" : "var(--bg-sunken)", color: input.trim() ? "white" : "var(--text-4)" }}>
-              <Send size={16} />
-            </button>
+          <div className="max-w-[740px] mx-auto">
+            {/* 文件chips */}
+            <FileChips files={files} onRemove={removeFile} />
+
+            {/* 输入框 */}
+            <div className="relative">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onCompositionStart={() => { composingRef.current = true }}
+                onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !composingRef.current) { e.preventDefault(); send() } }}
+                placeholder={files.length > 0 ? "描述你想怎么处理这些文件..." : "描述你想创建的东西，或上传文件..."}
+                rows={1}
+                className="w-full rounded-2xl pl-12 pr-14 py-3.5 text-[15px] resize-none outline-none min-h-[52px] max-h-[120px] transition-all"
+                style={{
+                  background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text)",
+                  boxShadow: "var(--shadow-input)",
+                }}
+                onFocus={e => { e.target.style.borderColor = "var(--brand)"; e.target.style.boxShadow = "var(--shadow-input), 0 0 0 3px var(--brand-subtle)" }}
+                onBlur={e => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "var(--shadow-input)" }}
+              />
+
+              {/* 上传按钮 */}
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="absolute left-3 bottom-3 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-[var(--brand-subtle)]"
+                style={{ color: uploading ? "var(--brand)" : "var(--text-3)" }}
+                title="上传文件">
+                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+              </button>
+
+              {/* 发送按钮 */}
+              <button onClick={() => send()} disabled={!canSend}
+                className={cn("absolute right-3 bottom-3 w-9 h-9 rounded-xl flex items-center justify-center transition-all",
+                  canSend ? "text-white shadow-sm" : "cursor-not-allowed")}
+                style={{ background: canSend ? "var(--brand)" : "var(--bg-sunken)", color: canSend ? "white" : "var(--text-4)" }}>
+                <Send size={16} />
+              </button>
+
+              {/* 隐藏file input */}
+              <input ref={fileInputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={handleFileSelect} />
+            </div>
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ from deepforge.memory.store import MemoryStore
 from deepforge.skills.registry import SkillRegistry
 
 try:
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse, FileResponse
     from fastapi.middleware.cors import CORSMiddleware
@@ -49,6 +49,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     sessions: dict[str, Orchestrator] = {}
+    session_files: dict[str, dict[str, Any]] = {}  # session_id -> {file_id: FileAttachment}
 
     def get_orchestrator(session_id: str) -> Orchestrator:
         if session_id not in sessions:
@@ -227,6 +228,49 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         return {"status": "ok", "model": config.default_model.model, "evolution": config.evolution.enabled}
 
+    @app.post("/api/upload/{session_id}")
+    async def upload_file(session_id: str, file: UploadFile = File(...)):
+        from deepforge.core.file_handler import process_file, FileAttachment, MAX_FILE_SIZE, SUPPORTED_EXTENSIONS
+        import tempfile, shutil
+
+        if not file.filename:
+            return {"error": "没有文件名"}
+
+        ext = Path(file.filename).suffix.lower()
+        if ext not in SUPPORTED_EXTENSIONS:
+            return {"error": f"不支持的文件类型: {ext}", "supported": list(SUPPORTED_EXTENSIONS)}
+
+        upload_dir = Path(".deepforge/uploads") / session_id
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        dest = upload_dir / file.filename
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            return {"error": f"文件过大({len(content) // 1024 // 1024}MB > 10MB)"}
+
+        dest.write_bytes(content)
+
+        attachment = process_file(dest)
+
+        if session_id not in session_files:
+            session_files[session_id] = {}
+        session_files[session_id][attachment.id] = attachment
+
+        return {"status": "ok", "file": attachment.to_dict()}
+
+    @app.delete("/api/upload/{session_id}/{file_id}")
+    async def delete_file(session_id: str, file_id: str):
+        files = session_files.get(session_id, {})
+        if file_id in files:
+            del files[file_id]
+            return {"status": "ok"}
+        return {"error": "not found"}
+
+    @app.get("/api/upload/{session_id}")
+    async def list_files(session_id: str):
+        files = session_files.get(session_id, {})
+        return {"files": [f.to_dict() for f in files.values()]}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -265,6 +309,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if not user_input:
                     continue
 
+                file_ids = data.get("file_ids", [])
+                if file_ids:
+                    from deepforge.core.file_handler import format_for_prompt
+                    files = session_files.get(session_id, {})
+                    attached = [files[fid] for fid in file_ids if fid in files]
+                    if attached:
+                        orchestrator.context.metadata["uploaded_files"] = attached
+
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 try:
                     await orchestrator.run(user_input)
@@ -275,6 +327,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         except WebSocketDisconnect:
             if session_id in sessions:
                 del sessions[session_id]
+            if session_id in session_files:
+                del session_files[session_id]
+            import shutil
+            upload_dir = Path(".deepforge/uploads") / session_id
+            if upload_dir.exists():
+                shutil.rmtree(upload_dir, ignore_errors=True)
 
     return app
 

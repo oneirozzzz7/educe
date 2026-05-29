@@ -200,11 +200,18 @@ class BuilderAgent(BaseAgent):
         if skill_prompt:
             skill_hint = f"\n## 已验证模板\n{skill_prompt}\n"
 
+        # 上传文件
+        file_section = ""
+        uploaded = context.metadata.get("uploaded_files", [])
+        if uploaded:
+            from deepforge.core.file_handler import format_for_prompt
+            file_section = format_for_prompt(uploaded)
+
         return f"""你是DeepForge Builder。直接输出代码，不要描述、不要解释、不要说"我来创建"。
 
 ## 用户需求
 {message.content}
-{skill_hint}{compiled_knowledge}{recall_section}
+{file_section}{skill_hint}{compiled_knowledge}{recall_section}
 ## 规则
 - 第一行就开始写代码，不要任何前言
 - 不要说"让我先看看"、"我来创建"等废话

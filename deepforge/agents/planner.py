@@ -29,11 +29,17 @@ class PlannerAgent(BaseAgent):
         if recalled:
             knowledge_section = "\n已有相关经验：\n" + "\n".join(f"- {r[:80]}" for r in recalled)
 
+        file_section = ""
+        uploaded = context.metadata.get("uploaded_files", [])
+        if uploaded:
+            from deepforge.core.file_handler import format_for_prompt
+            file_section = format_for_prompt(uploaded)
+
         prompt = f"""你是一个任务规划专家。将复杂需求拆解为可执行的子任务。
 
 ## 用户需求
 {user_request}
-{knowledge_section}
+{file_section}{knowledge_section}
 
 ## 输出格式
 1. 分析需求复杂度
