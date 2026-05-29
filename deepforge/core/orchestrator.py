@@ -38,7 +38,7 @@ class Orchestrator:
         self.domain_engine = None
         try:
             from deepforge.core.domain_engine import DomainEngine
-            self.domain_engine = DomainEngine()
+            self.domain_engine = DomainEngine(knowledge=self.knowledge)
         except Exception:
             pass
 
