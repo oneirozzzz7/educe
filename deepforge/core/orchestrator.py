@@ -89,11 +89,7 @@ class Orchestrator:
         decision = await self._decide(user_input)
 
         if decision["action"] == "code":
-            from deepforge.core.expert_router import match_expert
-            expert = match_expert(user_input)
-            self.context.metadata["expert_name"] = expert.get("name", "Builder")
-            self.context.metadata["expert_system"] = expert.get("system", "")
-            console.print(f"[dim]🎓 专家: {expert.get('name', 'Builder')}[/dim]")
+            self.context.metadata["expert_name"] = "编程专家"
             return await self._run_build(user_input)
         else:
             content = decision["content"]
@@ -323,6 +319,25 @@ class Orchestrator:
         except Exception:
             pass
 
+    def _extract_expert_from_reply(self, reply: str) -> str:
+        """从模型回复的开头提取它自认的专家身份"""
+        import re
+        first_line = reply.strip().split("\n")[0][:100]
+        patterns = [
+            r"作为.*?([一-鿿]+(?:专家|医[生师]|律师|教授|工程师|分析师|顾问|学者|科学家|厨师|编辑|教练|咨询师))",
+            r"从([一-鿿]+)(?:角度|视角|层面)",
+            r"以([一-鿿]+)的身份",
+        ]
+        for p in patterns:
+            m = re.search(p, first_line)
+            if m:
+                return m.group(1) if "作为" not in p else m.group(1)
+        if "医" in first_line: return "医学专家"
+        if "法" in first_line: return "法律专家"
+        if "数学" in first_line: return "数学专家"
+        if "技术" in first_line or "编程" in first_line: return "技术专家"
+        return "DeepForge"
+
     async def _audit(self, question: str, response: str) -> str:
         """反幻觉审计——标注不可靠内容"""
         try:
@@ -361,9 +376,7 @@ class Orchestrator:
         return text_score > code_score and text_score >= 1
 
     async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
-        """直接用模型回复，不走Builder——自动匹配专家身份"""
-        from deepforge.core.expert_router import get_expert_system_prompt
-
+        """用模型回复——通过prompt结构激发LLM深度思考"""
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -376,12 +389,18 @@ class Orchestrator:
 
         domain_context = self.context.metadata.get("domain_knowledge", "")
 
-        system, expert_name = get_expert_system_prompt(user_input)
+        system = (
+            "你是一位博学且严谨的专家。回答问题时请遵循以下原则：\n"
+            "1. 先判断这个问题属于什么专业领域，然后以该领域资深专家的身份回答\n"
+            "2. 回答要有深度——不只是表面知识，要体现专业洞察\n"
+            "3. 结构清晰——用标题、列表、分步骤组织长回答\n"
+            "4. 诚实标注不确定的部分——'据我了解'或'这个需要进一步确认'\n"
+            "5. 涉及医学、法律、金融等专业领域时，在末尾提醒用户咨询专业人士\n"
+            "6. 用准确的术语但辅以通俗解释，让非专业人士也能理解\n"
+            "\n在回答的开头，用一句话表明你以什么专家视角回答（如'作为一名医学工作者...'或'从计算机科学角度...'）。"
+        )
         if domain_context:
             system += f"\n{domain_context}"
-
-        self.context.metadata["expert_name"] = expert_name
-        console.print(f"[dim]🎓 专家: {expert_name}[/dim]")
 
         try:
             result = await client.chat(
@@ -392,6 +411,11 @@ class Orchestrator:
                 model=self.config.default_model.model,
                 max_tokens=self.config.default_model.max_tokens,
             )
+
+            expert_name = self._extract_expert_from_reply(result)
+            self.context.metadata["expert_name"] = expert_name
+            console.print(f"[dim]🎓 {expert_name}[/dim]")
+
             return {"action": "reply", "content": result}
         except Exception as e:
             return {"action": "reply", "content": f"出错了: {e}"}
