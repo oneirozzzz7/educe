@@ -49,12 +49,12 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
         return `\`\`\`${langMap[ext] || ext}\n`;
       });
       let html = marked.parse(t) as string;
-      html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|❓\s*不确定|⚠️?\s*需要验证)/g,
+      html = html.replace(/([✅⚠️]\s*\d+%)/g,
+        '<span class="df-confidence">$1</span>');
+      html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|⚠️?\s*需要验证)/g,
         '<span class="df-confidence">$1</span>');
       html = html.replace(/(\(置信度[：:]\s*\d+%\))/g,
         '<span class="df-confidence">$1</span>');
-      html = html.replace(/([\s。，])([✅⚠️])([\s，。\n<])/g,
-        '$1<span class="df-confidence">$2</span>$3');
       return html;
       return html;
     } catch {
