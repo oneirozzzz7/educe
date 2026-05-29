@@ -81,6 +81,7 @@ export default function Page() {
         if (msg.content === "thinking") {
           setThinking(true);
           setThinkingElapsed(0);
+          setExpertName("");
           const ts = Date.now();
           thinkingTimerRef.current = setInterval(() => setThinkingElapsed(Math.floor((Date.now() - ts) / 1000)), 1000);
         } else if (msg.content === "pipeline_start") {
