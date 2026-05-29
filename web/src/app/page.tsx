@@ -6,7 +6,7 @@ import { Send, Loader2, Paperclip } from "lucide-react";
 import { Logo, LogoBrand } from "@/components/logo";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar, type SidebarRef } from "@/components/sidebar";
 import { TopBar } from "@/components/top-bar";
 import { WorkCard } from "@/components/work-card";
 import { SettingsModal } from "@/components/settings-modal";
@@ -57,6 +57,7 @@ export default function Page() {
   const userScrolledRef = useRef(false);
   const mainRef = useRef<HTMLElement>(null);
   const sidRef = useRef("");
+  const sidebarRef = useRef<SidebarRef>(null);
 
   const [thinking, setThinking] = useState(false);
   const [thinkingElapsed, setThinkingElapsed] = useState(0);
@@ -98,6 +99,7 @@ export default function Page() {
           if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
           workingRef.current = false; setWorking(false);
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+          sidebarRef.current?.refresh();
         }
       } else if (msg.type === "agent_message" && msg.msg_type !== "handoff") {
         setThinking(false);
@@ -241,7 +243,7 @@ export default function Page() {
   return (
     <div className="h-screen flex" style={{ background: "var(--bg)" }}>
       {/* 侧栏 */}
-      <Sidebar collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      <Sidebar ref={sidebarRef} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onNewTask={() => { setMsgs([]); setWorking(false); setFiles([]); }}
         onTaskSelect={(task) => {
           const newMsgs: ChatMsg[] = [{ id: task.id + "-q", role: "user", text: task.request, timestamp: task.created_at * 1000 }];
@@ -350,7 +352,7 @@ export default function Page() {
                 onCompositionStart={() => { composingRef.current = true }}
                 onCompositionEnd={e => { composingRef.current = false; setInput((e.target as HTMLTextAreaElement).value) }}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !composingRef.current) { e.preventDefault(); send() } }}
-                placeholder={files.length > 0 ? "描述你想怎么处理这些文件..." : "描述你想创建的东西，或上传文件..."}
+                placeholder={files.length > 0 ? "想让我怎么处理？" : "问我任何问题，或上传文件"}
                 rows={1}
                 className="w-full rounded-2xl pl-12 pr-14 py-3.5 text-[15px] resize-none outline-none min-h-[52px] max-h-[120px] transition-all"
                 style={{

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Clock, Moon, Sun, PanelLeftClose, PanelLeft, Plus, RefreshCw, Search } from "lucide-react";
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
+import { Clock, Moon, Sun, PanelLeftClose, PanelLeft, Plus, Search } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { Logo, LogoMark } from "./logo";
 import { API_HOST } from "@/lib/ws";
@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils";
 
 interface TaskItem { id: string; request: string; project_type: string; created_at: number; response?: string }
 
-export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
+export interface SidebarRef { refresh: () => void }
+
+export const Sidebar = forwardRef<SidebarRef, {
   collapsed: boolean; onCollapse: () => void; onTaskSelect?: (task: TaskItem) => void; onNewTask?: () => void;
-}) {
+}>(function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }, ref) {
   const { theme, toggle } = useTheme();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,8 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useImperativeHandle(ref, () => ({ refresh: loadTasks }));
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
@@ -73,14 +77,10 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
 
       {/* 最近任务 */}
       <div className="flex-1 overflow-y-auto px-2">
-        <div className="px-2 py-1.5 flex items-center">
-          <span className="text-[10px] font-medium uppercase tracking-wider flex-1" style={{ color: "var(--text-3)" }}>
+        <div className="px-2 py-1.5">
+          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-3)" }}>
             最近任务
           </span>
-          <button onClick={loadTasks} className={cn("w-5 h-5 rounded flex items-center justify-center transition-colors", loading && "animate-spin")}
-            style={{ color: "var(--text-4)" }} title="刷新">
-            <RefreshCw size={10} />
-          </button>
         </div>
         {tasks.length > 3 && (
           <div className="px-1 pb-1.5">
@@ -121,4 +121,4 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
       </div>
     </div>
   );
-}
+});
