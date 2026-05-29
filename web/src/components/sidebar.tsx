@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Clock, Moon, Sun, PanelLeftClose, PanelLeft, Plus, RefreshCw } from "lucide-react";
+import { Clock, Moon, Sun, PanelLeftClose, PanelLeft, Plus, RefreshCw, Search } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { Logo, LogoMark } from "./logo";
 import { API_HOST } from "@/lib/ws";
@@ -15,6 +15,7 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
   const { theme, toggle } = useTheme();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
   const loadTasks = useCallback(() => {
     setLoading(true);
@@ -81,12 +82,22 @@ export function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }: {
             <RefreshCw size={10} />
           </button>
         </div>
+        {tasks.length > 3 && (
+          <div className="px-1 pb-1.5">
+            <div className="relative">
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: "var(--text-4)" }} />
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="搜索..." className="w-full rounded-md pl-6 pr-2 py-1 text-[11px] outline-none"
+                style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)", color: "var(--text-2)" }} />
+            </div>
+          </div>
+        )}
         {tasks.length === 0 ? (
           <div className="px-2 py-6 text-xs text-center" style={{ color: "var(--text-3)" }}>
             {loading ? "加载中..." : "暂无任务"}
           </div>
         ) : (
-          tasks.slice(0, 20).map(t => (
+          tasks.filter(t => !search || (t.request && t.request.toLowerCase().includes(search.toLowerCase()))).slice(0, 20).map(t => (
             <button key={t.id} onClick={() => handleTaskClick(t)}
               className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate hover:bg-[var(--brand-subtle)] transition-colors mb-0.5 group"
               style={{ color: "var(--text-2)" }}>

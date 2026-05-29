@@ -39,6 +39,7 @@ export default function Page() {
   const [showSettings, setShowSettings] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarCollapsed(true);
@@ -57,6 +58,9 @@ export default function Page() {
   const sidRef = useRef("");
 
   const [thinking, setThinking] = useState(false);
+  const [thinkingElapsed, setThinkingElapsed] = useState(0);
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastUserMsgRef = useRef("");
 
   useEffect(() => {
     const sid = crypto.randomUUID?.() ?? Date.now().toString(36);
@@ -74,8 +78,12 @@ export default function Page() {
       if (msg.type === "status") {
         if (msg.content === "thinking") {
           setThinking(true);
+          setThinkingElapsed(0);
+          const ts = Date.now();
+          thinkingTimerRef.current = setInterval(() => setThinkingElapsed(Math.floor((Date.now() - ts) / 1000)), 1000);
         } else if (msg.content === "pipeline_start") {
           setThinking(false);
+          if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
           if (workingRef.current) return;
           workingRef.current = true;
           setWorking(true); setCurAgent(""); setElapsed(0);
@@ -84,6 +92,7 @@ export default function Page() {
           setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: "", steps: [], timestamp: Date.now() }]);
         } else if (msg.content === "idle") {
           setThinking(false);
+          if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
           workingRef.current = false; setWorking(false);
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         }
@@ -177,6 +186,16 @@ export default function Page() {
     fetch(`http://${API_HOST}/api/upload/${sidRef.current}/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles.length > 0) {
+      const fakeEvent = { target: { files: droppedFiles, value: "" } } as unknown as React.ChangeEvent<HTMLInputElement>;
+      handleFileSelect(fakeEvent);
+    }
+  }
+
   function send(text?: string) {
     const t = (text || input).trim();
     if (!t && files.length === 0) return;
@@ -185,6 +204,7 @@ export default function Page() {
 
     const displayText = files.length > 0 ? `${t}\n📎 ${files.map(f => f.name).join(", ")}` : t;
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: displayText, timestamp: Date.now(), files: [...files] }]);
+    lastUserMsgRef.current = t;
 
     const fileIds = files.map(f => f.id);
     w.send(t, fileIds.length > 0 ? fileIds : undefined);
@@ -263,7 +283,12 @@ export default function Page() {
                       <WorkCard steps={msg.steps} html={msg.html} isActive={working && msg.id === msgs[msgs.length - 1]?.id}
                         currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} />
                     ) : msg.role === "system" ? (
-                      <div className="text-sm rounded-xl px-4 py-3" style={{ background: "var(--error-light)", color: "var(--error)", border: "1px solid var(--error)" }}>{msg.text}</div>
+                      <div className="text-sm rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--error-light)", color: "var(--error)", border: "1px solid var(--error)" }}>
+                        <span className="flex-1">{msg.text}</span>
+                        <button onClick={() => { if (lastUserMsgRef.current) send(lastUserMsgRef.current); }}
+                          className="shrink-0 px-3 py-1 text-xs rounded-lg font-medium"
+                          style={{ background: "var(--error)", color: "white" }}>重试</button>
+                      </div>
                     ) : (
                       <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} />
                     )}
@@ -272,7 +297,7 @@ export default function Page() {
                 {thinking && !working && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-1 py-2">
                     <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand)" }} />
-                    <span className="text-sm" style={{ color: "var(--text-2)" }}>思考中...</span>
+                    <span className="text-sm" style={{ color: "var(--text-2)" }}>思考中{thinkingElapsed > 0 ? ` ${thinkingElapsed}s` : "..."}</span>
                   </motion.div>
                 )}
                 <div ref={endRef} />
@@ -282,8 +307,17 @@ export default function Page() {
         </main>
 
         {/* 输入区 */}
-        <div className="fixed bottom-0 right-0 pt-4 pb-4 px-5 z-40" style={{ left: sidebarCollapsed ? "48px" : "var(--sidebar-width)", background: `linear-gradient(transparent, var(--bg) 30%)` }}>
+        <div className="fixed bottom-0 right-0 pt-4 pb-4 px-5 z-40" style={{ left: sidebarCollapsed ? "48px" : "var(--sidebar-width)", background: `linear-gradient(transparent, var(--bg) 30%)` }}
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}>
           <div className="max-w-[740px] mx-auto">
+            {dragging && (
+              <div className="mb-2 rounded-xl py-4 text-center text-sm font-medium border-2 border-dashed"
+                style={{ borderColor: "var(--brand)", background: "var(--brand-light)", color: "var(--brand)" }}>
+                松手上传文件
+              </div>
+            )}
             {/* 文件chips */}
             <FileChips files={files} onRemove={removeFile} />
 
