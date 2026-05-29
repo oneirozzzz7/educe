@@ -91,13 +91,28 @@ class ActivationEngine:
         self.knowledge = knowledge
         self.domain_engine = domain_engine
         self._current_seed = self._load_best_seed()
+        self._use_count = 0
 
     def _load_best_seed(self) -> str:
-        """从知识库加载效果最好的激发语，没有则用默认"""
-        if self.knowledge:
-            recalled = self.knowledge.recall("activation_seed_best", max_results=1)
-            if recalled and recalled[0].startswith("[seed]"):
-                return recalled[0][6:].strip()
+        """从领域统计中加载效果最好的激发语"""
+        try:
+            from deepforge.core.quality_tracker import QualityTracker
+            tracker = QualityTracker()
+            stats = tracker.get_domain_stats()
+            if stats:
+                # 找所有领域中best_seed_quality最高的seed
+                best_seed = None
+                best_quality = 0
+                for domain_stat in stats.values():
+                    q = domain_stat.get("best_seed_quality", 0)
+                    s = domain_stat.get("best_seed", "")
+                    if q > best_quality and s:
+                        best_quality = q
+                        best_seed = s
+                if best_seed and best_quality > 0.5:
+                    return best_seed
+        except Exception:
+            pass
         return DEFAULT_ACTIVATION_SEED
 
     def build_activation_prompt(self, user_input: str,
@@ -123,7 +138,7 @@ class ActivationEngine:
         )
 
     def _get_domain_hint(self, user_input: str) -> str:
-        """对薄弱领域自动补充一句方向性提示"""
+        """对薄弱领域自动补充提示——从成功回答中学习"""
         try:
             from deepforge.core.quality_tracker import QualityTracker
             tracker = QualityTracker()
@@ -138,11 +153,22 @@ class ActivationEngine:
 
             domain_en = domains[0]
             domain_cn = DOMAIN_LABELS.get(domain_en, domain_en)
-
-            # stats用中文key，兼容两种
             domain_stat = stats.get(domain_cn) or stats.get(domain_en)
-            if domain_stat and domain_stat.get("needs_improvement"):
-                return f"\n（注意：{domain_cn}领域请特别注意推理的准确性和深度）"
+
+            if not domain_stat or not domain_stat.get("needs_improvement"):
+                return ""
+
+            # 从知识库找该领域的成功insight作为示范
+            hint_parts = [f"\n（{domain_cn}领域需要特别注意深度和准确性）"]
+            if self.knowledge:
+                domain_insights = []
+                for e in self.knowledge._entries.values():
+                    if e.category == "insight" and domain_cn in e.content[:10]:
+                        domain_insights.append(e.content[len(domain_cn)+3:80])
+                if domain_insights:
+                    hint_parts.append("参考此前的成功回答要点：" + "；".join(domain_insights[:2]))
+
+            return "\n".join(hint_parts)
         except Exception:
             pass
         return ""

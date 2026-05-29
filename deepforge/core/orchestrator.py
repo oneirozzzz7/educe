@@ -99,6 +99,12 @@ class Orchestrator:
             self.context.metadata["_last_user_signal"] = signal
             self.context.metadata["_last_signal_weight"] = weight
 
+            # 负向信号→降级上一轮用过的知识
+            if signal == "error" and self.knowledge:
+                recalled_ids = getattr(self.knowledge, '_last_recalled_ids', [])
+                for eid in recalled_ids:
+                    self.knowledge.record_failure(eid)
+
         self.conversation.add_user(user_input, file_content)
 
         if file_content:
