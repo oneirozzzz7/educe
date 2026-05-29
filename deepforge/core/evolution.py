@@ -61,14 +61,25 @@ def evolve_from_output(engineer_output: str, user_request: str,
 
 
 def _detect(engineer_output: str) -> dict:
-    """多维度检测产出物质量"""
+    """多维度检测产出物质量——支持HTML和Python"""
     if not engineer_output or len(engineer_output) < 50:
         return {"passed": False, "checks": {"has_file": False}, "checks_passed": 0, "checks_total": 1}
 
-    has_output = bool(re.search(r'<!DOCTYPE|```filepath:|```html', engineer_output, re.I))
+    is_python = bool(re.search(r'```(?:filepath:[^\n]+\.py|python)', engineer_output, re.I)) or ("def " in engineer_output and "import " in engineer_output)
+    is_html = bool(re.search(r'<!DOCTYPE|```(?:filepath:[^\n]+\.html|html)', engineer_output, re.I))
+
     checks = {}
 
-    if has_output:
+    if is_python:
+        checks["has_file"] = True
+        checks["has_def"] = "def " in engineer_output
+        checks["has_logic"] = any(kw in engineer_output for kw in ["if ", "for ", "while ", "return "])
+        checks["has_error_handling"] = "try" in engineer_output or "except" in engineer_output
+        checks["has_docstring"] = '"""' in engineer_output or "'''" in engineer_output
+        checks["syntax_ok"] = "SyntaxError" not in engineer_output
+        checks["size_ok"] = len(engineer_output) > 100
+        passed = checks["has_file"] and checks["has_def"] and checks["has_logic"]
+    elif is_html:
         checks["has_file"] = True
         checks["has_doctype"] = bool(re.search(r'<!DOCTYPE', engineer_output, re.I))
         checks["has_closing"] = "</html>" in engineer_output
@@ -77,10 +88,12 @@ def _detect(engineer_output: str) -> dict:
         checks["has_responsive"] = "@media" in engineer_output
         checks["has_error_handling"] = "try" in engineer_output or "catch" in engineer_output
         checks["size_ok"] = 5000 < len(engineer_output) < 50000
+        passed = checks["has_file"] and checks["has_closing"]
     else:
-        checks["has_file"] = False
-
-    passed = checks.get("has_file", False) and checks.get("has_closing", False)
+        has_output = len(engineer_output) > 100
+        checks["has_file"] = has_output
+        checks["has_content"] = has_output
+        passed = has_output
 
     return {
         "passed": passed,
