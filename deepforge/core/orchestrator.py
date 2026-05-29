@@ -472,16 +472,21 @@ class Orchestrator:
 
         recalled = []
         if self.knowledge:
-            recalled = self.knowledge.recall(user_input, max_results=3)
+            recalled = self.knowledge.recall(user_input, max_results=5)
 
-        # 把recalled的知识和L1一起传给activation_engine，过滤掉元数据
+        # 只注入insight类知识，过滤元数据和低相关条目
         all_knowledge = []
-        for k in list(l1) + recalled:
+        for k in recalled:
             if k in all_knowledge:
+                continue
+            # 只要insight类（从高质量回答中提取的知识点）
+            if not k.startswith("["):
                 continue
             if k.startswith("[成功]") or k.startswith("[seed") or "→ 已回答" in k or "→ html" in k:
                 continue
             all_knowledge.append(k[:100])
+        # 限制注入数量——太多反而是噪声
+        all_knowledge = all_knowledge[:3]
 
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
