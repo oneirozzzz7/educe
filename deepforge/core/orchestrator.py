@@ -79,7 +79,10 @@ class Orchestrator:
         if decision["action"] == "code":
             return await self._run_build(user_input)
         else:
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=decision["content"])
+            content = decision["content"]
+            if self.config.hallucination_guard.enabled:
+                content = await self._audit(user_input, content)
+            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
             self.context.add_message(msg)
             self._notify(msg)
             self._display(msg)
@@ -293,3 +296,19 @@ class Orchestrator:
                 evolve_from_output(engineer_output, user_request, self.knowledge)
         except Exception:
             pass
+
+    async def _audit(self, question: str, response: str) -> str:
+        """反幻觉审计——标注不可靠内容"""
+        try:
+            from deepforge.core.hallucination_guard import audit_response
+            client = self._get_client()
+            if not client:
+                return response
+            return await audit_response(
+                question, response, client,
+                model=self.config.default_model.model,
+                max_tokens=self.config.default_model.max_tokens,
+                mode=self.config.hallucination_guard.mode,
+            )
+        except Exception:
+            return response

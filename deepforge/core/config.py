@@ -40,6 +40,11 @@ class EvolutionConfig(BaseModel):
     enabled: bool = True
 
 
+class HallucinationGuardConfig(BaseModel):
+    enabled: bool = True
+    mode: str = "quick"  # "quick"(轻量标注) 或 "deep"(完整声明拆解)
+
+
 class DeepForgeConfig(BaseModel):
     project_name: str = "DeepForge"
     work_dir: str = "."
@@ -61,6 +66,7 @@ class DeepForgeConfig(BaseModel):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     skills: SkillConfig = Field(default_factory=SkillConfig)
     evolution: EvolutionConfig = Field(default_factory=EvolutionConfig)
+    hallucination_guard: HallucinationGuardConfig = Field(default_factory=HallucinationGuardConfig)
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> DeepForgeConfig:
