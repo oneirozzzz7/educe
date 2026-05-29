@@ -51,8 +51,7 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
       let html = marked.parse(t) as string;
       html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|❓\s*不确定|⚠️?\s*需要验证)/g,
         '<span class="df-confidence">$1</span>');
-      html = html.replace(/(\((?:模型自评|置信度):\s*\d+%\))/g,
-        '<span class="df-confidence">$1</span>');
+      return html;
       return html;
     } catch {
       return `<pre style="white-space:pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
@@ -143,7 +142,10 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
           </button>
         </div>
       </div>
-      <span className="text-[10px] px-1" style={{ color: "var(--text-4)" }}>{fmtTime(timestamp)}</span>
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{fmtTime(timestamp)}</span>
+        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>· AI生成，仅供参考</span>
+      </div>
     </div>
   );
 }
