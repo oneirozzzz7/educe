@@ -474,11 +474,14 @@ class Orchestrator:
         if self.knowledge:
             recalled = self.knowledge.recall(user_input, max_results=3)
 
-        # 把recalled的知识和L1一起传给activation_engine
-        all_knowledge = list(l1)
-        for r in recalled:
-            if r not in all_knowledge and not r.startswith("[成功]") and not r.startswith("[seed"):
-                all_knowledge.append(r[:100])
+        # 把recalled的知识和L1一起传给activation_engine，过滤掉元数据
+        all_knowledge = []
+        for k in list(l1) + recalled:
+            if k in all_knowledge:
+                continue
+            if k.startswith("[成功]") or k.startswith("[seed") or "→ 已回答" in k or "→ html" in k:
+                continue
+            all_knowledge.append(k[:100])
 
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
