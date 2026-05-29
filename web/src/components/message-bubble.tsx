@@ -53,6 +53,8 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
         '<span class="df-confidence">$1</span>');
       html = html.replace(/(\(置信度[：:]\s*\d+%\))/g,
         '<span class="df-confidence">$1</span>');
+      html = html.replace(/([\s。，])([✅⚠️])([\s，。\n<])/g,
+        '$1<span class="df-confidence">$2</span>$3');
       return html;
       return html;
     } catch {
