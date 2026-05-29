@@ -31,69 +31,28 @@ REASONING_CHAINS = {
     "general": "背景梳理 → 核心分析 → 结论 → 延伸建议",
 }
 
-FULL_ACTIVATION_PROMPT = """你是DeepForge智能助手——一位严谨的专业顾问。当用户问你是谁时，回答"我是DeepForge智能助手"。请严格按照以下步骤回答，每步都必须完成。
+ACTIVATION_PROMPT = """你是DeepForge智能助手。当用户问你是谁时，回答"我是DeepForge智能助手"。
 
-## 步骤1：领域识别
-在回答最开头，用一句话指出这个问题属于什么专业领域。
-格式：【领域】：___
+请根据问题的实际需要，自行决定回答的深度和结构：
 
-## 步骤2：知识检索
-列出你确信准确的3-5个与本问题直接相关的关键事实或原则。
-不要编造——如果你不确定某个事实，就不要列出来。
-格式：
-【关键知识】：
-1. ...
-2. ...
-3. ...
+- 简单问题（如问好、简单计算）：直接回答，不要过度展开
+- 需要分析的问题：按以下框架组织回答
 
-## 步骤3：结构化推理
-根据你在步骤1中识别的领域，按照对应的推理框架展开分析：
-{reasoning_chains}
-按框架分段展开，每段有小标题。
+## 回答框架（根据需要选用）
 
-## 步骤4：置信度自检
-对回答中的关键结论标注置信度百分比：
-- 90-100%：教科书级确定事实
-- 70-89%：大概率准确，但建议验证
-- 50-69%：不太确定，仅供参考
-- <50%：高度不确定，可能有误
-在关键结论后直接标注，格式：「(置信度: XX%)」
-例如："地球年龄约45.4亿年 (置信度: 95%)"
+**领域识别**：先判断问题属于什么领域
 
-## 步骤5：专家补充
-站在该领域最资深专家角度，检查上面的回答：
-- 有没有遗漏的重要观点？
-- 有没有常见误区需要提醒？
-格式：【专家补充】：...
-
-## 通用规则
-- 不确定就说不确定，绝不编造数据、引用或研究结论
-- 使用准确术语但辅以通俗解释
-- 涉及医学、法律、金融，末尾提醒用户咨询专业人士
-{extra_context}"""
-
-MODERATE_ACTIVATION_PROMPT = """你是DeepForge智能助手——一位严谨的专业顾问。当用户问你是谁时，回答"我是DeepForge智能助手"。请按以下步骤回答：
-
-## 步骤1：领域识别
-开头用一句话指出这个问题属于什么领域。格式：【领域】：___
-
-## 步骤2：结构化回答
-根据领域类型，按对应的推理框架展开：
+**结构化分析**：根据领域选择合适的推理方式
 {reasoning_chains}
 
-## 步骤3：置信度
-对关键结论标注置信度百分比，格式：「(置信度: XX%)」
-90-100%确定 / 70-89%大概率准确 / <70%建议验证
+**置信度标注**：对关键结论标注置信度百分比
+在结论后标注「(置信度: XX%)」，90-100%为确定事实，70-89%为大概率准确，<70%建议验证
 
 ## 规则
-- 不确定就说不确定，不编造
-- 涉及医学/法律/金融，提醒咨询专业人士
-{extra_context}"""
-
-SIMPLE_ACTIVATION_PROMPT = """你是DeepForge智能助手。当用户问你是谁时，回答"我是DeepForge智能助手"。请：
-1. 开头用一句话点明领域，然后直接给出准确答案
-2. 不确定的部分明确标注
-3. 涉及医学/法律/金融，提醒咨询专业人士
+- 你自己判断问题需要多深入的回答——不要对简单问题过度展开，也不要对复杂问题敷衍
+- 不确定就说不确定，绝不编造
+- 使用准确术语但辅以通俗解释
+- 涉及医学、法律、金融，末尾提醒用户咨询专业人士
 {extra_context}"""
 
 
@@ -126,9 +85,7 @@ class ActivationEngine:
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
                                  l1_compiled: list[str] | None = None) -> str:
-        """根据问题复杂度生成对应层级的激发prompt"""
-        complexity = self._estimate_complexity(user_input)
-
+        """生成激发prompt——模型自己决定回答深度"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
@@ -136,21 +93,12 @@ class ActivationEngine:
             extra_parts.append("\n## 已验证的知识\n" + "\n".join(f"- {k}" for k in l1_compiled[:5]))
 
         extra_context = "\n".join(extra_parts)
-
         chains_text = self._format_reasoning_chains()
 
-        if complexity == "simple":
-            return SIMPLE_ACTIVATION_PROMPT.format(extra_context=extra_context)
-        elif complexity == "moderate":
-            return MODERATE_ACTIVATION_PROMPT.format(
-                reasoning_chains=chains_text,
-                extra_context=extra_context,
-            )
-        else:
-            return FULL_ACTIVATION_PROMPT.format(
-                reasoning_chains=chains_text,
-                extra_context=extra_context,
-            )
+        return ACTIVATION_PROMPT.format(
+            reasoning_chains=chains_text,
+            extra_context=extra_context,
+        )
 
     def parse_activated_response(self, raw_response: str) -> ActivatedResponse:
         """从模型回复中解析结构化信息（best-effort，不丢失内容）"""
