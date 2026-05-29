@@ -345,6 +345,39 @@ class Orchestrator:
             pass
         return None
 
+    def _detect_domain(self, question: str, response: str) -> str:
+        """从问题+回答综合判断领域——比单独分类问题更准"""
+        import re
+        combined = question + " " + response[:500]
+
+        domain_signals = {
+            "医学": r"症状|治疗|诊断|药物|发烧|疼痛|医院|病|就医|处方|剂量|手术",
+            "法律": r"法律|合同|赔偿|维权|法院|诉讼|劳动法|违约|法条",
+            "数学": r"证明|方程|概率|计算|公式|定理|求解|数学",
+            "技术": r"代码|编程|算法|API|数据库|服务器|框架|Python|Java|bug|报错",
+            "金融": r"投资|理财|基金|股票|贷款|利率|保险|收益|风险",
+            "写作": r"写一篇|写一段|文案|文章|润色|演讲|致辞|开场白",
+            "心理": r"焦虑|压力|情绪|迷茫|自卑|失眠|心理|抑郁|倦怠",
+            "历史": r"朝代|历史|战争|皇帝|古代|王朝|革命|变法",
+            "科学": r"物理|化学|生物|原子|量子|光速|DNA|基因|进化",
+            "烹饪": r"做法|食材|火候|炒|煮|烤|蒸|菜|肉|汤|调料",
+            "教育": r"学习|考试|备考|成绩|提分|方法|复习",
+            "宠物": r"猫|狗|宠物|喂养|疫苗|绝育|呕吐|驱虫",
+            "生活": r"装修|家电|清洗|维修|马桶|空调|洗衣机|甲醛",
+            "健身": r"减肥|减脂|跑步|健身|蛋白粉|训练|增肌",
+            "职场": r"简历|面试|跳槽|转行|加薪|晋升|职业",
+        }
+
+        best_domain = "通用"
+        best_score = 0
+        for domain, pattern in domain_signals.items():
+            score = len(re.findall(pattern, combined, re.IGNORECASE))
+            if score > best_score:
+                best_score = score
+                best_domain = domain
+
+        return best_domain if best_score >= 2 else "通用"
+
     async def _evolve_from_result(self):
         """后台静默进化——用户无感知"""
         try:
@@ -445,17 +478,10 @@ class Orchestrator:
             if self.activation_engine:
                 activated = self.activation_engine.parse_activated_response(raw)
 
-                # 领域识别：先用模型回复解析，fallback到TF-IDF路由
+                # 领域识别：从回答+问题综合判断
                 domain_tag = activated.domain or ""
                 if not domain_tag or domain_tag == "通用":
-                    try:
-                        from deepforge.core.domain_router import route_domain, DOMAIN_LABELS
-                        routed = route_domain(user_input, top_k=1)
-                        if routed and routed[0] != "general":
-                            domain_tag = DOMAIN_LABELS.get(routed[0], routed[0])
-                    except Exception:
-                        pass
-                domain_tag = domain_tag or "通用"
+                    domain_tag = self._detect_domain(user_input, raw)
 
                 self.context.metadata["expert_name"] = domain_tag
                 self.context.metadata["activation_confidence"] = activated.overall_confidence

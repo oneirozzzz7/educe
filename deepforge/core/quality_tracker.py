@@ -159,25 +159,38 @@ class QualityTracker:
         return [d for d, s in stats.items() if s.get("needs_improvement")]
 
     def _extract_features(self, response: str) -> dict:
-        """从回答文本提取质量特征"""
+        """从回答文本提取质量特征——注重内容实质而非格式"""
         if not response or len(response) < 20:
             return {"depth": 0, "structure": 0, "confidence": 0, "closure": 0, "avg": 0}
 
-        depth_words = len(re.findall(r'因为|本质|核心|原理|根本|关键|深层|实质|根源|背后|底层', response))
-        depth = min(depth_words / 5, 1.0)
+        # 深度：分析性表达+举例+推理链（不只数关键词）
+        depth_words = len(re.findall(
+            r'因为|本质|核心|原理|根本|关键|深层|实质|背后|底层|'
+            r'具体来说|换句话说|值得注意|区别在于|原因在于',
+            response
+        ))
+        has_examples = bool(re.search(r'例如|比如|举个例子|比方说|以.*为例', response))
+        has_reasoning = bool(re.search(r'所以|因此|由此可见|这意味着|导致|进而', response))
+        depth = min((depth_words * 0.1 + (0.25 if has_examples else 0) + (0.25 if has_reasoning else 0)), 1.0)
 
-        has_headers = bool(re.search(r'(?:^|\n)#{1,3}\s|(?:^|\n)\*\*[^*]+\*\*[：:]', response))
-        has_lists = len(re.findall(r'(?:^|\n)\s*[\-\•\d]+[.、]', response)) >= 2
-        has_sections = response.count('\n\n') >= 2
-        structure = (0.35 if has_headers else 0) + (0.35 if has_lists else 0) + (0.3 if has_sections else 0)
+        # 结构：不要求特定格式，看是否有层次
+        paragraphs = response.count('\n\n')
+        has_any_org = paragraphs >= 2 or bool(re.search(r'(?:^|\n)\s*\d+[.、]', response))
+        length_ok = len(response) > 200
+        structure = (0.4 if has_any_org else 0.15) + (0.3 if length_ok else 0) + min(paragraphs * 0.04, 0.3)
+        structure = min(structure, 1.0)
 
-        conf_count = len(re.findall(r'[✅⚠️]\s*\d+%', response))
-        confidence = min(conf_count / 3, 1.0)
+        # 可信度意识：有没有表达确信/不确信（不限于特定标记）
+        conf_markers = len(re.findall(r'[✅⚠️]\s*\d*%?', response))
+        has_uncertainty = bool(re.search(r'据我了解|不确定|可能|大概|需要验证|仅供参考|建议.*确认|尚无定论', response))
+        confidence = min(conf_markers * 0.12 + (0.35 if has_uncertainty else 0.1), 1.0)
 
-        last_line = response.strip().split('\n')[-1] if response.strip() else ""
-        has_conclusion = bool(re.search(r'总之|综上|因此|所以|总结|建议|结论', last_line))
-        has_question = last_line.strip().endswith('？') or last_line.strip().endswith('?')
-        closure = 0.8 if has_conclusion else (0.3 if has_question else 0.5)
+        # 闭合度：回答是否给出了可操作的结论
+        last_300 = response[-300:] if len(response) > 300 else response
+        has_conclusion = bool(re.search(r'总之|综上|因此|总结|建议|希望|祝', last_300))
+        has_actionable = bool(re.search(r'建议|可以尝试|推荐|第一步|具体做法|操作步骤|方法', response))
+        closure = (0.35 if has_conclusion else 0.15) + (0.35 if has_actionable else 0.1) + 0.2
+        closure = min(closure, 1.0)
 
         avg = round((depth + structure + confidence + closure) / 4, 3)
         return {
