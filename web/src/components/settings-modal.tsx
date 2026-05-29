@@ -6,11 +6,13 @@ import { X, Eye, EyeOff } from "lucide-react";
 import { API_HOST } from "@/lib/ws";
 
 const PROVIDER_PRESETS: Record<string, { base_url: string; models: string[] }> = {
+  "Claude": { base_url: "https://api.anthropic.com/v1", models: ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"] },
+  "OpenAI": { base_url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini", "o3-mini"] },
   "DeepSeek": { base_url: "https://api.deepseek.com/v1", models: ["deepseek-chat", "DeepSeek-V4-Flash"] },
-  "Kimi (Moonshot)": { base_url: "https://api.moonshot.cn/v1", models: ["moonshot-v1-8k", "moonshot-v1-32k"] },
-  "OpenAI": { base_url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini"] },
+  "Kimi": { base_url: "https://api.moonshot.cn/v1", models: ["moonshot-v1-8k", "moonshot-v1-32k"] },
   "通义千问": { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-plus", "qwen-max"] },
   "智谱 GLM": { base_url: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash", "GLM-5.1"] },
+  "Gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai", models: ["gemini-2.5-flash", "gemini-2.5-pro"] },
   "自定义": { base_url: "", models: [] },
 };
 
