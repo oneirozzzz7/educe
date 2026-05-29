@@ -271,6 +271,43 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         files = session_files.get(session_id, {})
         return {"files": [f.to_dict() for f in files.values()]}
 
+    @app.get("/api/domains")
+    async def list_domains():
+        from deepforge.core.domain_engine import DomainEngine
+        engine = DomainEngine()
+        return {"domains": engine.list_domains()}
+
+    @app.post("/api/domains/digest/{session_id}/{file_id}")
+    async def digest_domain(session_id: str, file_id: str):
+        """把已上传的文件消化为领域知识——傻瓜式，任何文件都行"""
+        files = session_files.get(session_id, {})
+        attachment = files.get(file_id)
+        if not attachment:
+            return {"error": "文件未找到"}
+        if not attachment.text_content:
+            return {"error": "该文件无法提取文本内容"}
+
+        from deepforge.core.domain_engine import DomainEngine
+        model_cfg = config.default_model
+        from deepforge.models.router import ModelClient
+        client = ModelClient(api_key=model_cfg.api_key, base_url=model_cfg.base_url)
+        engine = DomainEngine()
+
+        try:
+            dk = await engine.digest(
+                attachment.text_content, attachment.name,
+                client, model_cfg.model, model_cfg.max_tokens
+            )
+            return {
+                "status": "ok",
+                "domain": dk.domain,
+                "concepts": len(dk.concepts),
+                "chains": len(dk.chains),
+                "pitfalls": len(dk.pitfalls),
+            }
+        except Exception as e:
+            return {"error": str(e)[:200]}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()

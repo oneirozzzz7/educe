@@ -35,6 +35,12 @@ class Orchestrator:
         self.task_store = TaskStore()
         self.bus = EventBus()
         self.knowledge = LayeredCache()
+        self.domain_engine = None
+        try:
+            from deepforge.core.domain_engine import DomainEngine
+            self.domain_engine = DomainEngine()
+        except Exception:
+            pass
 
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
@@ -73,6 +79,12 @@ class Orchestrator:
         skill_prompt = self._match_skill(user_input)
         if skill_prompt:
             self.context.metadata["skill_prompt"] = skill_prompt
+
+        if self.domain_engine:
+            domain = self.domain_engine.match_domain(user_input)
+            domain_knowledge = self.domain_engine.inject_knowledge(user_input, domain)
+            if domain_knowledge:
+                self.context.metadata["domain_knowledge"] = domain_knowledge
 
         decision = await self._decide(user_input)
 
@@ -201,6 +213,8 @@ class Orchestrator:
             from deepforge.core.file_handler import format_for_prompt
             file_context = format_for_prompt(self.context.metadata["uploaded_files"])
 
+        domain_context = self.context.metadata.get("domain_knowledge", "")
+
         try:
             result = await client.chat(
                 messages=[
@@ -209,6 +223,7 @@ class Orchestrator:
                         "- 需要编程（做网页/工具/游戏/脚本/扩展/生成图表/转换格式等）→只回复：NEED_CODE\n"
                         "- 其他（聊天/分析/总结/翻译/写文章/解释/回答问题等）→直接输出完整内容\n"
                         "注意：'分析论文'、'总结文件'、'解释代码'是文本任务，不需要生成代码"
+                        + (f"\n{domain_context}" if domain_context else "")
                     )},
                     {"role": "user", "content": user_input + file_hint + file_context},
                 ],

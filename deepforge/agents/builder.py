@@ -207,11 +207,14 @@ class BuilderAgent(BaseAgent):
             from deepforge.core.file_handler import format_for_prompt
             file_section = format_for_prompt(uploaded)
 
+        # 领域知识
+        domain_section = context.metadata.get("domain_knowledge", "")
+
         return f"""你是DeepForge Builder。直接输出代码，不要描述、不要解释、不要说"我来创建"。
 
 ## 用户需求
 {message.content}
-{file_section}{skill_hint}{compiled_knowledge}{recall_section}
+{file_section}{domain_section}{skill_hint}{compiled_knowledge}{recall_section}
 ## 规则
 - 第一行就开始写代码，不要任何前言
 - 不要说"让我先看看"、"我来创建"等废话
