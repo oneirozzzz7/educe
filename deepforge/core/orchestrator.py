@@ -99,11 +99,14 @@ class Orchestrator:
             self.context.metadata["_last_user_signal"] = signal
             self.context.metadata["_last_signal_weight"] = weight
 
-            # 负向信号→降级上一轮用过的知识
-            if signal == "error" and self.knowledge:
+            # 负向信号→降级上一轮用过的知识 + 标记下一轮不提取
+            if signal == "error":
+                self.context.metadata["_skip_next_extraction"] = True
                 recalled_ids = getattr(self.knowledge, '_last_recalled_ids', [])
                 for eid in recalled_ids:
                     self.knowledge.record_failure(eid)
+            else:
+                self.context.metadata.pop("_skip_next_extraction", None)
 
         self.conversation.add_user(user_input, file_content)
 
@@ -536,9 +539,9 @@ class Orchestrator:
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
 
-                # 知识提取——有质量门控（上一轮是error信号则不提取）
-                prev_signal = self.context.metadata.get("_last_user_signal", "unknown")
-                if self.knowledge and raw and len(raw) > 100 and prev_signal != "error":
+                # 知识提取——有质量门控（上一轮error则跳过）
+                skip = self.context.metadata.pop("_skip_next_extraction", False)
+                if self.knowledge and raw and len(raw) > 100 and not skip:
                     self._extract_and_store_knowledge(user_input, raw, domain_tag)
 
                 # 质量追踪——记录到 JSONL + 聚合领域统计
