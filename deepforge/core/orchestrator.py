@@ -77,6 +77,14 @@ class Orchestrator:
         except Exception:
             pass
 
+        self.credibility = None
+        try:
+            from deepforge.core.credibility_engine import CredibilityEngine
+            self.credibility = CredibilityEngine(
+                knowledge=self.knowledge, quality_tracker=self.quality_tracker)
+        except Exception:
+            pass
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -629,6 +637,14 @@ class Orchestrator:
 
             self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)
+
+            # 四信号融合可信度评估
+            if self.credibility:
+                cred = self.credibility.assess(
+                    user_input, raw, domain_tag,
+                    user_signal=self.context.metadata.get("_last_user_signal", "neutral"))
+                self.context.metadata["credibility"] = cred
+                self.context.metadata["activation_confidence"] = cred["level"]
 
             # 记录到用户画像
             if self.profile_manager and session_id:
