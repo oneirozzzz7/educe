@@ -96,6 +96,12 @@ class ActivationEngine:
         self.domain_engine = domain_engine
         self._current_seed = self._load_best_seed()
         self._use_count = 0
+        self._evolver = None
+        try:
+            from deepforge.core.activation_evolver import ActivationEvolver
+            self._evolver = ActivationEvolver()
+        except Exception:
+            pass
 
     def _load_best_seed(self) -> str:
         """从领域统计中加载效果最好的激发语"""
@@ -122,24 +128,41 @@ class ActivationEngine:
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
                                  l1_compiled: list[str] | None = None) -> str:
-        """生成激发prompt——对薄弱领域自动补充提示"""
+        """生成激发prompt——领域级最优seed + 薄弱领域自动补充"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
         if l1_compiled:
-            extra_parts.append("\n## 已验证的知识\n" + "\n".join(f"- {k}" for k in l1_compiled[:5]))
+            extra_parts.append("\n## 已验证的知识\n" + "\n".join("- {}".format(k) for k in l1_compiled[:5]))
 
-        # 检查当前问题的领域是否薄弱，自动补充提示
         domain_hint = self._get_domain_hint(user_input)
         if domain_hint:
             extra_parts.append(domain_hint)
 
         extra_context = "\n".join(extra_parts)
 
+        # 领域级最优seed（如果evolver有数据）
+        seed = self._current_seed
+        if self._evolver:
+            detected_domain = self._detect_domain_for_seed(user_input)
+            domain_seed = self._evolver.get_best_seed(detected_domain)
+            if domain_seed:
+                seed = domain_seed
+
         return ACTIVATION_PROMPT.format(
-            activation_seed=self._current_seed,
+            activation_seed=seed,
             extra_context=extra_context,
         )
+
+    def _detect_domain_for_seed(self, user_input: str) -> str:
+        try:
+            from deepforge.core.domain_router import route_domain
+            domains = route_domain(user_input, top_k=1)
+            if domains:
+                return DOMAIN_LABELS.get(domains[0], domains[0])
+        except Exception:
+            pass
+        return ""
 
     def _get_domain_hint(self, user_input: str) -> str:
         """对薄弱领域自动补充提示——从成功回答中学习"""

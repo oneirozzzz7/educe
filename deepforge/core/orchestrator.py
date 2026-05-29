@@ -588,6 +588,18 @@ class Orchestrator:
                     signal_weight=signal_weight,
                     model=self.config.default_model.model,
                 )
+
+                # 每20次回答触发一次evolver演化
+                if hasattr(self.activation_engine, '_evolver') and self.activation_engine._evolver:
+                    self.activation_engine._use_count += 1
+                    if self.activation_engine._use_count % 20 == 0:
+                        try:
+                            result = self.activation_engine._evolver.analyze_and_evolve()
+                            if result.get("status") == "evolved":
+                                console.print("[dim]Evolution gen {} - {} domains optimized[/dim]".format(
+                                    result["generation"], result["domains_optimized"]))
+                        except Exception:
+                            pass
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 
