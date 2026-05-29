@@ -210,11 +210,18 @@ class BuilderAgent(BaseAgent):
         # 领域知识
         domain_section = context.metadata.get("domain_knowledge", "")
 
+        # 专家身份
+        expert_name = context.metadata.get("expert_name", "Builder")
+        expert_hint = ""
+        expert_system = context.metadata.get("expert_system", "")
+        if expert_system and "技术" not in expert_name and "通用" not in expert_name:
+            expert_hint = f"\n## 专家视角\n你同时具备{expert_name}的专业知识，在实现时要体现专业深度。\n"
+
         return f"""你是DeepForge Builder。直接输出代码，不要描述、不要解释、不要说"我来创建"。
 
 ## 用户需求
 {message.content}
-{file_section}{domain_section}{skill_hint}{compiled_knowledge}{recall_section}
+{file_section}{domain_section}{expert_hint}{skill_hint}{compiled_knowledge}{recall_section}
 ## 规则
 - 第一行就开始写代码，不要任何前言
 - 不要说"让我先看看"、"我来创建"等废话

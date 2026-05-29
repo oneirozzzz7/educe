@@ -360,6 +360,9 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
                 await asyncio.sleep(0.05)
+                expert_name = orchestrator.context.metadata.get("expert_name", "")
+                if expert_name:
+                    await websocket.send_json({"type": "expert", "content": expert_name})
                 await websocket.send_json({"type": "status", "content": "idle"})
 
         except WebSocketDisconnect:

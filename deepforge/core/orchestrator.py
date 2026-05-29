@@ -89,6 +89,11 @@ class Orchestrator:
         decision = await self._decide(user_input)
 
         if decision["action"] == "code":
+            from deepforge.core.expert_router import match_expert
+            expert = match_expert(user_input)
+            self.context.metadata["expert_name"] = expert.get("name", "Builder")
+            self.context.metadata["expert_system"] = expert.get("system", "")
+            console.print(f"[dim]🎓 专家: {expert.get('name', 'Builder')}[/dim]")
             return await self._run_build(user_input)
         else:
             content = decision["content"]
@@ -353,7 +358,9 @@ class Orchestrator:
         return text_score > code_score and text_score >= 1
 
     async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
-        """直接用模型回复，不走Builder"""
+        """直接用模型回复，不走Builder——自动匹配专家身份"""
+        from deepforge.core.expert_router import get_expert_system_prompt
+
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -366,9 +373,12 @@ class Orchestrator:
 
         domain_context = self.context.metadata.get("domain_knowledge", "")
 
-        system = "你是DeepForge助手，一个专业、准确、有深度的AI助手。请直接回答用户的问题。"
+        system, expert_name = get_expert_system_prompt(user_input)
         if domain_context:
             system += f"\n{domain_context}"
+
+        self.context.metadata["expert_name"] = expert_name
+        console.print(f"[dim]🎓 专家: {expert_name}[/dim]")
 
         try:
             result = await client.chat(

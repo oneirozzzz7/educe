@@ -60,6 +60,7 @@ export default function Page() {
 
   const [thinking, setThinking] = useState(false);
   const [thinkingElapsed, setThinkingElapsed] = useState(0);
+  const [expertName, setExpertName] = useState("");
   const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastUserMsgRef = useRef("");
 
@@ -114,6 +115,8 @@ export default function Page() {
         }
       } else if (msg.type === "chunk") {
         setCurAgent(msg.sender);
+      } else if ((msg as any).type === "expert") {
+        setExpertName((msg as any).content || "");
       } else if (msg.type === "error") {
         workingRef.current = false; setWorking(false);
         if (timerRef.current) clearInterval(timerRef.current);
@@ -311,7 +314,9 @@ export default function Page() {
                 {thinking && !working && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-1 py-2">
                     <Loader2 size={14} className="animate-spin" style={{ color: "var(--brand)" }} />
-                    <span className="text-sm" style={{ color: "var(--text-2)" }}>思考中{thinkingElapsed > 0 ? ` ${thinkingElapsed}s` : "..."}</span>
+                    <span className="text-sm" style={{ color: "var(--text-2)" }}>
+                      {expertName ? `🎓 ${expertName}` : "思考"}{thinkingElapsed > 0 ? ` · ${thinkingElapsed}s` : "..."}
+                    </span>
                   </motion.div>
                 )}
                 <div ref={endRef} />
