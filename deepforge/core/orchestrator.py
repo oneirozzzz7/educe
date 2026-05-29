@@ -70,6 +70,13 @@ class Orchestrator:
         except Exception:
             pass
 
+        self.profile_manager = None
+        try:
+            from deepforge.core.user_profile import UserProfileManager
+            self.profile_manager = UserProfileManager()
+        except Exception:
+            pass
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -546,10 +553,17 @@ class Orchestrator:
         if ctx_signals and self.context_analyzer:
             ctx_hint = self.context_analyzer.build_context_hint(ctx_signals)
 
+        # 用户画像注入
+        profile_hint = ""
+        session_id = self.context.metadata.get("session_id", "")
+        if self.profile_manager and session_id:
+            profile = self.profile_manager.get_or_create(session_id)
+            profile_hint = profile.get_activation_hint()
+
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
                 user_input=user_input,
-                domain_context=domain_context + ctx_hint,
+                domain_context=domain_context + ctx_hint + profile_hint,
                 l1_compiled=all_knowledge[:8] if all_knowledge else None,
             )
         else:
@@ -615,6 +629,12 @@ class Orchestrator:
 
             self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)
+
+            # 记录到用户画像
+            if self.profile_manager and session_id:
+                profile = self.profile_manager.get_or_create(session_id)
+                profile.record_turn(user_input, domain_tag, is_code=False,
+                                   signal=self.context.metadata.get("_last_user_signal", "neutral"))
 
             return {"action": "reply", "content": raw}
         except Exception as e:

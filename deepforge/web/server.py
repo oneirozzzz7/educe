@@ -356,6 +356,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                         file_content = format_for_prompt(attached)
 
                 await websocket.send_json({"type": "status", "content": "thinking"})
+                orchestrator.context.metadata["session_id"] = session_id
                 try:
                     await orchestrator.run(user_input, file_content=file_content)
                 except Exception as e:
