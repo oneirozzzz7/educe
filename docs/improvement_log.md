@@ -128,3 +128,11 @@
   - 展示20条历史
 - **稳定性**：智能滚动、移动端响应式、iframe键盘聚焦
 - **HTML提取修复**：```html/```htm代码块格式支持
+
+### v1.6 文件上传功能
+- 支持61种文件格式：纯文本/代码、PDF(PyPDF2)、Excel(openpyxl)、Word(python-docx)、图片(base64)
+- 全链路：前端📎按钮 → HTTP POST上传 → 服务端解析 → WebSocket传file_ids → Agent prompt注入
+- 限制：单文件10MB、单次5个、文本截断50000字符
+- 前端：FileChips组件(文件图标/大小/删除)、上传进度、多文件
+- 后端：session级文件存储、断开自动清理
+- Agent感知：Builder/Planner prompt包含文件内容、Orchestrator决策感知文件
