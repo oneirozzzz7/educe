@@ -345,6 +345,34 @@ class Orchestrator:
             pass
         return None
 
+    def _extract_and_store_knowledge(self, question: str, response: str, domain: str):
+        """从高质量回答中提取知识点存入知识库——越用越强的核心"""
+        import re
+        if not self.knowledge or len(response) < 100:
+            return
+
+        # 提取回答中的关键句（含分析性表达的句子更有价值）
+        sentences = re.split(r'[。\n]', response)
+        valuable = []
+        for s in sentences:
+            s = s.strip()
+            if len(s) < 15 or len(s) > 150:
+                continue
+            has_insight = bool(re.search(
+                r'本质|核心|关键|原理|根本|因为|所以|这意味着|区别在于|值得注意',
+                s
+            ))
+            if has_insight:
+                valuable.append(s)
+
+        # 取最有价值的前3句存入知识库
+        for sent in valuable[:3]:
+            triggers = self.knowledge._tokenize(question + " " + domain)
+            self.knowledge.add(
+                f"[{domain}] {sent}",
+                triggers, "insight"
+            )
+
     def _detect_domain(self, question: str, response: str) -> str:
         """从问题+回答综合判断领域——比单独分类问题更准"""
         import re
@@ -399,6 +427,10 @@ class Orchestrator:
         if recalled_ids:
             self.knowledge._compile_l1()
 
+        # 知识老化：超过500条时裁剪低价值条目
+        if self.knowledge.stats()["total"] > 500:
+            self.knowledge.prune(max_entries=400)
+
     async def _audit(self, question: str, response: str) -> str:
         """反幻觉审计——标注不可靠内容"""
         try:
@@ -442,11 +474,17 @@ class Orchestrator:
         if self.knowledge:
             recalled = self.knowledge.recall(user_input, max_results=3)
 
+        # 把recalled的知识和L1一起传给activation_engine
+        all_knowledge = list(l1)
+        for r in recalled:
+            if r not in all_knowledge and not r.startswith("[成功]") and not r.startswith("[seed"):
+                all_knowledge.append(r[:100])
+
         if self.activation_engine:
             system = self.activation_engine.build_activation_prompt(
                 user_input=user_input,
                 domain_context=domain_context,
-                l1_compiled=l1,
+                l1_compiled=all_knowledge[:8] if all_knowledge else None,
             )
         else:
             system = "你是一位专业的AI助手，请准确回答用户的问题。"
@@ -478,12 +516,8 @@ class Orchestrator:
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
 
-                if self.knowledge and raw and len(raw) > 50:
-                    triggers = self.knowledge._tokenize(user_input)
-                    self.knowledge.add(
-                        f"[{domain_tag}] Q:{user_input[:40]} → 已回答({len(raw)}字)",
-                        triggers, "qa_success"
-                    )
+                if self.knowledge and raw and len(raw) > 100:
+                    self._extract_and_store_knowledge(user_input, raw, domain_tag)
 
                 self.activation_engine.record_response_quality(user_input, raw, domain_tag)
 
