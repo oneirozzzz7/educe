@@ -38,31 +38,18 @@ DOMAIN_LABELS = {
     "cooking": "烹饪", "education": "教育",
 }
 
+# ═══════════════════════════════════════
+# 激发语——可演化的核心
+# 存储在知识库中，随使用效果动态调整
+# ═══════════════════════════════════════
+
+DEFAULT_ACTIVATION_SEED = "请像这个领域最顶尖的专家在给好奇的聪明人讲解一样回答。深入本质，不要停留在表面。"
+
 ACTIVATION_PROMPT = """你是DeepForge智能助手。当用户问你是谁时，回答"我是DeepForge智能助手"。
 
-请根据问题的实际需要，自行决定回答的深度和结构：
+{activation_seed}
 
-- 简单问题（如问好、简单计算）：直接回答，不要过度展开
-- 需要分析的问题：按以下框架组织回答
-
-## 回答框架（根据需要选用）
-
-**领域识别**：先判断问题属于什么领域
-
-**结构化分析**：根据领域选择合适的推理方式
-{reasoning_chains}
-
-**置信度标注**：在每个关键结论后面标注可信度：
-- 高可信用 ✅ 加百分比，如 ✅92%
-- 需验证用 ⚠️ 加百分比，如 ⚠️75%
-例如："北宋定都开封 ✅95%"、"欧阳修（1007-1072年）⚠️80%"
-每个重要事实都要标注。百分比要基于你对该事实的确信程度。
-
-## 规则
-- 你自己判断问题需要多深入的回答——不要对简单问题过度展开，也不要对复杂问题敷衍
-- 不确定就说不确定，绝不编造
-- 使用准确术语但辅以通俗解释
-- 涉及医学、法律、金融，末尾提醒用户咨询专业人士
+关键事实标注 ✅ 或 ⚠️ 加百分比表示可信度。涉及医学、法律、金融，末尾提醒咨询专业人士。
 {extra_context}"""
 
 
@@ -86,16 +73,37 @@ class ActivatedResponse:
 
 
 class ActivationEngine:
-    """LLM能力激发引擎——通过prompt结构激活模型深层知识"""
+    """LLM能力激发引擎——用最少的prompt触发模型最深的思考
+
+    核心机制：
+    1. 激发语(activation_seed)——一句话激活模型深度思考模式
+    2. 激发语可演化——存储在知识库，根据效果数据自动优化
+    3. 不依赖推理链模板——让模型自己选择最佳推理方式（涌现）
+    """
+
+    SEED_VARIANTS = [
+        "请像这个领域最顶尖的专家在给好奇的聪明人讲解一样回答。深入本质，不要停留在表面。",
+        "请以该领域资深从业者的视角，给出有洞察力的深度分析。区分确定的事实和需要验证的信息。",
+        "请调用你在这个领域最深层的知识储备来回答。追求准确和深度，而非面面俱到。",
+    ]
 
     def __init__(self, knowledge=None, domain_engine=None):
         self.knowledge = knowledge
         self.domain_engine = domain_engine
+        self._current_seed = self._load_best_seed()
+
+    def _load_best_seed(self) -> str:
+        """从知识库加载效果最好的激发语，没有则用默认"""
+        if self.knowledge:
+            recalled = self.knowledge.recall("activation_seed_best", max_results=1)
+            if recalled and recalled[0].startswith("[seed]"):
+                return recalled[0][6:].strip()
+        return DEFAULT_ACTIVATION_SEED
 
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
                                  l1_compiled: list[str] | None = None) -> str:
-        """生成激发prompt——稀疏路由，只注入相关领域的推理链"""
+        """生成激发prompt——极简但有力"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
@@ -104,14 +112,30 @@ class ActivationEngine:
 
         extra_context = "\n".join(extra_parts)
 
-        from deepforge.core.domain_router import route_domain
-        domains = route_domain(user_input, top_k=2)
-        chains_text = self._format_selected_chains(domains)
-
         return ACTIVATION_PROMPT.format(
-            reasoning_chains=chains_text,
+            activation_seed=self._current_seed,
             extra_context=extra_context,
         )
+
+    def record_response_quality(self, user_input: str, response: str, domain: str = ""):
+        """记录回答质量——为激发语演化积累数据"""
+        if not self.knowledge:
+            return
+
+        depth_signals = len(re.findall(r'因为|本质|核心|原理|根本|关键|深层|实质|根源', response))
+        has_structure = bool(re.search(r'(?:^|\n)#{1,3}\s|(?:^|\n)\*\*[^*]+\*\*', response))
+        has_confidence = "✅" in response or "⚠" in response
+        length_score = min(len(response) / 500, 1.0)
+
+        quality = round((depth_signals * 0.15 + (0.3 if has_structure else 0) +
+                         (0.2 if has_confidence else 0) + length_score * 0.35), 2)
+
+        if quality >= 0.7 and self.knowledge:
+            triggers = self.knowledge._tokenize(f"activation_seed quality {domain}")
+            self.knowledge.add(
+                f"[seed_quality] domain={domain} quality={quality} seed={self._current_seed[:30]}",
+                triggers, "seed_feedback"
+            )
 
     def parse_activated_response(self, raw_response: str) -> ActivatedResponse:
         """从模型回复中解析结构化信息（best-effort，不丢失内容）"""

@@ -440,6 +440,8 @@ class Orchestrator:
                         f"[{domain_tag}] Q:{user_input[:40]} → 已回答({len(raw)}字)",
                         triggers, "qa_success"
                     )
+
+                self.activation_engine.record_response_quality(user_input, raw, domain_tag)
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 

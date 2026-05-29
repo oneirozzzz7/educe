@@ -22,6 +22,7 @@ DOMAIN_SEEDS: dict[str, list[str]] = {
         "法律合同诉讼赔偿违法起诉律师仲裁判决法条法规维权",
         "劳动合同工资辞退社保公积金工伤解雇欠薪离职补偿",
         "租房押金房东房租合同纠纷违约责任版权侵权专利商标",
+        "离婚财产继承遗产抚养权噪音扰民邻居权益消费者知识产权",
     ],
     "math": [
         "计算方程证明数学几何代数微积分概率统计函数极限求导积分",
@@ -48,6 +49,7 @@ DOMAIN_SEEDS: dict[str, list[str]] = {
         "心情情绪焦虑压力烦恼痛苦孤独自卑迷茫不开心难过",
         "伤心崩溃绝望恐惧害怕紧张失落愧疚好累好烦抑郁",
         "工作压力职业迷茫人际关系亲密关系自信心理咨询",
+        "拖延社交恐惧倦怠分手失恋内耗注意力不够好",
     ],
     "history": [
         "历史朝代皇帝战争革命事件年代世纪古代近代现代文明帝国",
@@ -59,6 +61,7 @@ DOMAIN_SEEDS: dict[str, list[str]] = {
         "物理化学生物科学实验原子分子基因DNA进化量子相对论",
         "电磁光能量宇宙黑洞星球行星细胞蛋白质元素化学式",
         "反应定律定理光速引力波粒子加速器暗物质",
+        "恐龙灭绝天空蓝色自转公转半导体核聚变核裂变地球",
     ],
     "cooking": [
         "做菜炒菜烹饪菜谱食谱好吃红烧清蒸煎炸煮烤炖",
@@ -81,14 +84,27 @@ DOMAIN_LABELS = {
 }
 
 
+STOPWORDS = {"的", "了", "是", "在", "有", "和", "与", "不", "我", "你", "他", "她",
+             "这", "那", "什么", "怎么", "如何", "为什么", "可以", "能", "会", "要",
+             "吗", "呢", "吧", "啊", "哦", "一个", "一下", "下", "上", "中", "大", "小"}
+
+
 def _tokenize(text: str) -> list[str]:
-    """中英文混合分词"""
+    """中英文混合分词——过滤停用词"""
     tokens = re.findall(r'[a-zA-Z]{2,}', text.lower())
     cn = re.findall(r'[一-鿿]+', text)
     for seg in cn:
         for i in range(len(seg)):
             if i + 2 <= len(seg):
-                tokens.append(seg[i:i+2])
+                gram = seg[i:i+2]
+                if gram not in STOPWORDS:
+                    tokens.append(gram)
+            if i + 3 <= len(seg):
+                gram = seg[i:i+3]
+                if gram not in STOPWORDS:
+                    tokens.append(gram)
+        if seg not in STOPWORDS and len(seg) >= 2:
+            tokens.append(seg)
     return tokens
 
 
