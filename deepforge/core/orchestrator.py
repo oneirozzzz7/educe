@@ -106,6 +106,7 @@ class Orchestrator:
             self.context.add_message(msg)
             self._notify(msg)
             self._display(msg)
+            self._feedback_success()
             return self.context
 
     # ═══════════════════════════════════════
@@ -205,7 +206,6 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     async def _decide(self, user_input: str) -> dict:
-        from deepforge.core.expert_router import get_expert_system_prompt
 
         has_files = bool(self.context.metadata.get("uploaded_files"))
         file_hint = ""
@@ -325,6 +325,16 @@ class Orchestrator:
                 evolve_from_output(engineer_output, user_request, self.knowledge)
         except Exception:
             pass
+
+    def _feedback_success(self):
+        """成功回复后：对recall用到的知识条目标记成功，驱动L1升级"""
+        if not self.knowledge:
+            return
+        recalled_ids = getattr(self.knowledge, '_last_recalled_ids', [])
+        for eid in recalled_ids:
+            self.knowledge.record_success(eid)
+        if recalled_ids:
+            self.knowledge._compile_l1()
 
     async def _audit(self, question: str, response: str) -> str:
         """反幻觉审计——标注不可靠内容"""

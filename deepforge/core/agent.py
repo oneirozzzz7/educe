@@ -13,7 +13,7 @@ class BaseAgent(abc.ABC):
     role: str = "Base Agent"
     description: str = ""
 
-    def __init__(self, config: DeepForgeConfig, model_client: Any = None):
+    def __init__(self, config: DeepForgeConfig, model_client: Any = None, **kwargs):
         self.config = config
         self.model_client = model_client
         self._model_config: ModelConfig | None = None

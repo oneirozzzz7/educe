@@ -16,9 +16,9 @@ class PlannerAgent(BaseAgent):
     role = "Planner"
     description = "任务拆解和经验复用——复杂任务才需要"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, knowledge=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.knowledge = LayeredCache()
+        self.knowledge = knowledge or LayeredCache()
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         user_request = context.user_request

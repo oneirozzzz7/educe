@@ -104,8 +104,17 @@ class LayeredCache:
     # ═══ 写入 ═══
 
     def add(self, content: str, triggers: set[str], category: str = "pattern") -> str:
-        """写入知识——自动建索引"""
+        """写入知识——去重+自动建索引"""
         import uuid
+        # 去重：如果已有相似条目（前60字符匹配），增加usage_count而非创建新条目
+        key = content[:60].strip()
+        for existing in self._entries.values():
+            if existing.content[:60].strip() == key:
+                existing.usage_count += 1
+                existing.triggers |= triggers
+                self._save()
+                return existing.id
+
         id = uuid.uuid4().hex[:10]
         entry = KnowledgeEntry(id=id, content=content, triggers=triggers, category=category)
         self._entries[id] = entry
@@ -121,17 +130,16 @@ class LayeredCache:
     # ═══ 召回（分层） ═══
 
     def recall(self, query: str, max_results: int = 5) -> list[str]:
-        """分层召回——L1→L2→L3，渐进精确"""
+        """分层召回——L2→L3，渐进精确。返回内容列表"""
         results = []
-
-        # L1: 编译层（零成本，直接返回）
-        # L1内容已编译进prompt，这里不需要返回
+        self._last_recalled_ids = []
 
         # L2: 热缓存
         hot_entries = [e for e in self._entries.values() if e.is_hot]
         for entry in hot_entries:
             if self._matches(query, entry.triggers):
                 results.append(entry.content)
+                self._last_recalled_ids.append(entry.id)
                 self._record_use(entry.id)
                 if len(results) >= max_results:
                     return results
@@ -149,6 +157,7 @@ class LayeredCache:
         scored.sort(key=lambda x: (-x[0], -x[1].success_rate))
         for _, entry in scored[:max_results - len(results)]:
             results.append(entry.content)
+            self._last_recalled_ids.append(entry.id)
             self._record_use(entry.id)
 
         return results
@@ -174,6 +183,7 @@ class LayeredCache:
         if entry_id in self._entries:
             self._entries[entry_id].usage_count += 1
             self._entries[entry_id].last_used = time.time()
+            self._save()
 
     # ═══ 工具 ═══
 

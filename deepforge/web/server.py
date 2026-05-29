@@ -60,7 +60,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             skill_registry = SkillRegistry(config.skills.skill_dir, config.skills.community_dir)
 
             for agent_cls in ALL_AGENTS:
-                agent = agent_cls(config=config, model_client=client)
+                agent = agent_cls(config=config, model_client=client, knowledge=orchestrator.knowledge)
                 if hasattr(agent, 'memory_store'):
                     agent.memory_store = memory_store
                 if hasattr(agent, 'skill_registry'):

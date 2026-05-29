@@ -24,11 +24,11 @@ class BuilderAgent(BaseAgent):
     role = "Builder"
     description = "写代码、运行验证、修复bug的全能Agent"
 
-    def __init__(self, *args, memory_store=None, **kwargs):
+    def __init__(self, *args, memory_store=None, knowledge=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.artifacts = ArtifactManager()
         self.memory_store = memory_store
-        self.knowledge = LayeredCache()
+        self.knowledge = knowledge or LayeredCache()
         self.tools: list[Tool] = [
             WriteFileTool(),
             ReadFileTool(),
@@ -210,23 +210,16 @@ class BuilderAgent(BaseAgent):
         # 领域知识
         domain_section = context.metadata.get("domain_knowledge", "")
 
-        # 专家身份
-        expert_name = context.metadata.get("expert_name", "Builder")
-        expert_hint = ""
-        expert_system = context.metadata.get("expert_system", "")
-        if expert_system and "技术" not in expert_name and "通用" not in expert_name:
-            expert_hint = f"\n## 专家视角\n你同时具备{expert_name}的专业知识，在实现时要体现专业深度。\n"
-
         return f"""你是DeepForge Builder。直接输出代码，不要描述、不要解释、不要说"我来创建"。
 
 ## 用户需求
 {message.content}
-{file_section}{domain_section}{expert_hint}{skill_hint}{compiled_knowledge}{recall_section}
+{file_section}{domain_section}{skill_hint}{compiled_knowledge}{recall_section}
 ## 规则
 - 第一行就开始写代码，不要任何前言
 - 不要说"让我先看看"、"我来创建"等废话
-3. 如果验证发现问题，你会收到错误信息，请修复
-4. 反复迭代直到验证通过
+- 如果验证发现问题，你会收到错误信息，请修复
+- 反复迭代直到验证通过
 
 ## 你也可以使用工具（可选）
 - 写文件: <tool>write_file</tool><params>{{"path":"文件名.html","content":"完整代码"}}</params>
