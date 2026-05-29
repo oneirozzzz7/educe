@@ -353,6 +353,10 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     attached = [files[fid] for fid in file_ids if fid in files]
                     if attached:
                         orchestrator.context.metadata["uploaded_files"] = attached
+                    else:
+                        orchestrator.context.metadata.pop("uploaded_files", None)
+                else:
+                    orchestrator.context.metadata.pop("uploaded_files", None)
 
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 try:
