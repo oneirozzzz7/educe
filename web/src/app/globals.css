@@ -94,3 +94,14 @@ body {
 .df-markdown th { padding: 0.4em 0.6em; text-align: left; font-weight: 500; font-size: 0.88em; border-bottom: 1px solid var(--border); color: var(--text); background: var(--bg-sunken); }
 .df-markdown td { padding: 0.4em 0.6em; border-bottom: 1px solid var(--border-light); }
 .df-markdown img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+
+.df-confidence {
+  display: inline-block;
+  font-size: 0.82em;
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0.75;
+}

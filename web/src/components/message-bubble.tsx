@@ -48,7 +48,10 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
         const langMap: Record<string, string> = { html: "html", css: "css", js: "javascript", ts: "typescript", py: "python", json: "json", md: "markdown" };
         return `\`\`\`${langMap[ext] || ext}\n`;
       });
-      return marked.parse(t) as string;
+      let html = marked.parse(t) as string;
+      html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|❓\s*不确定|⚠️?\s*需要验证)/g,
+        '<span class="df-confidence">$1</span>');
+      return html;
     } catch {
       return `<pre style="white-space:pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
     }
