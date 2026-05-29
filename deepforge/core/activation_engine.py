@@ -31,6 +31,13 @@ REASONING_CHAINS = {
     "general": "背景梳理 → 核心分析 → 结论 → 延伸建议",
 }
 
+DOMAIN_LABELS = {
+    "medical": "医学", "legal": "法律", "math": "数学",
+    "tech": "技术", "finance": "金融", "writing": "写作",
+    "psychology": "心理", "history": "历史", "science": "科学",
+    "cooking": "烹饪", "education": "教育",
+}
+
 ACTIVATION_PROMPT = """你是DeepForge智能助手。当用户问你是谁时，回答"我是DeepForge智能助手"。
 
 请根据问题的实际需要，自行决定回答的深度和结构：
@@ -88,7 +95,7 @@ class ActivationEngine:
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
                                  l1_compiled: list[str] | None = None) -> str:
-        """生成激发prompt——模型自己决定回答深度"""
+        """生成激发prompt——稀疏路由，只注入相关领域的推理链"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
@@ -96,7 +103,10 @@ class ActivationEngine:
             extra_parts.append("\n## 已验证的知识\n" + "\n".join(f"- {k}" for k in l1_compiled[:5]))
 
         extra_context = "\n".join(extra_parts)
-        chains_text = self._format_reasoning_chains()
+
+        from deepforge.core.domain_router import route_domain
+        domains = route_domain(user_input, top_k=2)
+        chains_text = self._format_selected_chains(domains)
 
         return ACTIVATION_PROMPT.format(
             reasoning_chains=chains_text,
@@ -169,11 +179,16 @@ class ActivationEngine:
             if domain == "general":
                 lines.append(f"- 其他问题：{chain}")
             else:
-                label = {
-                    "medical": "医学", "legal": "法律", "math": "数学",
-                    "tech": "技术", "finance": "金融", "writing": "写作",
-                    "psychology": "心理", "history": "历史", "science": "科学",
-                    "cooking": "烹饪", "education": "教育",
-                }.get(domain, domain)
+                label = DOMAIN_LABELS.get(domain, domain)
                 lines.append(f"- {label}问题：{chain}")
+        return "\n".join(lines)
+
+    def _format_selected_chains(self, domains: list[str]) -> str:
+        """只注入选中领域的推理链——MoE稀疏激活"""
+        lines = []
+        for d in domains:
+            if d in REASONING_CHAINS and d != "general":
+                label = DOMAIN_LABELS.get(d, d)
+                lines.append(f"- {label}问题：{REASONING_CHAINS[d]}")
+        lines.append(f"- 其他问题：{REASONING_CHAINS['general']}")
         return "\n".join(lines)
