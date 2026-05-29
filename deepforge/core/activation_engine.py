@@ -173,26 +173,6 @@ class ActivationEngine:
             pass
         return ""
 
-    def record_response_quality(self, user_input: str, response: str, domain: str = ""):
-        """记录回答质量——为激发语演化积累数据"""
-        if not self.knowledge:
-            return
-
-        depth_signals = len(re.findall(r'因为|本质|核心|原理|根本|关键|深层|实质|根源', response))
-        has_structure = bool(re.search(r'(?:^|\n)#{1,3}\s|(?:^|\n)\*\*[^*]+\*\*', response))
-        has_confidence = "✅" in response or "⚠" in response
-        length_score = min(len(response) / 500, 1.0)
-
-        quality = round((depth_signals * 0.15 + (0.3 if has_structure else 0) +
-                         (0.2 if has_confidence else 0) + length_score * 0.35), 2)
-
-        if quality >= 0.7 and self.knowledge:
-            triggers = self.knowledge._tokenize(f"activation_seed quality {domain}")
-            self.knowledge.add(
-                f"[seed_quality] domain={domain} quality={quality} seed={self._current_seed[:30]}",
-                triggers, "seed_feedback"
-            )
-
     def parse_activated_response(self, raw_response: str) -> ActivatedResponse:
         """从模型回复中解析结构化信息（best-effort，不丢失内容）"""
         result = ActivatedResponse(raw_response=raw_response, main_answer=raw_response)

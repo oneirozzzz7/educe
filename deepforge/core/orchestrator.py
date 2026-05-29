@@ -424,16 +424,22 @@ class Orchestrator:
             pass
 
     def _feedback_success(self):
-        """成功回复后：对recall用到的知识条目标记成功，驱动L1升级"""
+        """有质量门控的反馈——只对非负向信号的回答标记成功"""
         if not self.knowledge:
             return
+
+        signal = self.context.metadata.get("_last_user_signal", "unknown")
+        if signal in ("error", "unsatisfied"):
+            return
+
         recalled_ids = getattr(self.knowledge, '_last_recalled_ids', [])
         for eid in recalled_ids:
             self.knowledge.record_success(eid)
+            if eid in self.knowledge._entries:
+                self.knowledge._entries[eid].usage_count += 1
         if recalled_ids:
             self.knowledge._compile_l1()
 
-        # 知识老化：超过500条时裁剪低价值条目
         if self.knowledge.stats()["total"] > 500:
             self.knowledge.prune(max_entries=400)
 
@@ -530,10 +536,10 @@ class Orchestrator:
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
 
-                if self.knowledge and raw and len(raw) > 100:
+                # 知识提取——有质量门控（上一轮是error信号则不提取）
+                prev_signal = self.context.metadata.get("_last_user_signal", "unknown")
+                if self.knowledge and raw and len(raw) > 100 and prev_signal != "error":
                     self._extract_and_store_knowledge(user_input, raw, domain_tag)
-
-                self.activation_engine.record_response_quality(user_input, raw, domain_tag)
 
                 # 质量追踪——记录到 JSONL + 聚合领域统计
                 user_signal = self.context.metadata.get("_last_user_signal", "unknown")

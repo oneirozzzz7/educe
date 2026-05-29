@@ -102,9 +102,9 @@ class QualityTracker:
 
         prev_tokens = set(re.findall(r'[一-鿿]{2,}', previous_assistant))
         curr_tokens = set(re.findall(r'[一-鿿]{2,}', current_input))
-        if prev_tokens and curr_tokens:
+        if prev_tokens and curr_tokens and len(curr_tokens) >= 3:
             overlap = len(prev_tokens & curr_tokens) / max(len(curr_tokens), 1)
-            if overlap > 0.3:
+            if overlap > 0.5:
                 return "unsatisfied", -0.5
 
         return "topic_switch", 0.1

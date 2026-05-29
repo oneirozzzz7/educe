@@ -140,6 +140,7 @@ class LayeredCache:
             if self._matches(query, entry.triggers):
                 results.append(entry.content)
                 self._last_recalled_ids.append(entry.id)
+                self._record_use(entry.id)
                 if len(results) >= max_results:
                     return results
 
@@ -157,6 +158,7 @@ class LayeredCache:
         for _, entry in scored[:max_results - len(results)]:
             results.append(entry.content)
             self._last_recalled_ids.append(entry.id)
+            self._record_use(entry.id)
 
         return results
 
@@ -178,8 +180,8 @@ class LayeredCache:
             self._save()
 
     def _record_use(self, entry_id: str):
+        """只更新last_used（不增usage_count）——让L2 hot cache工作"""
         if entry_id in self._entries:
-            self._entries[entry_id].usage_count += 1
             self._entries[entry_id].last_used = time.time()
             self._save()
 
