@@ -136,10 +136,13 @@ class ActivationEngine:
             if not domains or domains[0] == "general":
                 return ""
 
-            domain = domains[0]
-            domain_stat = stats.get(DOMAIN_LABELS.get(domain, domain))
+            domain_en = domains[0]
+            domain_cn = DOMAIN_LABELS.get(domain_en, domain_en)
+
+            # stats用中文key，兼容两种
+            domain_stat = stats.get(domain_cn) or stats.get(domain_en)
             if domain_stat and domain_stat.get("needs_improvement"):
-                return f"\n（注意：{DOMAIN_LABELS.get(domain, domain)}领域请特别注意推理的准确性和深度）"
+                return f"\n（注意：{domain_cn}领域请特别注意推理的准确性和深度）"
         except Exception:
             pass
         return ""

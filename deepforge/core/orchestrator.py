@@ -444,7 +444,19 @@ class Orchestrator:
             domain_tag = ""
             if self.activation_engine:
                 activated = self.activation_engine.parse_activated_response(raw)
-                domain_tag = activated.domain or "通用"
+
+                # 领域识别：先用模型回复解析，fallback到TF-IDF路由
+                domain_tag = activated.domain or ""
+                if not domain_tag or domain_tag == "通用":
+                    try:
+                        from deepforge.core.domain_router import route_domain, DOMAIN_LABELS
+                        routed = route_domain(user_input, top_k=1)
+                        if routed and routed[0] != "general":
+                            domain_tag = DOMAIN_LABELS.get(routed[0], routed[0])
+                    except Exception:
+                        pass
+                domain_tag = domain_tag or "通用"
+
                 self.context.metadata["expert_name"] = domain_tag
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
