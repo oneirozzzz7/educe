@@ -209,18 +209,7 @@ class ActivationEngine:
         return result
 
     def _estimate_complexity(self, user_input: str) -> str:
-        """评估问题复杂度——默认 moderate，只有打招呼/纯计算才 simple"""
-        text = user_input.strip()
-        trivial = bool(re.match(r'^(你好|谢谢|再见|好的|嗯|哦|ok|OK|hi|Hi|hello)$', text))
-        pure_calc = bool(re.match(r'^[\d\+\-\*\/\.\s\(\)=\^]+[=？?]?$', text))
-
-        if trivial or pure_calc:
-            return "simple"
-
-        multi_part = bool(re.search(r'[；;]|第[一二三]|首先.*其次|以及|还有|另外|并且|同时', text))
-        if multi_part or len(text) > 50:
-            return "complex"
-
+        """所有问题统一用moderate模板——不做不可靠的分级判断"""
         return "moderate"
 
     def _format_reasoning_chains(self) -> str:
