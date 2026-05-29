@@ -2,27 +2,65 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Eye, EyeOff } from "lucide-react";
 import { API_HOST } from "@/lib/ws";
+
+const PROVIDER_PRESETS: Record<string, { base_url: string; models: string[] }> = {
+  "DeepSeek": { base_url: "https://api.deepseek.com/v1", models: ["deepseek-chat", "DeepSeek-V4-Flash"] },
+  "Kimi (Moonshot)": { base_url: "https://api.moonshot.cn/v1", models: ["moonshot-v1-8k", "moonshot-v1-32k"] },
+  "OpenAI": { base_url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini"] },
+  "通义千问": { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-plus", "qwen-max"] },
+  "智谱 GLM": { base_url: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash", "GLM-5.1"] },
+  "自定义": { base_url: "", models: [] },
+};
 
 export function SettingsModal({ open, onClose, model, onModelChange }: {
   open: boolean; onClose: () => void; model: string; onModelChange: (m: string) => void;
 }) {
   const [models, setModels] = useState<string[]>([]);
   const [selected, setSelected] = useState(model);
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [evolution, setEvolution] = useState(true);
+  const [showKey, setShowKey] = useState(false);
+  const [provider, setProvider] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [hasKey, setHasKey] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSelected(model);
+      setApiKey("");
+      setShowKey(false);
       fetch(`http://${API_HOST}/api/models`).then(r => r.json()).then(d => setModels(d.models || [])).catch(() => {});
       fetch(`http://${API_HOST}/api/status`).then(r => r.json()).then(d => {
         if (d.evolution !== undefined) setEvolution(d.evolution);
+        if (d.base_url) setBaseUrl(d.base_url);
+        setHasKey(d.has_api_key || false);
+        for (const [name, preset] of Object.entries(PROVIDER_PRESETS)) {
+          if (d.base_url && preset.base_url && d.base_url.includes(new URL(preset.base_url).hostname)) {
+            setProvider(name); break;
+          }
+        }
       }).catch(() => {});
     }
   }, [open, model]);
 
+  function selectProvider(name: string) {
+    setProvider(name);
+    const preset = PROVIDER_PRESETS[name];
+    if (preset && preset.base_url) {
+      setBaseUrl(preset.base_url);
+      if (preset.models.length > 0) {
+        setModels(prev => [...new Set([...preset.models, ...prev])].sort());
+        setSelected(preset.models[0]);
+      }
+    }
+  }
+
   if (!open) return null;
+
+  const inputStyle = { background: "var(--bg-sunken)", border: "1px solid var(--border)", color: "var(--text)" };
 
   return (
     <AnimatePresence>
@@ -30,23 +68,70 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
         className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)", backdropFilter: "blur(4px)" }}
         onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-          className="w-[400px] rounded-2xl p-6" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}
+          className="w-[440px] max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}
           onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-semibold text-[15px]" style={{ color: "var(--text)" }}>设置</h3>
             <button onClick={onClose} style={{ color: "var(--text-3)" }}><X size={16} /></button>
           </div>
 
+          {/* 服务商快选 */}
+          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>服务商</label>
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {Object.keys(PROVIDER_PRESETS).map(name => (
+              <button key={name} onClick={() => selectProvider(name)}
+                className="px-2.5 py-1 text-[12px] rounded-lg transition-all"
+                style={{
+                  background: provider === name ? "var(--brand)" : "var(--bg-sunken)",
+                  color: provider === name ? "white" : "var(--text-2)",
+                  border: `1px solid ${provider === name ? "var(--brand)" : "var(--border)"}`,
+                }}>
+                {name}
+              </button>
+            ))}
+          </div>
+
+          {/* API Key */}
+          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>
+            API Key {hasKey && !apiKey && <span className="text-[10px] normal-case" style={{ color: "var(--success)" }}>(已配置)</span>}
+          </label>
+          <div className="relative mb-4">
+            <input
+              type={showKey ? "text" : "password"}
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder={hasKey ? "已配置，留空保持不变" : "sk-..."}
+              className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm outline-none font-mono"
+              style={inputStyle}
+            />
+            <button onClick={() => setShowKey(!showKey)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--text-3)" }}>
+              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+
+          {/* Base URL */}
+          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>Base URL</label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={e => setBaseUrl(e.target.value)}
+            placeholder="https://api.deepseek.com/v1"
+            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 font-mono"
+            style={inputStyle}
+          />
+
           {/* 模型选择 */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>模型</label>
           <select value={selected} onChange={e => setSelected(e.target.value)}
-            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-5 cursor-pointer"
-            style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)", color: "var(--text)" }}>
+            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 cursor-pointer"
+            style={inputStyle}>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
 
           {/* 自进化开关 */}
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-5 pt-1" style={{ borderTop: "1px solid var(--border-light)", paddingTop: "12px" }}>
             <div>
               <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-3)" }}>自进化</label>
               <span className="text-[12px]" style={{ color: "var(--text-4)" }}>使用过程中自动积累经验</span>
@@ -61,13 +146,20 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
 
           <div className="flex gap-2 justify-end">
             <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ background: "var(--bg-sunken)", color: "var(--text-2)" }}>取消</button>
-            <button onClick={async () => {
+            <button disabled={saving} onClick={async () => {
+              setSaving(true);
               try {
-                const r = await fetch(`http://${API_HOST}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: selected, evolution }) });
+                const body: Record<string, unknown> = { model: selected, evolution };
+                if (apiKey) body.api_key = apiKey;
+                if (baseUrl) body.base_url = baseUrl;
+                const r = await fetch(`http://${API_HOST}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
                 const d = await r.json();
                 if (d.status === "ok") { onModelChange(d.model); onClose(); }
               } catch { alert("保存失败") }
-            }} className="px-4 py-2 text-sm text-white rounded-lg" style={{ background: "var(--brand)" }}>保存</button>
+              setSaving(false);
+            }} className="px-4 py-2 text-sm text-white rounded-lg transition-opacity" style={{ background: "var(--brand)", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "保存中..." : "保存"}
+            </button>
           </div>
         </motion.div>
       </motion.div>
