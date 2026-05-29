@@ -119,7 +119,8 @@ class Orchestrator:
             else:
                 self.context.metadata.pop("uploaded_files_text", None)
 
-        if self.context.artifacts.get("engineer_output"):
+        # 只有明确要修改上次代码时才走_run_modify
+        if self.context.artifacts.get("engineer_output") and not self._is_text_task(user_input):
             return await self._run_modify(user_input)
 
         skill_prompt = self._match_skill(user_input)
@@ -146,6 +147,12 @@ class Orchestrator:
             self._notify(msg)
             self._display(msg)
             self._feedback_success()
+
+            # 保存到历史（文本回复也保存，不只是代码任务）
+            import uuid as _uuid
+            task_id = _uuid.uuid4().hex[:8]
+            self.task_store.save_from_context(task_id, self.context)
+
             return self.context
 
     # ═══════════════════════════════════════
