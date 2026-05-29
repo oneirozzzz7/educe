@@ -67,6 +67,7 @@ class ContextAnalyzer:
         self._detect_topic_continuity(signals, user_input, conversation_turns)
         self._detect_intent(signals, user_input, artifacts)
         self._detect_conversation_stage(signals, conversation_turns)
+        self._detect_user_style(signals, conversation_turns)
 
         return signals
 
@@ -134,6 +135,17 @@ class ContextAnalyzer:
             signals.conversation_stage = "middle"
         else:
             signals.conversation_stage = "deep"
+
+    def _detect_user_style(self, signals: ContextSignals, turns: list):
+        user_turns = [t for t in turns if t.role == "user"]
+        if len(user_turns) < 3:
+            return
+
+        avg_len = sum(len(t.content) for t in user_turns) / len(user_turns)
+        if avg_len < 15:
+            signals.signals.append("该用户习惯简短表达，请注意理解简短指令的完整意图")
+        elif avg_len > 80:
+            signals.signals.append("该用户习惯详细描述，回答也可以更详细深入")
 
     def build_context_hint(self, signals: ContextSignals) -> str:
         hint = signals.to_prompt_hint()

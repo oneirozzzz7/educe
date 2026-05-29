@@ -603,6 +603,7 @@ class Orchestrator:
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 
+            self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)
 
             return {"action": "reply", "content": raw}
