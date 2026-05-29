@@ -204,6 +204,9 @@ class Orchestrator:
             names = [f.name for f in files]
             file_hint = f"\n（用户上传了文件：{', '.join(names)}）"
 
+        if self._is_text_task(user_input):
+            return await self._direct_reply(user_input, file_hint)
+
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -327,3 +330,55 @@ class Orchestrator:
             )
         except Exception:
             return response
+
+    def _is_text_task(self, user_input: str) -> bool:
+        """规则层判断——明确的文本任务直接短路，不让弱模型误判"""
+        import re
+        text_patterns = [
+            r"分析|总结|解释|翻译|评价|对比|比较|概括|梳理|归纳",
+            r"是什么|怎么回事|为什么|什么意思|有什么区别",
+            r"哪个.*最|多少|几个|排名|列出|介绍|推荐",
+            r"帮我.*写|写一篇|写一段|写一首",
+            r"你好|谢谢|再见|你是谁|你叫什么",
+            r"怎么办|如何.*解决|建议|看法|观点",
+        ]
+        code_patterns = [
+            r"做一个|创建一个|生成一个|开发一个|搭建",
+            r"做个|写个|弄个|搞个",
+            r"网页|网站|工具|游戏|扩展|脚本|程序|应用|APP|app",
+            r"可视化|图表|看板|仪表盘|dashboard",
+        ]
+        text_score = sum(1 for p in text_patterns if re.search(p, user_input))
+        code_score = sum(1 for p in code_patterns if re.search(p, user_input))
+        return text_score > code_score and text_score >= 1
+
+    async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
+        """直接用模型回复，不走Builder"""
+        client = self._get_client()
+        if not client:
+            return {"action": "reply", "content": "请先配置模型。"}
+
+        file_context = ""
+        has_files = bool(self.context.metadata.get("uploaded_files"))
+        if has_files:
+            from deepforge.core.file_handler import format_for_prompt
+            file_context = format_for_prompt(self.context.metadata["uploaded_files"])
+
+        domain_context = self.context.metadata.get("domain_knowledge", "")
+
+        system = "你是DeepForge助手，一个专业、准确、有深度的AI助手。请直接回答用户的问题。"
+        if domain_context:
+            system += f"\n{domain_context}"
+
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_input + file_hint + file_context},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=self.config.default_model.max_tokens,
+            )
+            return {"action": "reply", "content": result}
+        except Exception as e:
+            return {"action": "reply", "content": f"出错了: {e}"}
