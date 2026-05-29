@@ -209,20 +209,18 @@ class ActivationEngine:
         return result
 
     def _estimate_complexity(self, user_input: str) -> str:
-        """评估问题复杂度"""
-        length = len(user_input)
-        multi_part = bool(re.search(r'[；;]|第[一二三]|首先.*其次|以及|还有|另外|并且|同时', user_input))
-        deep = bool(re.search(
-            r'原理|机制|架构|算法|病理|法条|对比.*区别|优缺点|为什么|证明|分析.*原因|如何.*实现|详细|介绍|历史|解释|讲解',
-            user_input
-        ))
-        trivial = bool(re.search(r'^(你好|谢谢|再见|好的|嗯|哦|ok|OK)$', user_input.strip()))
-        pure_calc = bool(re.match(r'^[\d\+\-\*\/\.\s\(\)=\^]+$', user_input.strip()))
+        """评估问题复杂度——默认 moderate，只有打招呼/纯计算才 simple"""
+        text = user_input.strip()
+        trivial = bool(re.match(r'^(你好|谢谢|再见|好的|嗯|哦|ok|OK|hi|Hi|hello)$', text))
+        pure_calc = bool(re.match(r'^[\d\+\-\*\/\.\s\(\)=\^]+[=？?]?$', text))
 
-        if (trivial or pure_calc) and length < 10:
+        if trivial or pure_calc:
             return "simple"
-        elif length > 50 or multi_part or deep:
+
+        multi_part = bool(re.search(r'[；;]|第[一二三]|首先.*其次|以及|还有|另外|并且|同时', text))
+        if multi_part or len(text) > 50:
             return "complex"
+
         return "moderate"
 
     def _format_reasoning_chains(self) -> str:
