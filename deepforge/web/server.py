@@ -347,20 +347,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     continue
 
                 file_ids = data.get("file_ids", [])
+                file_content = None
                 if file_ids:
                     from deepforge.core.file_handler import format_for_prompt
                     files = session_files.get(session_id, {})
                     attached = [files[fid] for fid in file_ids if fid in files]
                     if attached:
-                        orchestrator.context.metadata["uploaded_files"] = attached
-                    else:
-                        orchestrator.context.metadata.pop("uploaded_files", None)
-                else:
-                    orchestrator.context.metadata.pop("uploaded_files", None)
+                        file_content = format_for_prompt(attached)
 
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 try:
-                    await orchestrator.run(user_input)
+                    await orchestrator.run(user_input, file_content=file_content)
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
                 await asyncio.sleep(0.05)

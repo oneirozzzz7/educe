@@ -35,6 +35,10 @@ class Orchestrator:
         self.task_store = TaskStore()
         self.bus = EventBus()
         self.knowledge = LayeredCache()
+
+        from deepforge.core.conversation import ConversationManager
+        self.conversation = ConversationManager()
+
         self.domain_engine = None
         try:
             from deepforge.core.domain_engine import DomainEngine
@@ -77,8 +81,19 @@ class Orchestrator:
     #  唯一入口
     # ═══════════════════════════════════════
 
-    async def run(self, user_input: str) -> WorkContext:
+    async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
+
+        self.conversation.add_user(user_input, file_content)
+
+        if file_content:
+            self.context.metadata["uploaded_files_text"] = file_content
+        else:
+            active_file = self.conversation.get_active_file_context(user_input)
+            if active_file:
+                self.context.metadata["uploaded_files_text"] = active_file
+            else:
+                self.context.metadata.pop("uploaded_files_text", None)
 
         if self.context.artifacts.get("engineer_output"):
             return await self._run_modify(user_input)
@@ -374,21 +389,16 @@ class Orchestrator:
         return text_score > code_score and text_score >= 1
 
     async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
-        """用激发引擎构建prompt——激活模型深层领域知识"""
+        """用激发引擎构建prompt——带对话历史"""
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
 
-        file_context = ""
-        has_files = bool(self.context.metadata.get("uploaded_files"))
-        if has_files:
-            from deepforge.core.file_handler import format_for_prompt
-            file_context = format_for_prompt(self.context.metadata["uploaded_files"])
+        file_context = self.context.metadata.get("uploaded_files_text", "")
 
         domain_context = self.context.metadata.get("domain_knowledge", "")
         l1 = self.knowledge.get_l1_compiled() if self.knowledge else []
 
-        # 召回相关知识（驱动L1反馈循环）
         recalled = []
         if self.knowledge:
             recalled = self.knowledge.recall(user_input, max_results=3)
@@ -402,25 +412,29 @@ class Orchestrator:
         else:
             system = "你是一位专业的AI助手，请准确回答用户的问题。"
 
+        history = self.conversation.get_history_for_llm()
+        user_content = user_input + (f"\n{file_hint}" if file_hint else "") + (f"\n{file_context}" if file_context else "")
+
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_content})
+
         try:
             raw = await client.chat(
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user_input + file_hint + file_context},
-                ],
+                messages=messages,
                 model=self.config.default_model.model,
                 max_tokens=self.config.default_model.max_tokens,
             )
 
+            domain_tag = ""
             if self.activation_engine:
                 activated = self.activation_engine.parse_activated_response(raw)
-                self.context.metadata["expert_name"] = activated.domain or "DeepForge"
+                domain_tag = activated.domain or "通用"
+                self.context.metadata["expert_name"] = domain_tag
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
-                console.print(f"[dim]🎓 {activated.domain} | 置信度: {activated.overall_confidence}[/dim]")
+                console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
 
-                # 成功回复写入知识库（驱动越用越强）
                 if self.knowledge and raw and len(raw) > 50:
-                    domain_tag = activated.domain or "通用"
                     triggers = self.knowledge._tokenize(user_input)
                     self.knowledge.add(
                         f"[{domain_tag}] Q:{user_input[:40]} → 已回答({len(raw)}字)",
@@ -428,6 +442,8 @@ class Orchestrator:
                     )
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
+
+            self.conversation.add_assistant(raw, domain=domain_tag)
 
             return {"action": "reply", "content": raw}
         except Exception as e:
