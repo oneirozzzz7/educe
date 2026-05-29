@@ -63,6 +63,13 @@ class Orchestrator:
         except Exception:
             pass
 
+        self.distiller = None
+        try:
+            from deepforge.core.knowledge_distiller import KnowledgeDistiller
+            self.distiller = KnowledgeDistiller(self.knowledge)
+        except Exception:
+            pass
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -516,7 +523,10 @@ class Orchestrator:
         l1 = self.knowledge.get_l1_compiled() if self.knowledge else []
 
         recalled = []
-        if self.knowledge:
+        if self.distiller:
+            detected_domain = self._detect_domain(user_input, "")
+            recalled = self.distiller.recall_for_domain(user_input, detected_domain, max_results=3)
+        elif self.knowledge:
             recalled = self.knowledge.recall(user_input, max_results=5)
 
         all_knowledge = []
@@ -525,9 +535,9 @@ class Orchestrator:
                 continue
             if not k.startswith("["):
                 continue
-            if k.startswith("[成功]") or k.startswith("[seed") or "已回答" in k or "html" in k:
+            if k.startswith("[成功]") or k.startswith("[seed") or k.startswith("[失败]"):
                 continue
-            all_knowledge.append(k[:100])
+            all_knowledge.append(k[:120])
         all_knowledge = all_knowledge[:3]
 
         # 上下文信号注入
@@ -570,16 +580,16 @@ class Orchestrator:
 
                 self.context.metadata["expert_name"] = domain_tag
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
-                console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
+                console.print("[dim]  {} | {}: {}[/dim]".format(
+                    domain_tag, "confidence", activated.overall_confidence))
 
-                # 知识提取——暂停（Phase 0假设2验证：当前策略效果-0.08，无效）
-                # 等找到更好的策略再启用
-                # skip = self.context.metadata.pop("_skip_next_extraction", False)
-                # if self.knowledge and raw and len(raw) > 100 and not skip:
-                #     self._extract_and_store_knowledge(user_input, raw, domain_tag)
+                # 精准知识蒸馏（替代Phase 0被禁用的旧策略）
+                user_signal = self.context.metadata.get("_last_user_signal", "neutral")
+                if self.distiller and raw and len(raw) > 100:
+                    distilled = self.distiller.distill(user_input, raw, domain_tag, user_signal)
+                    if distilled:
+                        console.print("[dim]  distilled {} facts[/dim]".format(len(distilled)))
 
-                # 质量追踪——记录到 JSONL + 聚合领域统计
-                user_signal = self.context.metadata.get("_last_user_signal", "unknown")
                 signal_weight = self.context.metadata.get("_last_signal_weight", 0.0)
                 self.quality_tracker.record(
                     question=user_input, domain=domain_tag,
