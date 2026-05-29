@@ -39,6 +39,9 @@ class Orchestrator:
         from deepforge.core.conversation import ConversationManager
         self.conversation = ConversationManager()
 
+        from deepforge.core.quality_tracker import QualityTracker
+        self.quality_tracker = QualityTracker()
+
         self.domain_engine = None
         try:
             from deepforge.core.domain_engine import DomainEngine
@@ -83,6 +86,18 @@ class Orchestrator:
 
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
+
+        # 检测用户对上一轮回答的反馈信号
+        prev_assistant = ""
+        if self.conversation.turns:
+            for t in reversed(self.conversation.turns):
+                if t.role == "assistant":
+                    prev_assistant = t.content
+                    break
+        if prev_assistant:
+            signal, weight = self.quality_tracker.detect_user_signal(user_input, prev_assistant)
+            self.context.metadata["_last_user_signal"] = signal
+            self.context.metadata["_last_signal_weight"] = weight
 
         self.conversation.add_user(user_input, file_content)
 
@@ -442,6 +457,17 @@ class Orchestrator:
                     )
 
                 self.activation_engine.record_response_quality(user_input, raw, domain_tag)
+
+                # 质量追踪——记录到 JSONL + 聚合领域统计
+                user_signal = self.context.metadata.get("_last_user_signal", "unknown")
+                signal_weight = self.context.metadata.get("_last_signal_weight", 0.0)
+                self.quality_tracker.record(
+                    question=user_input, domain=domain_tag,
+                    seed=self.activation_engine._current_seed[:60],
+                    response=raw, user_signal=user_signal,
+                    signal_weight=signal_weight,
+                    model=self.config.default_model.model,
+                )
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 

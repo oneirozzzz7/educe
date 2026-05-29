@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { marked } from "marked";
-import { Copy, Check, Eye, EyeOff } from "lucide-react";
+import { Copy, Check, Eye, EyeOff, ThumbsUp, ThumbsDown } from "lucide-react";
 
 marked.setOptions({
   breaks: true,
@@ -23,11 +23,13 @@ function extractEmbeddedHtml(text: string): string | null {
   return null;
 }
 
-export function MessageBubble({ text, timestamp, fmtTime }: {
+export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
   text: string; timestamp: number; fmtTime: (ts: number) => string;
+  onFeedback?: (signal: "up" | "down") => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+  const [voted, setVoted] = useState<"up" | "down" | null>(null);
   const isLong = text.length > 500;
 
   const embeddedHtml = useMemo(() => hasHtmlContent(text) ? extractEmbeddedHtml(text) : null, [text]);
@@ -149,6 +151,19 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
       <div className="flex items-center gap-2 px-1">
         <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{fmtTime(timestamp)}</span>
         <span className="text-[10px]" style={{ color: "var(--text-4)" }}>· AI生成，仅供参考</span>
+        <div className="flex-1" />
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => { setVoted("up"); onFeedback?.("up"); }}
+            className="w-5 h-5 rounded flex items-center justify-center transition-colors"
+            style={{ color: voted === "up" ? "var(--success)" : "var(--text-4)" }}>
+            <ThumbsUp size={11} />
+          </button>
+          <button onClick={() => { setVoted("down"); onFeedback?.("down"); }}
+            className="w-5 h-5 rounded flex items-center justify-center transition-colors"
+            style={{ color: voted === "down" ? "var(--error)" : "var(--text-4)" }}>
+            <ThumbsDown size={11} />
+          </button>
+        </div>
       </div>
     </div>
   );

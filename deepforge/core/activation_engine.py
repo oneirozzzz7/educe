@@ -103,12 +103,17 @@ class ActivationEngine:
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
                                  l1_compiled: list[str] | None = None) -> str:
-        """生成激发prompt——极简但有力"""
+        """生成激发prompt——对薄弱领域自动补充提示"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
         if l1_compiled:
             extra_parts.append("\n## 已验证的知识\n" + "\n".join(f"- {k}" for k in l1_compiled[:5]))
+
+        # 检查当前问题的领域是否薄弱，自动补充提示
+        domain_hint = self._get_domain_hint(user_input)
+        if domain_hint:
+            extra_parts.append(domain_hint)
 
         extra_context = "\n".join(extra_parts)
 
@@ -116,6 +121,28 @@ class ActivationEngine:
             activation_seed=self._current_seed,
             extra_context=extra_context,
         )
+
+    def _get_domain_hint(self, user_input: str) -> str:
+        """对薄弱领域自动补充一句方向性提示"""
+        try:
+            from deepforge.core.quality_tracker import QualityTracker
+            tracker = QualityTracker()
+            stats = tracker.get_domain_stats()
+            if not stats:
+                return ""
+
+            from deepforge.core.domain_router import route_domain
+            domains = route_domain(user_input, top_k=1)
+            if not domains or domains[0] == "general":
+                return ""
+
+            domain = domains[0]
+            domain_stat = stats.get(DOMAIN_LABELS.get(domain, domain))
+            if domain_stat and domain_stat.get("needs_improvement"):
+                return f"\n（注意：{DOMAIN_LABELS.get(domain, domain)}领域请特别注意推理的准确性和深度）"
+        except Exception:
+            pass
+        return ""
 
     def record_response_quality(self, user_input: str, response: str, domain: str = ""):
         """记录回答质量——为激发语演化积累数据"""
