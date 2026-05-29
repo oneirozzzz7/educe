@@ -70,6 +70,8 @@ class DeepForgeConfig(BaseModel):
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> DeepForgeConfig:
+        cls._load_dotenv()
+
         if path is None:
             candidates = [
                 Path.cwd() / "deepforge.yaml",
@@ -114,6 +116,22 @@ class DeepForgeConfig(BaseModel):
                     setattr(obj, parts[-1], value.lower() not in ("false", "0", "no", "off"))
                 else:
                     setattr(obj, parts[-1], value)
+
+    @staticmethod
+    def _load_dotenv():
+        """从 .env 文件加载环境变量"""
+        env_candidates = [Path.cwd() / ".env", Path.home() / ".deepforge" / ".env"]
+        for env_path in env_candidates:
+            if env_path.exists():
+                for line in env_path.read_text().strip().split("\n"):
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key, value = key.strip(), value.strip()
+                    if key and value and key not in os.environ:
+                        os.environ[key] = value
+                break
 
     def get_model_config(self, agent_name: str) -> ModelConfig:
         agent_cfg = self.agents.get(agent_name)
