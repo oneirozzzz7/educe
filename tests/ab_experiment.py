@@ -120,9 +120,9 @@ def score_response(question: str, domain: str, response: str,
     structure = min(structure + 2, 10)
 
     # 置信度标注
-    has_confidence = bool(re.search(r'置信度[：:]\s*\d+%', response))
-    has_uncertainty = bool(re.search(r'据我了解|不确定|需要确认|需要验证|可能有误|仅供参考', response))
-    has_disclaimer = bool(re.search(r'咨询.*专业|建议.*就医|请.*律师', response))
+    has_confidence = bool(re.search(r'置信度[：:]\s*\d+%|[✅⚠️]\s*\d*%?', response))
+    has_uncertainty = bool(re.search(r'据我了解|不确定|需要确认|需要验证|可能有误|仅供参考|具体.*判断|结合实际', response))
+    has_disclaimer = bool(re.search(r'咨询.*专业|建议.*就医|请.*律师|专业.*意见|专业.*指导', response))
     confidence = (4 if has_confidence else 0) + (3 if has_uncertainty else 0) + (3 if has_disclaimer else 0)
     confidence = min(confidence, 10)
 

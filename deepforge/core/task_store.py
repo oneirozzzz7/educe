@@ -44,11 +44,14 @@ class TaskStore:
                 break
         return tasks
 
-    def save_from_context(self, task_id: str, context) -> Path:
-        """从WorkContext保存任务"""
+    def save_from_context(self, task_id: str, context, response: str = "") -> Path:
+        """从WorkContext保存任务——支持文本回复和代码任务"""
+        has_code = bool(context.artifacts.get("engineer_output"))
         data = {
             "id": task_id,
             "request": context.user_request,
+            "response": response[:10000] if response else "",
+            "type": "code" if has_code else "text",
             "project_type": context.artifacts.get("project_type", ""),
             "output_dir": context.artifacts.get("output_dir", ""),
             "file_count": len(context.artifacts.get("code_files", [])),

@@ -19,11 +19,14 @@ from dataclasses import dataclass, asdict
 FEEDBACK_DIR = Path(".deepforge/feedback")
 
 NEGATIVE_PATTERNS = re.compile(r"不对|错了|不是这样|不准确|重新|再说一遍|你说错了|回答有误")
-POSITIVE_PATTERNS = re.compile(r"谢谢|感谢|太好了|不错|很棒|有帮助|学到了|明白了|懂了|👍")
+POSITIVE_PATTERNS = re.compile(r"谢谢|感谢|太好了|很棒|有帮助|学到了|👍")
 CONTINUE_PATTERNS = re.compile(
     r"这个|这篇|这段|上面|上文|刚才|继续|接着|详细|展开|深入|更多|举例|为什么这样|怎么理解|"
-    r"那么|所以|也就是说|具体来说"
+    r"那么|所以|也就是说|具体来说|"
+    r"改成|改为|换成|修改|调整|加个|去掉|加上|优化一下|"
+    r"那如果|如果.*呢|假如|那.*怎么办"
 )
+TOPIC_SWITCH_PATTERNS = re.compile(r"另外|对了|换个话题|还有个问题|顺便问")
 
 
 @dataclass
@@ -93,6 +96,10 @@ class QualityTracker:
 
         if NEGATIVE_PATTERNS.search(current_input):
             return "error", -0.8
+
+        # topic_switch先于positive检测——"好的明白了，另外问下"是换话题不是感谢
+        if TOPIC_SWITCH_PATTERNS.search(current_input):
+            return "topic_switch", 0.1
 
         if POSITIVE_PATTERNS.search(current_input):
             return "grateful", 0.5

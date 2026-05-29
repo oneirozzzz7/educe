@@ -119,10 +119,7 @@ class Orchestrator:
             else:
                 self.context.metadata.pop("uploaded_files_text", None)
 
-        # 只有明确要修改上次代码时才走_run_modify
-        if self.context.artifacts.get("engineer_output") and not self._is_text_task(user_input):
-            return await self._run_modify(user_input)
-
+        # 每轮独立判断意图——不依赖上一轮状态
         skill_prompt = self._match_skill(user_input)
         if skill_prompt:
             self.context.metadata["skill_prompt"] = skill_prompt
@@ -151,7 +148,7 @@ class Orchestrator:
             # 保存到历史（文本回复也保存，不只是代码任务）
             import uuid as _uuid
             task_id = _uuid.uuid4().hex[:8]
-            self.task_store.save_from_context(task_id, self.context)
+            self.task_store.save_from_context(task_id, self.context, response=content)
 
             return self.context
 
@@ -260,11 +257,7 @@ class Orchestrator:
             names = [f.name for f in files]
             file_hint = f"\n（用户上传了文件：{', '.join(names)}）"
 
-        # 规则层短路——明确的文本任务
-        if self._is_text_task(user_input):
-            return await self._direct_reply(user_input, file_hint)
-
-        # 模型判断是否需要编程
+        # 模型自行判断——框架只提供上下文辅助
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -274,16 +267,23 @@ class Orchestrator:
             from deepforge.core.file_handler import format_for_prompt
             file_context = format_for_prompt(self.context.metadata["uploaded_files"])
 
+        judge_system = (
+            "你是意图分类器。判断用户是否需要编写代码/网页/工具/游戏/脚本。\n"
+            "NEED_CODE的例子：做一个计算器、做个番茄钟、写个网页、帮我做一个XX、生成代码\n"
+            "NO_CODE的例子：什么是XX、XX是什么、怎么理解XX、帮我分析、翻译、写文章\n"
+            "只回复NEED_CODE或NO_CODE，不要回复其他内容。"
+        )
+
+        has_prev_code = bool(self.context.artifacts.get("engineer_output"))
+        if has_prev_code:
+            judge_system += "\n注意：之前生成过代码。修改/调整/优化/加功能/改颜色/改大小等=NEED_CODE。"
+
+        messages = [{"role": "system", "content": judge_system}]
+        messages.append({"role": "user", "content": user_input + file_hint})
+
         try:
             judge = await client.chat(
-                messages=[
-                    {"role": "system", "content": (
-                        "判断用户是否需要你编写代码/网页/工具/游戏/脚本。\n"
-                        "- 需要编程 → 只回复：NEED_CODE\n"
-                        "- 不需要 → 只回复：NO_CODE"
-                    )},
-                    {"role": "user", "content": user_input + file_hint},
-                ],
+                messages=messages,
                 model=self.config.default_model.model,
                 max_tokens=20,
                 temperature=0.1,
@@ -546,10 +546,11 @@ class Orchestrator:
                 self.context.metadata["activation_confidence"] = activated.overall_confidence
                 console.print(f"[dim]🎓 {domain_tag} | 置信度: {activated.overall_confidence}[/dim]")
 
-                # 知识提取——有质量门控（上一轮error则跳过）
-                skip = self.context.metadata.pop("_skip_next_extraction", False)
-                if self.knowledge and raw and len(raw) > 100 and not skip:
-                    self._extract_and_store_knowledge(user_input, raw, domain_tag)
+                # 知识提取——暂停（Phase 0假设2验证：当前策略效果-0.08，无效）
+                # 等找到更好的策略再启用
+                # skip = self.context.metadata.pop("_skip_next_extraction", False)
+                # if self.knowledge and raw and len(raw) > 100 and not skip:
+                #     self._extract_and_store_knowledge(user_input, raw, domain_tag)
 
                 # 质量追踪——记录到 JSONL + 聚合领域统计
                 user_signal = self.context.metadata.get("_last_user_signal", "unknown")
