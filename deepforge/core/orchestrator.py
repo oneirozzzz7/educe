@@ -202,6 +202,8 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     async def _decide(self, user_input: str) -> dict:
+        from deepforge.core.expert_router import get_expert_system_prompt
+
         has_files = bool(self.context.metadata.get("uploaded_files"))
         file_hint = ""
         if has_files:
@@ -209,9 +211,11 @@ class Orchestrator:
             names = [f.name for f in files]
             file_hint = f"\n（用户上传了文件：{', '.join(names)}）"
 
+        # 规则层短路——明确的文本任务
         if self._is_text_task(user_input):
             return await self._direct_reply(user_input, file_hint)
 
+        # 模型判断是否需要编程
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
@@ -221,28 +225,27 @@ class Orchestrator:
             from deepforge.core.file_handler import format_for_prompt
             file_context = format_for_prompt(self.context.metadata["uploaded_files"])
 
-        domain_context = self.context.metadata.get("domain_knowledge", "")
-
         try:
-            result = await client.chat(
+            judge = await client.chat(
                 messages=[
                     {"role": "system", "content": (
-                        "你是DeepForge助手。判断用户需求：\n"
-                        "- 需要编程（做网页/工具/游戏/脚本/扩展/生成图表/转换格式等）→只回复：NEED_CODE\n"
-                        "- 其他（聊天/分析/总结/翻译/写文章/解释/回答问题等）→直接输出完整内容\n"
-                        "注意：'分析论文'、'总结文件'、'解释代码'是文本任务，不需要生成代码"
-                        + (f"\n{domain_context}" if domain_context else "")
+                        "判断用户是否需要你编写代码/网页/工具/游戏/脚本。\n"
+                        "- 需要编程 → 只回复：NEED_CODE\n"
+                        "- 不需要 → 只回复：NO_CODE"
                     )},
-                    {"role": "user", "content": user_input + file_hint + file_context},
+                    {"role": "user", "content": user_input + file_hint},
                 ],
                 model=self.config.default_model.model,
-                max_tokens=self.config.default_model.max_tokens,
+                max_tokens=20,
+                temperature=0.1,
             )
-            if result.strip().startswith("NEED_CODE"):
+            if "NEED_CODE" in judge:
                 return {"action": "code"}
-            return {"action": "reply", "content": result}
-        except Exception as e:
-            return {"action": "reply", "content": f"出错了: {e}"}
+        except Exception:
+            pass
+
+        # 非代码任务——用专家身份回复
+        return await self._direct_reply(user_input, file_hint)
 
     # ═══════════════════════════════════════
     #  Agent执行器
