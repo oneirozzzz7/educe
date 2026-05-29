@@ -39,6 +39,7 @@ export default function Page() {
   const [showSettings, setShowSettings] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
@@ -151,6 +152,7 @@ export default function Page() {
     if (!selected || selected.length === 0) return;
 
     setUploading(true);
+    setUploadProgress(0);
     const newFiles: UploadedFile[] = [];
 
     for (let i = 0; i < Math.min(selected.length, 5); i++) {
@@ -159,12 +161,24 @@ export default function Page() {
       formData.append("file", file);
 
       try {
-        const r = await fetch(`http://${API_HOST}/api/upload/${sidRef.current}`, { method: "POST", body: formData });
-        const d = await r.json();
+        const d = await new Promise<Record<string, unknown>>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `http://${API_HOST}/api/upload/${sidRef.current}`);
+          xhr.upload.onprogress = (ev) => {
+            if (ev.lengthComputable) {
+              const fileProg = Math.round((ev.loaded / ev.total) * 100);
+              const totalProg = Math.round(((i + fileProg / 100) / Math.min(selected.length, 5)) * 100);
+              setUploadProgress(totalProg);
+            }
+          };
+          xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("parse error")); } };
+          xhr.onerror = () => reject(new Error("network error"));
+          xhr.send(formData);
+        });
         if (d.status === "ok" && d.file) {
-          newFiles.push(d.file);
+          newFiles.push(d.file as UploadedFile);
         } else if (d.error) {
-          newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: d.error });
+          newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: String(d.error) });
         }
       } catch {
         newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: "上传失败" });
@@ -346,7 +360,11 @@ export default function Page() {
                 className="absolute left-3 bottom-3 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-[var(--brand-subtle)]"
                 style={{ color: uploading ? "var(--brand)" : "var(--text-3)" }}
                 title="上传文件">
-                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                {uploading ? (
+                  <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--brand)" }}>{uploadProgress}%</span>
+                ) : (
+                  <Paperclip size={16} />
+                )}
               </button>
 
               {/* 发送按钮 */}

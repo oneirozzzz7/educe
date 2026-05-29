@@ -54,6 +54,29 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
     }
   }, [text]);
 
+  const tocItems = useMemo(() => {
+    const headings: { level: number; text: string; id: string }[] = [];
+    const regex = /<h([1-3])[^>]*>(.*?)<\/h\1>/gi;
+    let match;
+    while ((match = regex.exec(renderedHtml)) !== null) {
+      const rawText = match[2].replace(/<[^>]*>/g, "");
+      headings.push({ level: parseInt(match[1]), text: rawText, id: `heading-${headings.length}` });
+    }
+    return headings;
+  }, [renderedHtml]);
+
+  const htmlWithIds = useMemo(() => {
+    if (tocItems.length === 0) return renderedHtml;
+    let idx = 0;
+    return renderedHtml.replace(/<h([1-3])([^>]*)>/gi, (m, level, attrs) => {
+      const id = tocItems[idx]?.id || `h-${idx}`;
+      idx++;
+      return `<h${level}${attrs} id="${id}">`;
+    });
+  }, [renderedHtml, tocItems]);
+
+  const showToc = tocItems.length >= 3 && text.length > 800;
+
   function handleCopy() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -64,9 +87,28 @@ export function MessageBubble({ text, timestamp, fmtTime }: {
   return (
     <div className="flex flex-col gap-1 group relative">
       <div className={`relative rounded-2xl px-4 py-3 ${isLong ? "max-h-[600px] overflow-y-auto" : ""}`}
+        id="msg-content"
         style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-light)" }}>
+
+        {/* TOC */}
+        {showToc && (
+          <div className="mb-3 pb-2" style={{ borderBottom: "1px solid var(--border-light)" }}>
+            <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "var(--text-4)" }}>目录</div>
+            {tocItems.map((item, i) => (
+              <a key={i} href={`#${item.id}`} onClick={e => {
+                  e.preventDefault();
+                  document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="block text-[12px] py-0.5 hover:underline truncate"
+                style={{ paddingLeft: `${(item.level - 1) * 12}px`, color: "var(--brand)" }}>
+                {item.text}
+              </a>
+            ))}
+          </div>
+        )}
+
         <div className="df-markdown text-[14px] leading-relaxed" style={{ color: "var(--text-2)" }}
-          dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+          dangerouslySetInnerHTML={{ __html: htmlWithIds }} />
 
         {embeddedHtml && blobUrl && (
           <div className="mt-3 rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>

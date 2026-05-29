@@ -54,9 +54,17 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
 
   const doneSteps = steps.filter(s => s.done);
   const fileSize = html ? (html.length / 1024).toFixed(1) : "0";
+  const totalExpected = 3;
+  const progress = isActive ? Math.min(95, Math.round((doneSteps.length / totalExpected) * 80) + (elapsed > 5 ? 10 : 0)) : 100;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}>
+      {/* 进度条 */}
+      {isActive && (
+        <div className="h-1 w-full" style={{ background: "var(--border-light)" }}>
+          <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, background: "var(--brand)" }} />
+        </div>
+      )}
       {/* 头部 */}
       <button onClick={() => setExpanded(!expanded)} className="w-full px-4 py-3 flex items-center gap-2.5 transition-colors"
         style={{ color: "var(--text)" }}>
@@ -69,7 +77,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
         )}
         <span className="text-[13px] font-medium flex-1 text-left">
           {isActive
-            ? `${STEP_ICONS[currentAgent] || "⚙️"} ${LABELS[currentAgent] || currentAgent || "处理"}中...`
+            ? `${STEP_ICONS[currentAgent] || "⚙️"} ${LABELS[currentAgent] || currentAgent || "处理"}中... ${progress}%`
             : `完成 · ${doneSteps.length} 步${html ? ` · ${fileSize} KB` : ""}`}
         </span>
         <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-3)" }}>
