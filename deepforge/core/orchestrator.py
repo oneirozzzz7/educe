@@ -185,22 +185,29 @@ class Orchestrator:
         has_files = bool(self.context.metadata.get("uploaded_files"))
         file_hint = ""
         if has_files:
-            names = [f.name for f in self.context.metadata["uploaded_files"]]
-            file_hint = f"\n（用户同时上传了文件：{', '.join(names)}）"
+            files = self.context.metadata["uploaded_files"]
+            names = [f.name for f in files]
+            file_hint = f"\n（用户上传了文件：{', '.join(names)}）"
 
         client = self._get_client()
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
+
+        file_context = ""
+        if has_files:
+            from deepforge.core.file_handler import format_for_prompt
+            file_context = format_for_prompt(self.context.metadata["uploaded_files"])
+
         try:
             result = await client.chat(
                 messages=[
                     {"role": "system", "content": (
                         "你是DeepForge助手。判断用户需求：\n"
-                        "- 需要编程（做网页/工具/游戏/脚本/扩展等）→只回复：NEED_CODE\n"
-                        "- 需要分析/处理上传的文件（转换格式、生成图表、优化代码等）→只回复：NEED_CODE\n"
-                        "- 其他（聊天/写文章/分析/翻译等）→直接输出完整内容"
+                        "- 需要编程（做网页/工具/游戏/脚本/扩展/生成图表/转换格式等）→只回复：NEED_CODE\n"
+                        "- 其他（聊天/分析/总结/翻译/写文章/解释/回答问题等）→直接输出完整内容\n"
+                        "注意：'分析论文'、'总结文件'、'解释代码'是文本任务，不需要生成代码"
                     )},
-                    {"role": "user", "content": user_input + file_hint},
+                    {"role": "user", "content": user_input + file_hint + file_context},
                 ],
                 model=self.config.default_model.model,
                 max_tokens=self.config.default_model.max_tokens,
