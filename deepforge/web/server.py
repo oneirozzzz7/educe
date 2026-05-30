@@ -51,11 +51,23 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     sessions: dict[str, Orchestrator] = {}
     session_files: dict[str, dict[str, Any]] = {}  # session_id -> {file_id: FileAttachment}
 
+    # 全局SelfEvolver（跨session共享）
+    shared_self_evolver = None
+    try:
+        from deepforge.core.self_evolver import SelfEvolver
+        from deepforge.core.activation_engine import DEFAULT_ACTIVATION_SEED
+        model_cfg = config.default_model
+        shared_client = ModelClient(api_key=model_cfg.api_key, base_url=model_cfg.base_url)
+        shared_self_evolver = SelfEvolver(shared_client, model_cfg.model, DEFAULT_ACTIVATION_SEED)
+    except Exception:
+        pass
+
     def get_orchestrator(session_id: str) -> Orchestrator:
         if session_id not in sessions:
             model_cfg = config.default_model
             client = ModelClient(api_key=model_cfg.api_key, base_url=model_cfg.base_url)
             orchestrator = Orchestrator(config)
+            orchestrator.self_evolver = shared_self_evolver
             memory_store = MemoryStore(config.memory.storage_dir)
             skill_registry = SkillRegistry(config.skills.skill_dir, config.skills.community_dir)
 
