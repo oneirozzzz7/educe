@@ -88,6 +88,8 @@ class Orchestrator:
         except Exception:
             pass
 
+        self.self_evolver = None
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -640,6 +642,16 @@ class Orchestrator:
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
 
+        # 延迟初始化SelfEvolver（需要client可用）
+        if not self.self_evolver and client:
+            try:
+                from deepforge.core.self_evolver import SelfEvolver
+                from deepforge.core.activation_engine import DEFAULT_ACTIVATION_SEED
+                self.self_evolver = SelfEvolver(
+                    client, self.config.default_model.model, DEFAULT_ACTIVATION_SEED)
+            except Exception:
+                pass
+
         file_context = self.context.metadata.get("uploaded_files_text", "")
 
         domain_context = self.context.metadata.get("domain_knowledge", "")
@@ -771,6 +783,22 @@ class Orchestrator:
                                     result["generation"], result["domains_optimized"]))
                         except Exception:
                             pass
+
+                # SelfEvolver：自动进化闭环
+                if self.self_evolver:
+                    self.self_evolver.tick()
+                    if self.self_evolver.should_start_evolution():
+                        asyncio.create_task(self.self_evolver.generate_candidate())
+                        console.print("[dim]  self-evolver: new candidate generated[/dim]")
+                    if self.self_evolver.ab_complete():
+                        evo_result = self.self_evolver.finalize()
+                        if evo_result.get("result") == "evolved":
+                            self.activation_engine._current_seed = self.self_evolver.current_best
+                            console.print("[dim]  self-evolver: EVOLVED to gen {}[/dim]".format(
+                                evo_result.get("generation", "?")))
+                        else:
+                            console.print("[dim]  self-evolver: kept current (gen {})[/dim]".format(
+                                evo_result.get("generation", "?")))
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 
