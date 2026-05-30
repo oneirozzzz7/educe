@@ -86,18 +86,6 @@ class QualityTracker:
             composite_quality=round(composite, 3),
             model=model,
         )
-            domain=domain,
-            seed_variant=seed[:60],
-            response_len=len(response),
-            depth_score=features["depth"],
-            structure_score=features["structure"],
-            confidence_coverage=features["confidence"],
-            closure_score=features["closure"],
-            user_signal=user_signal,
-            user_signal_weight=signal_weight,
-            composite_quality=round(composite, 3),
-            model=model,
-        )
 
         with open(self._log_path, "a") as f:
             f.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
