@@ -7,11 +7,17 @@ import { cn } from "@/lib/utils";
 interface StepInfo { agent: string; summary: string; done: boolean }
 
 const LABELS: Record<string, string> = {
-  builder: "Builder", tester: "Tester", planner: "Planner",
+  builder: "构建", tester: "测试", planner: "规划",
+  project_manager: "项目管理", product_manager: "产品",
+  architect: "架构", engineer: "工程", reviewer: "审查",
+  crowd_user: "内测", memory_keeper: "沉淀", assistant: "助手",
 };
 
 const STEP_ICONS: Record<string, string> = {
   builder: "💻", tester: "🧪", planner: "📋",
+  project_manager: "🎯", product_manager: "📋",
+  architect: "🏗", engineer: "💻", reviewer: "🔍",
+  crowd_user: "👥", memory_keeper: "🧠", assistant: "💬",
 };
 
 export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timestamp }: {

@@ -60,12 +60,19 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
     }
   }
 
-  if (!open) return null;
+  // ESC关闭
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onClose]);
 
   const inputStyle = { background: "var(--bg-sunken)", border: "1px solid var(--border)", color: "var(--text)" };
 
   return (
     <AnimatePresence>
+      {open && (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)", backdropFilter: "blur(4px)" }}
         onClick={onClose}>
@@ -165,6 +172,7 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
           </div>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>
   );
 }
