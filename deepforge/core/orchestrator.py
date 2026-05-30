@@ -166,6 +166,20 @@ class Orchestrator:
 
         if decision["action"] == "code":
             self.context.metadata["expert_name"] = "编程专家"
+
+            complexity = await self._assess_complexity(user_input)
+            if complexity == "complex" and not self.context.metadata.get("_plan_confirmed"):
+                plans = await self._generate_plans(user_input)
+                if plans:
+                    plan_msg = Message(
+                        type=MessageType.SYSTEM, sender="planner", receiver="user",
+                        content="__PLAN_PROPOSAL__",
+                        data={"plans": plans, "original_request": user_input})
+                    self._notify(plan_msg)
+                    self.context.metadata["_pending_plans"] = plans
+                    self.context.metadata["_pending_request"] = user_input
+                    return self.context
+
             return await self._run_build(user_input)
         else:
             content = decision["content"]
@@ -482,6 +496,69 @@ class Orchestrator:
                 best_domain = domain
 
         return best_domain if best_score >= 2 else "通用"
+
+    async def _assess_complexity(self, user_input: str) -> str:
+        client = self._get_client()
+        if not client:
+            return "simple"
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": (
+                        "判断编程任务复杂度。\n"
+                        "SIMPLE: 单文件能搞定，功能单一，<200行代码（如计算器、番茄钟、单位换算）\n"
+                        "COMPLEX: 需要设计方案，多功能交互，>500行代码（如游戏、编辑器、管理系统、复杂应用）\n"
+                        "只回复SIMPLE或COMPLEX")},
+                    {"role": "user", "content": user_input},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=10,
+                temperature=0.0,
+            )
+            return "complex" if "COMPLEX" in result else "simple"
+        except Exception:
+            return "simple"
+
+    async def _generate_plans(self, user_input: str) -> list:
+        client = self._get_client()
+        if not client:
+            return []
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": (
+                        "为用户的编程需求生成2-3个实现方案。每个方案一行，格式：\n"
+                        "方案N: [名称] | [一句话描述核心思路和功能] | 约XXX行\n"
+                        "从简单到复杂排列。不要其他内容。")},
+                    {"role": "user", "content": user_input},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=300,
+                temperature=0.3,
+            )
+            plans = []
+            for line in result.strip().split("\n"):
+                line = line.strip()
+                if not line or "方案" not in line:
+                    continue
+                parts = line.split("|")
+                if len(parts) >= 2:
+                    title = parts[0].split(":", 1)[-1].strip() if ":" in parts[0] else parts[0].strip()
+                    desc = parts[1].strip()
+                    est = parts[2].strip() if len(parts) > 2 else ""
+                    plans.append({"id": len(plans) + 1, "title": title, "desc": desc, "est": est})
+            return plans[:3]
+        except Exception:
+            return []
+
+    async def run_with_plan(self, user_input: str, plan: dict, user_note: str = "") -> "WorkContext":
+        plan_desc = "{}：{}".format(plan.get("title", ""), plan.get("desc", ""))
+        if user_note:
+            plan_desc += "\n用户补充：{}".format(user_note)
+        build_input = "{}（方案：{}）".format(user_input, plan_desc)
+        self.context.metadata["_plan_confirmed"] = True
+        self.context.user_request = build_input
+        return await self._run_build(build_input)
 
     async def _evolve_from_result(self):
         """后台静默进化——用户无感知"""

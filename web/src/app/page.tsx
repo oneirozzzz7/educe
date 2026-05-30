@@ -13,15 +13,18 @@ import { SettingsModal } from "@/components/settings-modal";
 import { MessageBubble } from "@/components/message-bubble";
 import { FileChips, type UploadedFile } from "@/components/file-chips";
 import { ToastContainer, toast } from "@/components/toast";
+import { PlanProposal } from "@/components/plan-proposal";
 
 interface ChatMsg {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "plan";
   text: string;
   steps?: { agent: string; summary: string; done: boolean }[];
   html?: string;
   timestamp: number;
   files?: UploadedFile[];
+  plans?: { id: number; title: string; desc: string; est: string }[];
+  originalRequest?: string;
 }
 
 interface TaskItem { id: string; request: string; project_type: string; created_at: number; response?: string }
@@ -119,6 +122,15 @@ export default function Page() {
         }
       } else if (msg.type === "chunk") {
         setCurAgent(msg.sender);
+      } else if ((msg as any).type === "plan_proposal") {
+        setThinking(false);
+        if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
+        const pm = msg as any;
+        setMsgs(p => [...p, {
+          id: Date.now().toString(), role: "plan" as const, text: "",
+          plans: pm.plans, originalRequest: pm.original_request,
+          timestamp: Date.now(),
+        }]);
       } else if ((msg as any).type === "expert") {
         setExpertName((msg as any).content || "");
       } else if (msg.type === "error") {
@@ -316,6 +328,14 @@ export default function Page() {
                         <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-[14px] text-white shadow-sm whitespace-pre-line" style={{ background: "var(--brand)" }}>{msg.text}</div>
                         <span className="text-[10px] px-1" style={{ color: "var(--text-4)" }}>{fmtTime(msg.timestamp)}</span>
                       </div>
+                    ) : msg.role === "plan" && msg.plans ? (
+                      <PlanProposal plans={msg.plans} originalRequest={msg.originalRequest || ""}
+                        onSelect={(planId, userNote) => {
+                          const w = wsRef.current;
+                          if (w && w.readyState === 1) {
+                            w.sendRaw({ type: "plan_select", plan_id: planId, user_note: userNote });
+                          }
+                        }} />
                     ) : msg.steps !== undefined ? (
                       <WorkCard steps={msg.steps} html={msg.html} isActive={working && msg.id === msgs[msgs.length - 1]?.id}
                         currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} />

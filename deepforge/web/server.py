@@ -328,6 +328,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             if msg.content == "__PIPELINE_START__":
                 await websocket.send_json({"type": "status", "content": "pipeline_start"})
                 return
+            if msg.content == "__PLAN_PROPOSAL__":
+                await websocket.send_json({
+                    "type": "plan_proposal",
+                    "plans": msg.data.get("plans", []),
+                    "original_request": msg.data.get("original_request", ""),
+                })
+                return
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",
@@ -353,6 +360,24 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             while True:
                 data = await websocket.receive_json()
                 user_input = data.get("message", "")
+
+                # 处理方案选择
+                if data.get("type") == "plan_select":
+                    plan_id = data.get("plan_id", 1)
+                    user_note = data.get("user_note", "")
+                    plans = orchestrator.context.metadata.get("_pending_plans", [])
+                    original = orchestrator.context.metadata.get("_pending_request", "")
+                    selected = next((p for p in plans if p["id"] == plan_id), plans[0] if plans else {})
+                    await websocket.send_json({"type": "status", "content": "thinking"})
+                    orchestrator.context.metadata["session_id"] = session_id
+                    try:
+                        await orchestrator.run_with_plan(original, selected, user_note)
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "content": str(e)})
+                    await asyncio.sleep(0.05)
+                    await websocket.send_json({"type": "status", "content": "idle"})
+                    continue
+
                 if not user_input:
                     continue
 
