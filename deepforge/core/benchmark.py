@@ -311,3 +311,67 @@ BENCHMARK_EXPECTATIONS = [
         "anti": [],
     },
 ]
+
+
+VERIFY_SYSTEM = (
+    "检查回答是否满足以下要求。逐条判断，每条回复Y（满足）或N（未满足）。"
+    "格式：1.Y 2.N 3.Y ..."
+)
+
+ANTI_VERIFY_SYSTEM = (
+    "检查回答是否包含以下不应该出现的内容。逐条判断，每条回复Y（出现了）或N（没出现）。"
+    "格式：1.Y 2.N ..."
+)
+
+
+async def evaluate_with_expectations(client, model: str, question: str,
+                                      response: str, expectations: dict) -> dict:
+    import re
+
+    invariant = expectations.get("invariant", [])
+    bonus = expectations.get("bonus", [])
+    anti = expectations.get("anti", [])
+
+    async def check_list(items, system_prompt):
+        if not items:
+            return []
+        numbered = "\n".join("{}. {}".format(i+1, item) for i, item in enumerate(items))
+        try:
+            raw = await client.chat(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "要求：\n{}\n\n回答：\n{}".format(
+                        numbered, response[:500])},
+                ],
+                model=model, max_tokens=50, temperature=0.0)
+            results = []
+            for i in range(len(items)):
+                pattern = r'{}[.、):\s]*[Yy]'.format(i + 1)
+                results.append(bool(re.search(pattern, raw)))
+            return results
+        except Exception:
+            return [False] * len(items)
+
+    inv_results = await check_list(invariant, VERIFY_SYSTEM)
+    bonus_results = await check_list(bonus, VERIFY_SYSTEM)
+    anti_results = await check_list(anti, ANTI_VERIFY_SYSTEM)
+
+    inv_score = sum(inv_results) / len(inv_results) if inv_results else 1.0
+    bonus_score = sum(bonus_results) / len(bonus_results) if bonus_results else 0.0
+    anti_violations = sum(anti_results)
+
+    return {
+        "invariant_score": round(inv_score, 3),
+        "bonus_score": round(bonus_score, 3),
+        "anti_violations": anti_violations,
+        "invariant_details": list(zip([i[:40] for i in invariant], inv_results)),
+        "bonus_details": list(zip([b[:40] for b in bonus], bonus_results)),
+        "anti_details": list(zip([a[:40] for a in anti], anti_results)) if anti else [],
+    }
+
+
+def find_expectations(question: str) -> dict:
+    for b in BENCHMARK_EXPECTATIONS:
+        if b["question"] == question:
+            return b
+    return {"invariant": [], "bonus": [], "anti": []}
