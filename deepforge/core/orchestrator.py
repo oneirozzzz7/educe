@@ -164,22 +164,37 @@ class Orchestrator:
 
         decision = await self._decide(user_input)
 
-        if decision["action"] == "code":
+        if decision["action"] == "clarify":
+            clarify_msg = Message(
+                type=MessageType.RESULT, sender="assistant", receiver="user",
+                content=decision.get("question", ""))
+            self._notify(clarify_msg)
+            self._display(clarify_msg)
+            self.cognitive_state.phase = "exploring"
+            session_id = self.context.metadata.get("session_id", "")
+            if session_id:
+                self.session_store.append_turn(
+                    session_id, user_input, decision.get("question", ""),
+                    turn_type="clarify", domain=self.cognitive_state.domain)
+            return self.context
+
+        if decision["action"] == "propose_plans":
             self.context.metadata["expert_name"] = "编程专家"
+            plans = await self._generate_plans(user_input)
+            if plans:
+                plan_msg = Message(
+                    type=MessageType.SYSTEM, sender="planner", receiver="user",
+                    content="__PLAN_PROPOSAL__",
+                    data={"plans": plans, "original_request": user_input})
+                self._notify(plan_msg)
+                self.context.metadata["_pending_plans"] = plans
+                self.context.metadata["_pending_request"] = user_input
+                self.cognitive_state.phase = "planning"
+                return self.context
 
-            complexity = await self._assess_complexity(user_input)
-            if complexity == "complex" and not self.context.metadata.get("_plan_confirmed"):
-                plans = await self._generate_plans(user_input)
-                if plans:
-                    plan_msg = Message(
-                        type=MessageType.SYSTEM, sender="planner", receiver="user",
-                        content="__PLAN_PROPOSAL__",
-                        data={"plans": plans, "original_request": user_input})
-                    self._notify(plan_msg)
-                    self.context.metadata["_pending_plans"] = plans
-                    self.context.metadata["_pending_request"] = user_input
-                    return self.context
-
+        if decision["action"] in ("code", "build_direct"):
+            self.context.metadata["expert_name"] = "编程专家"
+            self.cognitive_state.phase = "building"
             return await self._run_build(user_input)
         else:
             content = decision["content"]
