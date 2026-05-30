@@ -121,6 +121,10 @@ class Orchestrator:
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
 
+        # SelfEvolver: 每次交互计数（跨session共享）
+        if self.self_evolver:
+            self.self_evolver.tick()
+
         # 检测用户对上一轮回答的反馈信号
         prev_assistant = ""
         if self.conversation.turns:
