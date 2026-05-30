@@ -13,6 +13,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function(){
+            try {
+              var t = localStorage.getItem('df-theme');
+              if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
+                document.documentElement.setAttribute('data-theme','dark');
+              }
+            } catch(e){}
+          })();
+        `}} />
+      </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
       </body>

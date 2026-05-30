@@ -12,6 +12,7 @@ import { WorkCard } from "@/components/work-card";
 import { SettingsModal } from "@/components/settings-modal";
 import { MessageBubble } from "@/components/message-bubble";
 import { FileChips, type UploadedFile } from "@/components/file-chips";
+import { ToastContainer, toast } from "@/components/toast";
 
 interface ChatMsg {
   id: string;
@@ -220,7 +221,7 @@ export default function Page() {
     const t = (text || input).trim();
     if (!t && files.length === 0) return;
     const w = wsRef.current;
-    if (!w || w.readyState !== 1) { alert("未连接到后端(7860)"); return; }
+    if (!w || w.readyState !== 1) { toast("未连接到后端服务", "error"); return; }
 
     const displayText = files.length > 0 ? `${t}\n📎 ${files.map(f => f.name).join(", ")}` : t;
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: displayText, timestamp: Date.now(), files: [...files] }]);
@@ -288,8 +289,8 @@ export default function Page() {
                   <div className="flex justify-center mb-6">
                     <LogoBrand size={52} />
                   </div>
-                  <h1 className="text-[26px] font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>What will you build?</h1>
-                  <p className="text-[14px] mb-10" style={{ color: "var(--text-3)" }}>Describe your idea, and agents will build it for you</p>
+                  <h1 className="text-[26px] font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>想做点什么？</h1>
+                  <p className="text-[14px] mb-10" style={{ color: "var(--text-3)" }}>描述你的想法，智能体会帮你实现</p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {[["🍅", "番茄钟"], ["🔧", "JSON工具"], ["🎮", "小游戏"], ["📝", "编辑器"], ["🧮", "计算器"]].map(([icon, label]) => (
                       <button key={label} onClick={() => send(`做一个${label}`)}
@@ -408,6 +409,7 @@ export default function Page() {
 
       {/* 设置 */}
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} model={model} onModelChange={setModel} />
+      <ToastContainer />
     </div>
   );
 }

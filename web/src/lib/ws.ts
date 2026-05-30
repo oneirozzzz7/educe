@@ -39,9 +39,9 @@ export interface DeepForgeWS {
   send: (message: string, fileIds?: string[]) => void;
   readonly readyState: number;
   close: () => void;
-  onMessage: (handler: (msg: ServerMessage) => void) => void;
-  onConnect: (handler: () => void) => void;
-  onDisconnect: (handler: () => void) => void;
+  onMessage: (handler: (msg: ServerMessage) => void) => () => void;
+  onConnect: (handler: () => void) => () => void;
+  onDisconnect: (handler: () => void) => () => void;
 }
 
 export const API_HOST = typeof window !== "undefined"
@@ -84,9 +84,9 @@ export function createWS(sessionId: string): DeepForgeWS {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
     },
-    onMessage: (handler) => messageHandlers.push(handler),
-    onConnect: (handler) => connectHandlers.push(handler),
-    onDisconnect: (handler) => disconnectHandlers.push(handler),
+    onMessage: (handler) => { messageHandlers.push(handler); return () => { messageHandlers = messageHandlers.filter(h => h !== handler); }; },
+    onConnect: (handler) => { connectHandlers.push(handler); return () => { connectHandlers = connectHandlers.filter(h => h !== handler); }; },
+    onDisconnect: (handler) => { disconnectHandlers.push(handler); return () => { disconnectHandlers = disconnectHandlers.filter(h => h !== handler); }; },
   };
 }
 

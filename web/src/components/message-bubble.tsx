@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { Copy, Check, Eye, EyeOff, ThumbsUp, ThumbsDown } from "lucide-react";
 
 marked.setOptions({
@@ -51,13 +52,13 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
         return `\`\`\`${langMap[ext] || ext}\n`;
       });
       let html = marked.parse(t) as string;
+      html = DOMPurify.sanitize(html, { ADD_TAGS: ["iframe"], ADD_ATTR: ["target", "class"] });
       html = html.replace(/([✅⚠️]\s*\d+%)/g,
         '<span class="df-confidence">$1</span>');
       html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|⚠️?\s*需要验证)/g,
         '<span class="df-confidence">$1</span>');
       html = html.replace(/(\(置信度[：:]\s*\d+%\))/g,
         '<span class="df-confidence">$1</span>');
-      return html;
       return html;
     } catch {
       return `<pre style="white-space:pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
@@ -134,7 +135,8 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
               </a>
             </div>
             {showHtmlPreview && (
-              <iframe src={blobUrl} className="w-full h-[350px] bg-white" tabIndex={0} />
+              <iframe src={blobUrl} className="w-full h-[350px] bg-white" tabIndex={0}
+                sandbox="allow-scripts allow-same-origin" />
             )}
           </div>
         )}
