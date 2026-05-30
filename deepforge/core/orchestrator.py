@@ -750,6 +750,16 @@ class Orchestrator:
                     relevance=relevance,
                 )
 
+                # 异步judge评分（不阻塞响应）
+                async def _bg_judge():
+                    try:
+                        from deepforge.core.judge import judge_response
+                        score = await judge_response(client, self.config.default_model.model, user_input, raw)
+                        self.context.metadata["_judge_score"] = score.to_dict()
+                    except Exception:
+                        pass
+                asyncio.create_task(_bg_judge())
+
                 # 每20次回答触发一次evolver演化
                 if hasattr(self.activation_engine, '_evolver') and self.activation_engine._evolver:
                     self.activation_engine._use_count += 1
