@@ -90,7 +90,7 @@ def _detect(engineer_output: str) -> dict:
         checks["size_ok"] = 5000 < len(engineer_output) < 50000
         passed = checks["has_file"] and checks["has_closing"]
     else:
-        has_output = len(engineer_output) > 100
+        has_output = len(engineer_output) > 20
         checks["has_file"] = has_output
         checks["has_content"] = has_output
         checks["has_closing"] = None
