@@ -121,9 +121,21 @@ class Orchestrator:
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
 
-        # SelfEvolver: 每次交互计数（跨session共享）
+        # SelfEvolver: 计数 + 进化触发
         if self.self_evolver:
             self.self_evolver.tick()
+            if self.self_evolver.should_start_evolution():
+                asyncio.ensure_future(self.self_evolver.generate_candidate())
+                console.print("[dim]  self-evolver: generating candidate[/dim]")
+            if self.self_evolver.ab_complete():
+                evo_result = self.self_evolver.finalize()
+                if evo_result.get("result") == "evolved":
+                    if self.activation_engine:
+                        self.activation_engine._current_seed = self.self_evolver.current_best
+                    console.print("[dim]  self-evolver: EVOLVED gen {}[/dim]".format(
+                        evo_result.get("generation", "?")))
+                else:
+                    console.print("[dim]  self-evolver: kept current[/dim]")
 
         # 检测用户对上一轮回答的反馈信号
         prev_assistant = ""
@@ -788,21 +800,7 @@ class Orchestrator:
                         except Exception:
                             pass
 
-                # SelfEvolver：自动进化闭环
-                if self.self_evolver:
-                    self.self_evolver.tick()
-                    if self.self_evolver.should_start_evolution():
-                        asyncio.create_task(self.self_evolver.generate_candidate())
-                        console.print("[dim]  self-evolver: new candidate generated[/dim]")
-                    if self.self_evolver.ab_complete():
-                        evo_result = self.self_evolver.finalize()
-                        if evo_result.get("result") == "evolved":
-                            self.activation_engine._current_seed = self.self_evolver.current_best
-                            console.print("[dim]  self-evolver: EVOLVED to gen {}[/dim]".format(
-                                evo_result.get("generation", "?")))
-                        else:
-                            console.print("[dim]  self-evolver: kept current (gen {})[/dim]".format(
-                                evo_result.get("generation", "?")))
+                # (SelfEvolver已移至run()入口统一处理)
             else:
                 self.context.metadata["expert_name"] = "DeepForge"
 
