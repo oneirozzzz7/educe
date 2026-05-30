@@ -36,6 +36,9 @@ class Orchestrator:
         self.bus = EventBus()
         self.knowledge = LayeredCache()
 
+        from deepforge.core.session_store import SessionStore
+        self.session_store = SessionStore()
+
         from deepforge.core.conversation import ConversationManager
         self.conversation = ConversationManager(knowledge=self.knowledge)
 
@@ -174,10 +177,14 @@ class Orchestrator:
             self._display(msg)
             self._feedback_success()
 
-            # 保存到历史（文本回复也保存，不只是代码任务）
-            import uuid as _uuid
-            task_id = _uuid.uuid4().hex[:8]
-            self.task_store.save_from_context(task_id, self.context, response=content)
+            # Session级保存（替代per-turn碎片化存储）
+            session_id = self.context.metadata.get("session_id", "")
+            if session_id:
+                self.session_store.append_turn(
+                    session_id, user_input, content,
+                    turn_type="text",
+                    domain=self.context.metadata.get("expert_name", ""),
+                )
 
             return self.context
 
@@ -232,7 +239,16 @@ class Orchestrator:
         has_output = bool(self.context.artifacts.get("code_files"))
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
                                  file_count=len(self.context.artifacts.get("code_files", [])))
-        self.task_store.save_from_context(task_id, self.context)
+
+        # Session级保存
+        session_id = self.context.metadata.get("session_id", "")
+        if session_id:
+            code_output = self.context.artifacts.get("engineer_output", "")[:5000]
+            self.session_store.append_turn(
+                session_id, user_input, code_output,
+                turn_type="code",
+                domain="tech",
+            )
 
         if has_output and self.config.evolution.enabled:
             asyncio.create_task(self._evolve_from_result())

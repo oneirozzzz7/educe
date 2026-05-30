@@ -7,7 +7,7 @@ import { Logo, LogoMark } from "./logo";
 import { API_HOST } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 
-interface TaskItem { id: string; request: string; project_type: string; created_at: number; response?: string }
+interface TaskItem { id: string; request?: string; title?: string; project_type?: string; created_at: number; updated_at?: number; turns?: number; response?: string }
 
 export interface SidebarRef { refresh: () => void }
 
@@ -97,13 +97,17 @@ export const Sidebar = forwardRef<SidebarRef, {
             {loading ? "加载中..." : "暂无任务"}
           </div>
         ) : (
-          tasks.filter(t => !search || (t.request && t.request.toLowerCase().includes(search.toLowerCase()))).slice(0, 20).map(t => (
+          tasks.filter(t => {
+            const text = t.title || t.request || "";
+            return !search || text.toLowerCase().includes(search.toLowerCase());
+          }).slice(0, 20).map(t => (
             <button key={t.id} onClick={() => handleTaskClick(t)}
               className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate hover:bg-[var(--brand-subtle)] transition-colors mb-0.5 group"
               style={{ color: "var(--text-2)" }}>
-              <span className="truncate block">{t.request || "未命名任务"}</span>
-              <span className="text-[10px] block mt-0.5" style={{ color: "var(--text-4)" }}>
-                {new Date(t.created_at * 1000).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              <span className="truncate block">{t.title || t.request || "未命名对话"}</span>
+              <span className="text-[10px] block mt-0.5 flex items-center gap-1" style={{ color: "var(--text-4)" }}>
+                {new Date((t.updated_at || t.created_at) * 1000).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                {t.turns && t.turns > 1 && <span className="ml-1 px-1 rounded" style={{ background: "var(--brand-subtle)" }}>{t.turns}轮</span>}
               </span>
             </button>
           ))

@@ -127,15 +127,25 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/tasks")
     async def list_tasks():
+        from deepforge.core.session_store import SessionStore
+        store = SessionStore()
+        sessions = store.list_sessions()
+        if sessions:
+            return {"tasks": sessions}
         from deepforge.core.task_store import TaskStore
-        store = TaskStore()
-        return {"tasks": store.list_tasks()}
+        old_store = TaskStore()
+        return {"tasks": old_store.list_tasks()}
 
     @app.get("/api/tasks/{task_id}")
     async def get_task(task_id: str):
+        from deepforge.core.session_store import SessionStore
+        store = SessionStore()
+        turns = store.get_session(task_id)
+        if turns:
+            return {"session_id": task_id, "turns": turns}
         from deepforge.core.task_store import TaskStore
-        store = TaskStore()
-        data = store.load_task(task_id)
+        old_store = TaskStore()
+        data = old_store.load_task(task_id)
         if data:
             return data
         return {"error": "not found"}
@@ -449,3 +459,11 @@ def run_web(host: str = "0.0.0.0", port: int = 7860, config: DeepForgeConfig | N
 
     app = create_app(config)
     uvicorn.run(app, host=host, port=port)
+
+
+# Module-level app for uvicorn CLI: uvicorn deepforge.web.server:app
+try:
+    from deepforge.core.config import DeepForgeConfig as _Cfg
+    app = create_app(_Cfg.load())
+except Exception:
+    app = None
