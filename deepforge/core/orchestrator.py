@@ -607,6 +607,24 @@ class Orchestrator:
                 max_tokens=self.config.default_model.max_tokens,
             )
 
+            # ResponseValidator：通用语义验证
+            from deepforge.core.response_validator import should_validate, validate_response, build_retry_prompt
+            if should_validate(user_input, raw, self.conversation.turns):
+                vr = await validate_response(
+                    client, self.config.default_model.model,
+                    user_input, raw)
+                self.context.metadata["_validation_result"] = vr
+                if not vr["relevant"]:
+                    retry_prompt = build_retry_prompt(
+                        user_input, vr, self.conversation.turns)
+                    messages[-1] = {"role": "user", "content": retry_prompt}
+                    raw = await client.chat(
+                        messages=messages,
+                        model=self.config.default_model.model,
+                        max_tokens=self.config.default_model.max_tokens,
+                    )
+                    console.print("[dim]  validator: off-topic detected, regenerated[/dim]")
+
             domain_tag = ""
             if self.activation_engine:
                 activated = self.activation_engine.parse_activated_response(raw)
