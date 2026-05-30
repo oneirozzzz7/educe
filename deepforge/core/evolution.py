@@ -93,6 +93,7 @@ def _detect(engineer_output: str) -> dict:
         has_output = len(engineer_output) > 100
         checks["has_file"] = has_output
         checks["has_content"] = has_output
+        checks["has_closing"] = None
         passed = has_output
 
     return {
@@ -118,7 +119,7 @@ def _diagnose(result: dict) -> dict:
     if not checks.get("has_file", False):
         return {"category": "no_output", "severity": "critical"}
 
-    if not checks.get("has_closing", False):
+    if checks.get("has_closing") is not None and not checks["has_closing"]:
         return {"category": "truncated", "severity": "high"}
 
     return {"category": "unknown", "severity": "medium"}
