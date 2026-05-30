@@ -762,12 +762,12 @@ class Orchestrator:
                     relevance=relevance,
                 )
 
-                # 异步judge评分（不阻塞响应）
+                # 异步checklist评估（不阻塞响应）
                 async def _bg_judge():
                     try:
-                        from deepforge.core.judge import judge_response
-                        score = await judge_response(client, self.config.default_model.model, user_input, raw)
-                        self.context.metadata["_judge_score"] = score.to_dict()
+                        from deepforge.core.checklist_judge import evaluate
+                        result = await evaluate(client, self.config.default_model.model, user_input, raw)
+                        self.context.metadata["_judge_score"] = result.to_dict()
                     except Exception:
                         pass
                 asyncio.create_task(_bg_judge())
