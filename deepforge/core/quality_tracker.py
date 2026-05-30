@@ -40,6 +40,7 @@ class QualityRecord:
     structure_score: float
     confidence_coverage: float
     closure_score: float
+    relevance_score: float
     user_signal: str
     user_signal_weight: float
     composite_quality: float
@@ -57,7 +58,7 @@ class QualityTracker:
 
     def record(self, question: str, domain: str, seed: str, response: str,
                user_signal: str = "unknown", signal_weight: float = 0.0,
-               model: str = ""):
+               model: str = "", relevance: float = 1.0):
         """记录一次回答的质量数据"""
         features = self._extract_features(response)
 
@@ -67,9 +68,24 @@ class QualityTracker:
         else:
             composite = features["avg"]
 
+        composite = composite * relevance
+
         record = QualityRecord(
             timestamp=time.time(),
             question=question[:100],
+            domain=domain,
+            seed_variant=seed[:60],
+            response_len=len(response),
+            depth_score=features["depth"],
+            structure_score=features["structure"],
+            confidence_coverage=features["confidence"],
+            closure_score=features["closure"],
+            relevance_score=relevance,
+            user_signal=user_signal,
+            user_signal_weight=signal_weight,
+            composite_quality=round(composite, 3),
+            model=model,
+        )
             domain=domain,
             seed_variant=seed[:60],
             response_len=len(response),

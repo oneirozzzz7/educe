@@ -647,12 +647,15 @@ class Orchestrator:
                         console.print("[dim]  distilled {} facts[/dim]".format(len(distilled)))
 
                 signal_weight = self.context.metadata.get("_last_signal_weight", 0.0)
+                vr = self.context.metadata.get("_validation_result", {})
+                relevance = 1.0 if vr.get("relevant", True) else 0.3
                 self.quality_tracker.record(
                     question=user_input, domain=domain_tag,
                     seed=self.activation_engine._current_seed[:60],
                     response=raw, user_signal=user_signal,
                     signal_weight=signal_weight,
                     model=self.config.default_model.model,
+                    relevance=relevance,
                 )
 
                 # 每20次回答触发一次evolver演化
