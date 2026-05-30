@@ -245,17 +245,33 @@ export default function Page() {
       {/* 侧栏 */}
       <Sidebar ref={sidebarRef} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         onNewTask={() => { setMsgs([]); setWorking(false); setFiles([]); }}
-        onTaskSelect={(task) => {
-          const newMsgs: ChatMsg[] = [{ id: task.id + "-q", role: "user", text: task.request, timestamp: task.created_at * 1000 }];
-          if (task.response) {
-            const html = extractHtml(task.response);
-            if (html) {
-              newMsgs.push({ id: task.id + "-a", role: "assistant", text: "", steps: [{ agent: "builder", summary: "已生成代码", done: true }], html, timestamp: task.created_at * 1000 + 1 });
-            } else {
-              newMsgs.push({ id: task.id + "-a", role: "assistant", text: task.response, timestamp: task.created_at * 1000 + 1 });
+        onTaskSelect={(task: any) => {
+          if (task.turns && Array.isArray(task.turns)) {
+            const newMsgs: ChatMsg[] = [];
+            for (const turn of task.turns) {
+              newMsgs.push({ id: `${turn.timestamp}-q`, role: "user", text: turn.question, timestamp: (turn.timestamp || 0) * 1000 });
+              if (turn.response) {
+                const html = extractHtml(turn.response);
+                if (html) {
+                  newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: "", steps: [{ agent: "builder", summary: "已生成代码", done: true }], html, timestamp: (turn.timestamp || 0) * 1000 + 1 });
+                } else {
+                  newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: (turn.timestamp || 0) * 1000 + 1 });
+                }
+              }
             }
+            setMsgs(newMsgs);
+          } else {
+            const newMsgs: ChatMsg[] = [{ id: task.id + "-q", role: "user", text: task.request || task.title || "", timestamp: task.created_at * 1000 }];
+            if (task.response) {
+              const html = extractHtml(task.response);
+              if (html) {
+                newMsgs.push({ id: task.id + "-a", role: "assistant", text: "", steps: [{ agent: "builder", summary: "已生成代码", done: true }], html, timestamp: task.created_at * 1000 + 1 });
+              } else {
+                newMsgs.push({ id: task.id + "-a", role: "assistant", text: task.response, timestamp: task.created_at * 1000 + 1 });
+              }
+            }
+            setMsgs(newMsgs);
           }
-          setMsgs(newMsgs);
         }} />
 
       {/* 主区域 */}

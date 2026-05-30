@@ -478,6 +478,7 @@ class RandomSeedTester:
         import uuid
         sid = uuid.uuid4().hex[:8]
         results = []
+        prior_questions = []
 
         try:
             async with websockets.connect("{}/{}".format(self.ws_url, sid)) as ws:
@@ -485,13 +486,13 @@ class RandomSeedTester:
                     q = step["question"]
                     action = step["action"]
 
-                    # file_upload跳过（需要实际文件）
                     if action == "file_upload":
                         results.append(TurnResult(
                             turn=step["turn"], action=action,
                             domain=step["domain"], question=q,
                             passed=True, fail_reason="skipped_file_upload"
                         ))
+                        prior_questions.append({"question": q, "domain": step["domain"], "response": ""})
                         continue
 
                     start = time.time()
@@ -509,7 +510,8 @@ class RandomSeedTester:
                         pass
 
                     dur = round(time.time() - start, 1)
-                    passed, fail_reason = self._validate_turn(action, step["domain"], q, reply)
+                    passed, fail_reason = self._validate_turn(
+                        action, step["domain"], q, reply, prior_questions)
 
                     results.append(TurnResult(
                         turn=step["turn"], action=action,
@@ -517,6 +519,7 @@ class RandomSeedTester:
                         response=reply[:500], passed=passed,
                         fail_reason=fail_reason, duration=dur,
                     ))
+                    prior_questions.append({"question": q, "domain": step["domain"], "response": reply[:300]})
         except Exception as e:
             for step in questions[len(results):]:
                 results.append(TurnResult(
@@ -527,7 +530,8 @@ class RandomSeedTester:
 
         return results
 
-    def _validate_turn(self, action: str, domain: str, question: str, response: str) -> tuple:
+    def _validate_turn(self, action: str, domain: str, question: str,
+                       response: str, prior_questions: list = None) -> tuple:
         if not response:
             return False, "empty_response"
 
@@ -551,12 +555,58 @@ class RandomSeedTester:
         if action in ("positive_feedback", "negative_feedback"):
             return True, ""
 
-        if action in ("chat", "deep_question", "follow_up"):
+        if action in ("chat", "deep_question"):
+            if len(response) < 50:
+                return False, "response_too_short_for_question"
+            if not self._check_relevance(question, response, domain):
+                return False, "off_topic"
+            return True, ""
+
+        if action == "follow_up":
+            if len(response) < 50:
+                return False, "response_too_short_for_question"
+            return True, ""
+
+        if action == "topic_switch":
             if len(response) < 50:
                 return False, "response_too_short_for_question"
             return True, ""
 
         return True, ""
+
+    def _check_relevance(self, question: str, response: str, domain: str) -> bool:
+        import re
+        q_keywords = set(re.findall(r'[一-鿿]{2,}', question))
+        if len(q_keywords) < 2:
+            return True
+        r_text = response[:800]
+        hits = 0
+        for kw in q_keywords:
+            if kw in r_text:
+                hits += 1
+            elif len(kw) >= 3 and kw[:2] in r_text:
+                hits += 0.5
+        return hits >= 1
+
+    def _check_followup_relevance(self, question: str, response: str,
+                                   prior_questions: list) -> bool:
+        import re
+        if not prior_questions:
+            return True
+        last_q = prior_questions[-1]
+        last_domain = last_q.get("domain", "")
+        last_resp = last_q.get("response", "")
+        last_question = last_q.get("question", "")
+        if not last_resp and not last_question:
+            return True
+
+        r_keywords = set(re.findall(r'[一-鿿]{2,}', response[:600]))
+        context_keywords = set(re.findall(r'[一-鿿]{2,}', last_resp[:300] + last_question))
+
+        if not context_keywords or not r_keywords:
+            return True
+        overlap = len(r_keywords & context_keywords)
+        return overlap >= 1
 
     def _result_to_dict(self, r: TurnResult) -> dict:
         return {

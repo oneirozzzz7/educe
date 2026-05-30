@@ -57,6 +57,13 @@ QUESTION_PATTERNS = re.compile(
 )
 
 
+BACK_REFERENCE_PATTERNS = re.compile(
+    r"你(?:的|刚才的|之前的|上次的)?(?:总结|分析|回答|解释|说的|评价|建议|方案)|"
+    r"(?:你觉得|你认为).*(?:到位|准确|对|正确)|"
+    r"(?:刚才|之前|上面|前面)(?:那个|的|说的)"
+)
+
+
 class ContextAnalyzer:
     def analyze(self, user_input: str, conversation_turns: list,
                 artifacts: dict = None) -> ContextSignals:
@@ -68,6 +75,7 @@ class ContextAnalyzer:
         self._detect_intent(signals, user_input, artifacts)
         self._detect_conversation_stage(signals, conversation_turns)
         self._detect_user_style(signals, conversation_turns)
+        self._resolve_back_reference(signals, user_input, conversation_turns)
 
         return signals
 
@@ -146,6 +154,45 @@ class ContextAnalyzer:
             signals.signals.append("该用户习惯简短表达，请注意理解简短指令的完整意图")
         elif avg_len > 80:
             signals.signals.append("该用户习惯详细描述，回答也可以更详细深入")
+
+    def _resolve_back_reference(self, signals: ContextSignals,
+                                 user_input: str, turns: list):
+        if not BACK_REFERENCE_PATTERNS.search(user_input):
+            return
+        if len(turns) < 4:
+            return
+
+        input_keywords = set(re.findall(r'[一-鿿]{2,}', user_input))
+        if not input_keywords:
+            return
+
+        best_turn_idx = -1
+        best_score = 0
+        best_question = ""
+
+        user_assistant_pairs = []
+        for i, t in enumerate(turns):
+            if t.role == "user":
+                asst_content = ""
+                if i + 1 < len(turns) and turns[i + 1].role == "assistant":
+                    asst_content = turns[i + 1].content
+                user_assistant_pairs.append((i, t.content, asst_content))
+
+        for pair_idx, (turn_idx, question, answer) in enumerate(user_assistant_pairs):
+            if pair_idx == len(user_assistant_pairs) - 1:
+                continue
+
+            q_keywords = set(re.findall(r'[一-鿿]{2,}', question))
+            overlap = len(input_keywords & q_keywords)
+            if overlap > best_score:
+                best_score = overlap
+                best_turn_idx = turn_idx
+                best_question = question
+
+        if best_score >= 2 and best_turn_idx >= 0:
+            signals.signals.append(
+                "用户可能在追问之前的对话：\"{}\"，请围绕该话题回答，不要混淆其他话题".format(
+                    best_question[:50]))
 
     def build_context_hint(self, signals: ContextSignals) -> str:
         hint = signals.to_prompt_hint()

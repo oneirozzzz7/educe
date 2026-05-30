@@ -13,7 +13,8 @@ export interface SidebarRef { refresh: () => void }
 
 export const Sidebar = forwardRef<SidebarRef, {
   collapsed: boolean; onCollapse: () => void; onTaskSelect?: (task: TaskItem) => void; onNewTask?: () => void;
-}>(function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask }, ref) {
+  activeSessionId?: string;
+}>(function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask, activeSessionId }, ref) {
   const { theme, toggle } = useTheme();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,11 @@ export const Sidebar = forwardRef<SidebarRef, {
     fetch(`http://${API_HOST}/api/tasks/${t.id}`)
       .then(r => r.json())
       .then(detail => {
-        onTaskSelect?.({ ...t, response: detail?.response || detail?.engineer_output || "" });
+        if (detail?.turns && Array.isArray(detail.turns)) {
+          onTaskSelect?.({ ...t, turns: detail.turns } as any);
+        } else {
+          onTaskSelect?.({ ...t, response: detail?.response || detail?.engineer_output || "" });
+        }
       })
       .catch(() => onTaskSelect?.(t));
   }
@@ -100,17 +105,20 @@ export const Sidebar = forwardRef<SidebarRef, {
           tasks.filter(t => {
             const text = t.title || t.request || "";
             return !search || text.toLowerCase().includes(search.toLowerCase());
-          }).slice(0, 20).map(t => (
+          }).slice(0, 20).map(t => {
+            const isActive = activeSessionId && t.id === activeSessionId;
+            return (
             <button key={t.id} onClick={() => handleTaskClick(t)}
-              className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate hover:bg-[var(--brand-subtle)] transition-colors mb-0.5 group"
-              style={{ color: "var(--text-2)" }}>
+              className={cn("w-full text-left px-2.5 py-2 rounded-lg text-[12px] truncate transition-colors mb-0.5 group",
+                isActive ? "bg-[var(--brand-subtle)]" : "hover:bg-[var(--brand-subtle)]")}
+              style={{ color: isActive ? "var(--brand)" : "var(--text-2)" }}>
               <span className="truncate block">{t.title || t.request || "未命名对话"}</span>
               <span className="text-[10px] block mt-0.5 flex items-center gap-1" style={{ color: "var(--text-4)" }}>
                 {new Date((t.updated_at || t.created_at) * 1000).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 {t.turns && t.turns > 1 && <span className="ml-1 px-1 rounded" style={{ background: "var(--brand-subtle)" }}>{t.turns}轮</span>}
               </span>
             </button>
-          ))
+          );})
         )}
       </div>
 
