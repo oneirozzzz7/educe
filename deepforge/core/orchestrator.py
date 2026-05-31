@@ -121,12 +121,15 @@ class Orchestrator:
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
 
-        # SelfEvolver: 计数 + 进化触发
+        # SelfEvolver: 计数 + 懒评估进化
         if self.self_evolver:
             self.self_evolver.tick()
             if self.self_evolver.should_start_evolution():
-                asyncio.ensure_future(self._run_self_evolution())
-                console.print("[dim]  self-evolver: starting evolution cycle[/dim]")
+                await self.self_evolver.generate_candidate()
+                if self.self_evolver.evolving:
+                    console.print("[dim]  self-evolver: candidate generated, starting lazy eval[/dim]")
+            if self.self_evolver.evolving:
+                await self._evolve_one_step(user_input)
             if self.self_evolver.ab_complete():
                 evo_result = self.self_evolver.finalize()
                 if evo_result.get("result") == "evolved":
@@ -664,6 +667,47 @@ class Orchestrator:
         self.context.metadata["_plan_confirmed"] = True
         self.context.user_request = build_input
         return await self._run_build(build_input)
+
+    async def _evolve_one_step(self, current_question: str):
+        """懒评估——每次run()只评估一个问题，不阻塞用户"""
+        if not self.self_evolver or not self.self_evolver.evolving:
+            return
+        try:
+            client = self._get_client()
+            if not client:
+                return
+            from deepforge.core.activation_engine import ACTIVATION_PROMPT
+            from deepforge.core.checklist_judge import evaluate
+
+            q = current_question
+            model = self.config.default_model.model
+            max_tokens = self.config.default_model.max_tokens
+            sys_cur = ACTIVATION_PROMPT.format(activation_seed=self.self_evolver.current_best, extra_context="")
+            sys_cand = ACTIVATION_PROMPT.format(activation_seed=self.self_evolver._candidate, extra_context="")
+
+            resp_cur = await asyncio.wait_for(client.chat(
+                messages=[{"role": "system", "content": sys_cur},
+                          {"role": "user", "content": q}],
+                model=model, max_tokens=max_tokens), timeout=30)
+            resp_cand = await asyncio.wait_for(client.chat(
+                messages=[{"role": "system", "content": sys_cand},
+                          {"role": "user", "content": q}],
+                model=model, max_tokens=max_tokens), timeout=30)
+
+            eval_cur = await asyncio.wait_for(evaluate(client, model, q, resp_cur), timeout=30)
+            eval_cand = await asyncio.wait_for(evaluate(client, model, q, resp_cand), timeout=30)
+
+            winner = "candidate" if eval_cand.coverage > eval_cur.coverage else "current" if eval_cur.coverage > eval_cand.coverage else "tie"
+            self.self_evolver._ab_results.append({
+                "question": q[:50],
+                "current_score": eval_cur.coverage,
+                "candidate_score": eval_cand.coverage,
+                "winner": winner,
+            })
+            console.print("[dim]  self-evolver: eval {}/{} -> {}[/dim]".format(
+                len(self.self_evolver._ab_results), 10, winner))
+        except Exception as e:
+            console.print("[dim]  self-evolver step error: {}[/dim]".format(str(e)[:60]))
 
     async def _run_self_evolution(self):
         """后台完整进化循环：生成候选→回放历史问题→judge比较→finalize"""
