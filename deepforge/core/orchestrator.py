@@ -699,17 +699,19 @@ class Orchestrator:
 
             for q in questions:
                 try:
-                    resp_cur = await client.chat(
+                    resp_cur = await asyncio.wait_for(client.chat(
                         messages=[{"role": "system", "content": sys_current},
                                   {"role": "user", "content": q}],
-                        model=model, max_tokens=max_tokens)
-                    resp_cand = await client.chat(
+                        model=model, max_tokens=max_tokens), timeout=30)
+                    resp_cand = await asyncio.wait_for(client.chat(
                         messages=[{"role": "system", "content": sys_candidate},
                                   {"role": "user", "content": q}],
-                        model=model, max_tokens=max_tokens)
+                        model=model, max_tokens=max_tokens), timeout=30)
 
-                    eval_cur = await evaluate(client, model, q, resp_cur)
-                    eval_cand = await evaluate(client, model, q, resp_cand)
+                    eval_cur = await asyncio.wait_for(
+                        evaluate(client, model, q, resp_cur), timeout=30)
+                    eval_cand = await asyncio.wait_for(
+                        evaluate(client, model, q, resp_cand), timeout=30)
 
                     winner = "candidate" if eval_cand.coverage > eval_cur.coverage else "current" if eval_cur.coverage > eval_cand.coverage else "tie"
                     self.self_evolver._ab_results.append({
@@ -718,6 +720,7 @@ class Orchestrator:
                         "candidate_score": eval_cand.coverage,
                         "winner": winner,
                     })
+                    console.print("[dim]  self-evolver: evaluated '{}' -> {}[/dim]".format(q[:20], winner))
                 except Exception as e:
                     console.print("[dim]  self-evolver eval error: {}[/dim]".format(str(e)[:60]))
 
