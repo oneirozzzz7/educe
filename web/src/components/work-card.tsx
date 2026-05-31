@@ -59,8 +59,8 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
   }
 
   const doneSteps = steps.filter(s => s.done);
-  const fileSize = html ? (html.length / 1024).toFixed(1) : "0";
-  const totalExpected = 3;
+  const fileSize = html ? (new Blob([html]).size / 1024).toFixed(1) : "0";
+  const totalExpected = Math.max(doneSteps.length + 1, 3);
   const progress = isActive ? Math.min(95, Math.round((doneSteps.length / totalExpected) * 80) + (elapsed > 5 ? 10 : 0)) : 100;
 
   return (

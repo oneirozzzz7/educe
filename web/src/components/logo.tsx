@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 /**
  * DeepForge Brand Logo v3
  * 小尺寸：简洁菱形图标（sidebar/favicon用）
@@ -7,7 +9,7 @@
  */
 
 export function Logo({ size = 28 }: { size?: number }) {
-  const id = `df-${Math.random().toString(36).slice(2, 6)}`;
+  const id = useId().replace(/:/g, '');
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>

@@ -45,6 +45,7 @@ export default function Page() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarCollapsed(true);
@@ -183,6 +184,7 @@ export default function Page() {
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     userScrolledRef.current = !atBottom;
+    setShowScrollBtn(!atBottom);
   }
 
   function extractHtml(c: string) {
@@ -286,6 +288,7 @@ export default function Page() {
     <div className="h-screen flex" style={{ background: "var(--bg)" }}>
       {/* 侧栏 */}
       <Sidebar ref={sidebarRef} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        activeSessionId={sidRef.current}
         onNewTask={() => { setMsgs([]); setWorking(false); setFiles([]); }}
         onTaskSelect={(task: any) => {
           if (task.turns && Array.isArray(task.turns)) {
@@ -390,6 +393,15 @@ export default function Page() {
                 )}
                 <div ref={endRef} />
               </div>
+            )}
+
+            {/* 滚到底部按钮 */}
+            {showScrollBtn && hasMessages && (
+              <button onClick={() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); userScrolledRef.current = false; setShowScrollBtn(false); }}
+                className="fixed bottom-24 right-8 w-9 h-9 rounded-full shadow-lg flex items-center justify-center z-30 transition-all hover:scale-110"
+                style={{ background: "var(--brand)", color: "white" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+              </button>
             )}
           </div>
         </main>
