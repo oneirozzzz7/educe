@@ -43,6 +43,9 @@ class SelfEvolver:
         self._call_count = 0
         self._candidate = None
         self._ab_results = []
+        self._eval_attempts = 0
+        self._max_eval_attempts = 20
+        self._load_persisted_state()
         EVOLVER_LOG.parent.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -54,6 +57,12 @@ class SelfEvolver:
 
     def tick(self):
         self._call_count += 1
+        if self.evolving:
+            self._eval_attempts += 1
+            if self._eval_attempts > self._max_eval_attempts and not self.ab_complete():
+                self._candidate = None
+                self._ab_results = []
+                self._eval_attempts = 0
 
     def should_start_evolution(self) -> bool:
         return (not self.evolving
@@ -137,7 +146,9 @@ class SelfEvolver:
 
         self._candidate = None
         self._ab_results = []
+        self._eval_attempts = 0
 
+        self._save_state()
         return record
 
     def get_stats(self) -> dict:
@@ -148,3 +159,25 @@ class SelfEvolver:
             "ab_progress": len(self._ab_results) if self.evolving else 0,
             "current_seed": self.current_best[:60],
         }
+
+    def _save_state(self):
+        state_path = EVOLVER_LOG.parent / "self_evolver_state.json"
+        state = {
+            "generation": self._generation,
+            "call_count": self._call_count,
+            "current_best": self.current_best,
+        }
+        state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+
+    def _load_persisted_state(self):
+        state_path = EVOLVER_LOG.parent / "self_evolver_state.json"
+        if state_path.exists():
+            try:
+                state = json.loads(state_path.read_text())
+                self._generation = state.get("generation", 0)
+                self._call_count = state.get("call_count", 0)
+                saved_seed = state.get("current_best", "")
+                if saved_seed:
+                    self.current_best = saved_seed
+            except Exception:
+                pass
