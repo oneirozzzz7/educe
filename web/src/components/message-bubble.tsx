@@ -31,7 +31,8 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
   const [copied, setCopied] = useState(false);
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const [voted, setVoted] = useState<"up" | "down" | null>(null);
-  const isLong = text.length > 500;
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > 1500;
 
   const embeddedHtml = useMemo(() => hasHtmlContent(text) ? extractEmbeddedHtml(text) : null, [text]);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -97,8 +98,7 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
 
   return (
     <div className="flex flex-col gap-1 group relative">
-      <div className={`relative rounded-2xl px-4 py-3 ${isLong ? "max-h-[600px] overflow-y-auto" : ""}`}
-        id="msg-content"
+      <div className={`relative rounded-2xl px-4 py-3 ${isLong && !expanded ? "max-h-[400px] overflow-hidden" : ""}`}
         style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-light)" }}>
 
         {/* TOC */}
@@ -149,6 +149,26 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
         </div>
+
+        {isLong && !expanded && (
+          <div className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pb-2 rounded-b-2xl"
+            style={{ background: "linear-gradient(transparent, var(--bg-elevated))" }}>
+            <button onClick={() => setExpanded(true)}
+              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--brand-subtle)]"
+              style={{ borderColor: "var(--border)", color: "var(--brand)", background: "var(--bg-elevated)" }}>
+              展开全文
+            </button>
+          </div>
+        )}
+        {isLong && expanded && (
+          <div className="flex justify-center pt-2">
+            <button onClick={() => setExpanded(false)}
+              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--brand-subtle)]"
+              style={{ borderColor: "var(--border)", color: "var(--text-3)" }}>
+              收起
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 px-1">
         <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{fmtTime(timestamp)}</span>
