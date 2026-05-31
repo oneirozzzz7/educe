@@ -180,6 +180,45 @@ class Orchestrator:
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
 
+        # 构建认知黑板——从各模块收集信息
+        from deepforge.core.cognitive_state import CognitiveState
+        cs = CognitiveState()
+
+        # 意图层（ContextAnalyzer）
+        if self.context_analyzer:
+            signals = self.context_analyzer.analyze(
+                user_input, self.conversation.turns, self.context.artifacts)
+            self.context.metadata["_context_signals"] = signals
+            cs.intent_clarity = signals.user_intent_hint if signals.user_intent_hint != "unclear" else "clear"
+            if signals.topic_continuity == "switch":
+                cs.phase = "opening"
+
+        # 能力层（QualityTracker + domain）
+        detected_domain = self._detect_domain(user_input, "")
+        cs.domain = detected_domain
+        stats = self.quality_tracker.get_domain_stats()
+        domain_stat = stats.get(detected_domain, {})
+        if domain_stat.get("total_responses", 0) >= 5:
+            cs.task_success_rate = domain_stat.get("avg_quality", 0.8)
+
+        # 用户层（UserProfile）
+        session_id = self.context.metadata.get("session_id", "")
+        if self.profile_manager and session_id:
+            profile = self.profile_manager.get_or_create(session_id)
+            cs.user_expertise = profile.expertise_level
+            cs.user_preference = profile.response_preference
+
+        # 对话层
+        cs.turn_count = len(self.conversation.turns)
+        cs.last_relevance = self.context.metadata.get("_validation_result", {}).get("relevant", True)
+        if cs.last_relevance is True:
+            cs.last_relevance = 1.0
+        elif cs.last_relevance is False:
+            cs.last_relevance = 0.3
+
+        self.cognitive_state = cs
+        self.context.metadata["_cognitive_state"] = cs.to_dict()
+
         decision = await self._decide(user_input)
 
         if decision["action"] == "clarify":
@@ -341,6 +380,7 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     async def _decide(self, user_input: str) -> dict:
+        cs = getattr(self, 'cognitive_state', None)
 
         has_files = bool(self.context.metadata.get("uploaded_files"))
         file_hint = ""
@@ -353,23 +393,18 @@ class Orchestrator:
         if not client:
             return {"action": "reply", "content": "请先配置模型。"}
 
-        file_context = ""
-        if has_files:
-            from deepforge.core.file_handler import format_for_prompt
-            file_context = format_for_prompt(self.context.metadata["uploaded_files"])
-
-        # ContextAnalyzer：生成上下文信号
-        ctx_signals = None
-        if self.context_analyzer:
-            ctx_signals = self.context_analyzer.analyze(
-                user_input, self.conversation.turns, self.context.artifacts
-            )
-            self.context.metadata["_context_signals"] = ctx_signals
-
-            # 快速路径：如果ContextAnalyzer明确判断是代码修改
-            if ctx_signals.user_intent_hint == "modify_code":
+        # CognitiveState驱动的快速路径
+        if cs:
+            # 代码修改——直接走code
+            ctx_signals = self.context.metadata.get("_context_signals")
+            if ctx_signals and ctx_signals.user_intent_hint == "modify_code":
                 return {"action": "code"}
 
+            # 意图模糊+短输入——协作：先问清楚
+            if len(user_input) < 8 and cs.turn_count == 0:
+                pass  # 首轮短输入可能就是简单问候，不追问
+
+        # LLM judge（code vs text）
         judge_system = (
             "你是意图分类器。判断用户是否需要编写代码/网页/工具/游戏/脚本。\n"
             "NEED_CODE的例子：做一个计算器、做个番茄钟、写个网页、帮我做一个XX、生成代码\n"
