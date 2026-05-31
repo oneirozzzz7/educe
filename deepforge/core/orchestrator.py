@@ -777,6 +777,9 @@ class Orchestrator:
             profile_hint = profile.get_activation_hint()
 
         if self.activation_engine:
+            cs = getattr(self, 'cognitive_state', None)
+            if cs and cs.best_seed:
+                self.activation_engine._current_seed = cs.best_seed
             system = self.activation_engine.build_activation_prompt(
                 user_input=user_input,
                 domain_context=domain_context + ctx_hint + profile_hint,
