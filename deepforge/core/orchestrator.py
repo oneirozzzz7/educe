@@ -381,6 +381,9 @@ class Orchestrator:
 
     async def _decide(self, user_input: str) -> dict:
         cs = getattr(self, 'cognitive_state', None)
+        client = self._get_client()
+        if not client:
+            return {"action": "reply", "content": "请先配置模型。"}
 
         has_files = bool(self.context.metadata.get("uploaded_files"))
         file_hint = ""
@@ -389,55 +392,62 @@ class Orchestrator:
             names = [f.name for f in files]
             file_hint = "\n（用户上传了文件：{}）".format(", ".join(names))
 
-        client = self._get_client()
-        if not client:
-            return {"action": "reply", "content": "请先配置模型。"}
-
-        # CognitiveState驱动的快速路径
+        # 构建认知上下文
+        context_lines = []
         if cs:
-            # 代码修改——直接走code
-            ctx_signals = self.context.metadata.get("_context_signals")
-            if ctx_signals and ctx_signals.user_intent_hint == "modify_code":
-                return {"action": "code"}
+            if cs.turn_count > 0:
+                context_lines.append("对话已进行{}轮".format(cs.turn_count))
+            if bool(self.context.artifacts.get("engineer_output")):
+                context_lines.append("之前生成过代码，用户可能在修改")
+            if cs.domain and cs.task_success_rate < 0.6:
+                context_lines.append("该领域历史表现较弱")
+        context_desc = "\n".join(context_lines) if context_lines else ""
 
-            # 意图模糊+短输入——协作：先问清楚
-            if len(user_input) < 8 and cs.turn_count == 0:
-                pass  # 首轮短输入可能就是简单问候，不追问
-
-        # LLM judge（code vs text）
-        judge_system = (
-            "你是意图分类器。判断用户是否需要编写代码/网页/工具/游戏/脚本。\n"
-            "NEED_CODE的例子：做一个计算器、做个番茄钟、写个网页、帮我做一个XX、生成代码\n"
-            "NO_CODE的例子：什么是XX、XX是什么、怎么理解XX、帮我分析、翻译、写文章\n"
-            "只回复NEED_CODE或NO_CODE，不要回复其他内容。"
+        # LLM路由——零硬编码决策
+        router_system = (
+            "你是路由决策器。根据用户输入和上下文选择最优动作。\n"
+            "REPLY：文字回答（聊天/提问/分析/翻译/写文章）\n"
+            "BUILD：编写代码/网页/工具/游戏/脚本\n"
+            "CLARIFY：用户意图不清晰，需要追问澄清\n"
+            "PLAN：任务复杂，先提出方案让用户选择\n"
+            "只回复动作名称。"
         )
 
-        has_prev_code = bool(self.context.artifacts.get("engineer_output"))
-        if has_prev_code:
-            judge_system += "\n注意：之前生成过代码。修改/调整/优化/加功能/改颜色/改大小等=NEED_CODE。"
-
-        # 注入上下文信号（帮助弱模型做判断）
-        if ctx_signals and ctx_signals.signals:
-            context_hint = self.context_analyzer.build_context_hint(ctx_signals)
-            if context_hint:
-                judge_system += context_hint
-
-        messages = [{"role": "system", "content": judge_system}]
-        messages.append({"role": "user", "content": user_input + file_hint})
+        user_msg = user_input + file_hint
+        if context_desc:
+            user_msg += "\n\n[上下文]\n" + context_desc
 
         try:
-            judge = await client.chat(
-                messages=messages,
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": router_system},
+                    {"role": "user", "content": user_msg},
+                ],
                 model=self.config.default_model.model,
-                max_tokens=20,
-                temperature=0.1,
+                max_tokens=10,
+                temperature=0.0,
             )
-            if "NEED_CODE" in judge:
-                return {"action": "code"}
-        except Exception:
-            pass
+            action_raw = result.strip().upper()
 
-        return await self._direct_reply(user_input, file_hint)
+            if "BUILD" in action_raw:
+                action = "code"
+            elif "CLARIFY" in action_raw:
+                action = "clarify"
+            elif "PLAN" in action_raw:
+                action = "propose_plans"
+            else:
+                action = "reply"
+
+            self.context.metadata["_route_decision"] = {
+                "action": action, "llm_raw": result.strip()[:20],
+                "cognitive_state": cs.to_dict() if cs else {},
+            }
+        except Exception:
+            action = "reply"
+
+        if action == "reply":
+            return await self._direct_reply(user_input, file_hint)
+        return {"action": action}
 
     # ═══════════════════════════════════════
     #  Agent执行器
