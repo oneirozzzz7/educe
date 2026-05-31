@@ -121,14 +121,14 @@ class Orchestrator:
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
 
-        # SelfEvolver: 计数 + 懒评估进化
+        # SelfEvolver: 计数 + 懒评估进化（每5次交互评估1次，降低延迟影响）
         if self.self_evolver:
             self.self_evolver.tick()
             if self.self_evolver.should_start_evolution():
                 await self.self_evolver.generate_candidate()
                 if self.self_evolver.evolving:
                     console.print("[dim]  self-evolver: candidate generated, starting lazy eval[/dim]")
-            if self.self_evolver.evolving:
+            if self.self_evolver.evolving and self.self_evolver._call_count % 5 == 0:
                 await self._evolve_one_step(user_input)
             if self.self_evolver.ab_complete():
                 evo_result = self.self_evolver.finalize()
@@ -669,7 +669,7 @@ class Orchestrator:
         return await self._run_build(build_input)
 
     async def _evolve_one_step(self, current_question: str):
-        """懒评估——每次run()只评估一个问题，不阻塞用户"""
+        """懒评估——每5次交互评估1个问题，用pairwise比较（1次LLM调用）"""
         if not self.self_evolver or not self.self_evolver.evolving:
             return
         try:
@@ -677,7 +677,6 @@ class Orchestrator:
             if not client:
                 return
             from deepforge.core.activation_engine import ACTIVATION_PROMPT
-            from deepforge.core.checklist_judge import evaluate
 
             q = current_question
             model = self.config.default_model.model
@@ -694,15 +693,23 @@ class Orchestrator:
                           {"role": "user", "content": q}],
                 model=model, max_tokens=max_tokens), timeout=30)
 
-            eval_cur = await asyncio.wait_for(evaluate(client, model, q, resp_cur), timeout=30)
-            eval_cand = await asyncio.wait_for(evaluate(client, model, q, resp_cand), timeout=30)
+            judge_result = await asyncio.wait_for(client.chat(
+                messages=[
+                    {"role": "system", "content": "比较两个回答，哪个对用户更有帮助？只回复A或B。"},
+                    {"role": "user", "content": "问题：{}\n\n回答A：{}\n\n回答B：{}".format(
+                        q, resp_cur[:300], resp_cand[:300])},
+                ],
+                model=model, max_tokens=5, temperature=0.0), timeout=15)
 
-            winner = "candidate" if eval_cand.coverage > eval_cur.coverage else "current" if eval_cur.coverage > eval_cand.coverage else "tie"
+            choice = "A" if "A" in judge_result.strip()[:3] else "B"
+            import random
+            if random.random() > 0.5:
+                winner = "current" if choice == "A" else "candidate"
+            else:
+                winner = "candidate" if choice == "A" else "current"
+
             self.self_evolver._ab_results.append({
-                "question": q[:50],
-                "current_score": eval_cur.coverage,
-                "candidate_score": eval_cand.coverage,
-                "winner": winner,
+                "question": q[:50], "winner": winner,
             })
             console.print("[dim]  self-evolver: eval {}/{} -> {}[/dim]".format(
                 len(self.self_evolver._ab_results), 10, winner))
