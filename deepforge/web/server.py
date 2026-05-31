@@ -347,6 +347,10 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     "original_request": msg.data.get("original_request", ""),
                 })
                 return
+            if msg.content.startswith("__BUILD_PROGRESS__"):
+                step = msg.content.replace("__BUILD_PROGRESS__", "")
+                await websocket.send_json({"type": "build_progress", "step": step})
+                return
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",

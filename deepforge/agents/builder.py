@@ -50,6 +50,10 @@ class BuilderAgent(BaseAgent):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         for round_num in range(self.max_tool_rounds):
+            if round_num == 0:
+                yield self.emit("user", "__BUILD_PROGRESS__生成代码中...",
+                               msg_type=MessageType.SYSTEM)
+
             response = await self.call_model(messages, context)
 
             # 检查是否有工具调用指令
@@ -111,6 +115,8 @@ class BuilderAgent(BaseAgent):
                             hint = "代码括号未闭合。请从断点继续输出剩余代码。"
 
                     if is_truncated:
+                        yield self.emit("user", "__BUILD_PROGRESS__检测到代码截断，正在续写...",
+                                       msg_type=MessageType.SYSTEM)
                         messages.append({"role": "assistant", "content": response})
                         messages.append({"role": "user", "content": "代码被截断了——{} {}".format(filepath, hint)})
                         continuation = await self.call_model(messages, context)
@@ -119,8 +125,12 @@ class BuilderAgent(BaseAgent):
                         full_path.write_text(files[filepath], encoding="utf-8")
 
                 # 自动运行验证
+                yield self.emit("user", "__BUILD_PROGRESS__验证代码质量...",
+                               msg_type=MessageType.SYSTEM)
                 verify_result = await self._auto_verify(files, output_dir)
                 if verify_result["has_issues"]:
+                    yield self.emit("user", "__BUILD_PROGRESS__发现问题，正在修复...",
+                                   msg_type=MessageType.SYSTEM)
                     messages.append({"role": "assistant", "content": response})
                     messages.append({"role": "user", "content": f"代码已写入，但验证发现问题:\n{verify_result['report']}\n\n请修复这些问题，重新输出完整文件。"})
 
