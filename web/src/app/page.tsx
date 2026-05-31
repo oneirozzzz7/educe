@@ -108,7 +108,15 @@ export default function Page() {
       } else if (msg.type === "agent_message" && msg.msg_type !== "handoff") {
         setThinking(false);
         if (!workingRef.current) {
-          setMsgs(p => [...p, { id: Date.now().toString(), role: "assistant", text: msg.content, timestamp: Date.now() }]);
+          // text任务：如果已有streaming气泡（通过chunk创建），替换内容；否则创建新气泡
+          setMsgs(p => {
+            const last = p[p.length - 1];
+            if (last?.role === "assistant" && !last.steps && last.text) {
+              // streaming气泡已存在——用完整内容替换（不创建新的）
+              return [...p.slice(0, -1), { ...last, text: msg.content }];
+            }
+            return [...p, { id: Date.now().toString(), role: "assistant", text: msg.content, timestamp: Date.now() }];
+          });
         } else {
           setCurAgent(msg.sender);
           setMsgs(p => {
