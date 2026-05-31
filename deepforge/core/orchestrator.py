@@ -216,6 +216,30 @@ class Orchestrator:
         elif cs.last_relevance is False:
             cs.last_relevance = 0.3
 
+        # 能力层补充（ActivationEvolver→best_seed）
+        if self.activation_engine and hasattr(self.activation_engine, '_evolver') and self.activation_engine._evolver:
+            cs.best_seed = self.activation_engine._evolver.get_best_seed(detected_domain)
+        if self.self_evolver:
+            cs.best_seed = self.self_evolver.current_best
+
+        # 对话阶段推断（不硬编码——从状态推断）
+        has_prev_code = bool(self.context.artifacts.get("engineer_output"))
+        if cs.turn_count == 0:
+            cs.phase = "opening"
+        elif has_prev_code and cs.turn_count >= 2:
+            cs.phase = "reviewing"
+        elif cs.turn_count >= 6:
+            cs.phase = "deep"
+        else:
+            cs.phase = "conversing"
+
+        # 信心层（CredibilityEngine）
+        if self.credibility:
+            cred_result = self.credibility.assess(
+                user_input, "", detected_domain,
+                user_signal=self.context.metadata.get("_last_user_signal", "neutral"))
+            cs.framework_confidence = cred_result.get("level", "medium")
+
         self.cognitive_state = cs
         self.context.metadata["_cognitive_state"] = cs.to_dict()
 
@@ -392,62 +416,103 @@ class Orchestrator:
             names = [f.name for f in files]
             file_hint = "\n（用户上传了文件：{}）".format(", ".join(names))
 
-        # 构建认知上下文
-        context_lines = []
-        if cs:
-            if cs.turn_count > 0:
-                context_lines.append("对话已进行{}轮".format(cs.turn_count))
-            if bool(self.context.artifacts.get("engineer_output")):
-                context_lines.append("之前生成过代码，用户可能在修改")
-            if cs.domain and cs.task_success_rate < 0.6:
-                context_lines.append("该领域历史表现较弱")
-        context_desc = "\n".join(context_lines) if context_lines else ""
-
-        # LLM路由——零硬编码决策
-        router_system = (
-            "你是路由决策器。根据用户输入和上下文选择最优动作。\n"
-            "REPLY：文字回答（聊天/提问/分析/翻译/写文章）\n"
-            "BUILD：编写代码/网页/工具/游戏/脚本\n"
-            "CLARIFY：用户意图不清晰，需要追问澄清\n"
-            "PLAN：任务复杂，先提出方案让用户选择\n"
-            "只回复动作名称。"
+        # ═══ 阶段1：任务类型判断（REPLY/BUILD）═══
+        type_system = (
+            "判断用户需要文字回答还是编写代码。\n"
+            "REPLY：聊天/提问/分析/翻译/写文章等\n"
+            "BUILD：做网页/工具/游戏/脚本/程序等\n"
+            "只回复REPLY或BUILD。"
         )
-
-        user_msg = user_input + file_hint
-        if context_desc:
-            user_msg += "\n\n[上下文]\n" + context_desc
+        has_prev_code = bool(self.context.artifacts.get("engineer_output"))
+        if has_prev_code:
+            type_system += "\n注意：之前生成过代码。修改/调整/优化等=BUILD。"
 
         try:
-            result = await client.chat(
+            type_result = await client.chat(
                 messages=[
-                    {"role": "system", "content": router_system},
-                    {"role": "user", "content": user_msg},
+                    {"role": "system", "content": type_system},
+                    {"role": "user", "content": user_input + file_hint},
                 ],
                 model=self.config.default_model.model,
-                max_tokens=10,
-                temperature=0.0,
+                max_tokens=10, temperature=0.0,
             )
-            action_raw = result.strip().upper()
-
-            if "BUILD" in action_raw:
-                action = "code"
-            elif "CLARIFY" in action_raw:
-                action = "clarify"
-            elif "PLAN" in action_raw:
-                action = "propose_plans"
-            else:
-                action = "reply"
-
-            self.context.metadata["_route_decision"] = {
-                "action": action, "llm_raw": result.strip()[:20],
-                "cognitive_state": cs.to_dict() if cs else {},
-            }
+            task_type = "build" if "BUILD" in type_result.upper() else "reply"
         except Exception:
+            task_type = "reply"
+
+        # ═══ 阶段2：信心评估（模型自评能否直接做好）═══
+        context_signals = self._build_confidence_context(user_input, cs)
+
+        confidence_system = (
+            "基于用户描述和已知信息，你能直接给出高质量的结果吗？\n"
+            "YES：信息充足，可以直接行动\n"
+            "NO：信息不足或任务太复杂，需要先和用户沟通\n"
+            "只回复YES或NO。"
+        )
+        confidence_msg = user_input
+        if context_signals:
+            confidence_msg += "\n\n[已知信息]\n" + context_signals
+
+        try:
+            conf_result = await client.chat(
+                messages=[
+                    {"role": "system", "content": confidence_system},
+                    {"role": "user", "content": confidence_msg},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=5, temperature=0.0,
+            )
+            confident = "YES" in conf_result.upper()
+        except Exception:
+            confident = True
+
+        # ═══ 路由组合 ═══
+        if task_type == "reply" and confident:
             action = "reply"
+        elif task_type == "reply" and not confident:
+            action = "clarify"
+        elif task_type == "build" and confident:
+            action = "code"
+        else:
+            action = "propose_plans"
+
+        self.context.metadata["_route_decision"] = {
+            "task_type": task_type,
+            "confident": confident,
+            "action": action,
+            "cognitive_state": cs.to_dict() if cs else {},
+        }
 
         if action == "reply":
             return await self._direct_reply(user_input, file_hint)
         return {"action": action}
+
+    def _build_confidence_context(self, user_input: str, cs) -> str:
+        signals = []
+
+        skill = self._match_skill(user_input)
+        if skill:
+            signals.append("技能库有匹配模板，可直接构建")
+        else:
+            signals.append("技能库无匹配模板")
+
+        if cs:
+            if cs.task_success_rate >= 0.8:
+                signals.append("该领域历史表现良好（{:.0f}%）".format(cs.task_success_rate * 100))
+            elif cs.task_success_rate >= 0.5:
+                signals.append("该领域历史表现一般")
+            else:
+                signals.append("该领域历史表现较弱或无数据")
+
+            if cs.user_expertise == "beginner":
+                signals.append("用户似乎是新手")
+            elif cs.user_expertise == "advanced":
+                signals.append("用户是有经验的用户")
+
+            if bool(self.context.artifacts.get("engineer_output")):
+                signals.append("之前已生成过代码")
+
+        return "\n".join("- " + s for s in signals) if signals else ""
 
     # ═══════════════════════════════════════
     #  Agent执行器
