@@ -492,25 +492,19 @@ class Orchestrator:
 
         skill = self._match_skill(user_input)
         if skill:
-            signals.append("技能库有匹配模板，可直接构建")
-        else:
-            signals.append("技能库无匹配模板")
+            signals.append("技能库有匹配模板，此类任务有成功经验")
 
         if cs:
             if cs.task_success_rate >= 0.8:
                 signals.append("该领域历史表现良好（{:.0f}%）".format(cs.task_success_rate * 100))
-            elif cs.task_success_rate >= 0.5:
-                signals.append("该领域历史表现一般")
-            else:
-                signals.append("该领域历史表现较弱或无数据")
+            elif cs.task_success_rate < 0.4 and cs.task_success_rate > 0:
+                signals.append("该领域历史表现不佳")
 
-            if cs.user_expertise == "beginner":
-                signals.append("用户似乎是新手")
-            elif cs.user_expertise == "advanced":
-                signals.append("用户是有经验的用户")
+            if cs.user_expertise == "advanced":
+                signals.append("用户是有经验的用户，意图通常比较明确")
 
             if bool(self.context.artifacts.get("engineer_output")):
-                signals.append("之前已生成过代码")
+                signals.append("之前已生成过代码，用户可能在迭代改进")
 
         return "\n".join("- " + s for s in signals) if signals else ""
 
