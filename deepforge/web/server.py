@@ -360,9 +360,19 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator.on_message(lambda msg: asyncio.ensure_future(send_message(msg)))
 
+        accumulated_chunks = {"text": ""}
+
         async def send_chunk(agent_name: str, chunk: str):
             try:
                 await websocket.send_json({"type": "chunk", "sender": agent_name, "content": chunk})
+                # 检测Builder的STEP标记
+                accumulated_chunks["text"] += chunk
+                import re
+                step_match = re.search(r'<!-- STEP: (.+?) -->', accumulated_chunks["text"])
+                if step_match:
+                    step_desc = step_match.group(1)
+                    await websocket.send_json({"type": "build_progress", "step": step_desc})
+                    accumulated_chunks["text"] = accumulated_chunks["text"].split(step_match.group(0))[-1]
             except Exception:
                 pass
 

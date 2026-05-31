@@ -924,11 +924,23 @@ class Orchestrator:
         messages.append({"role": "user", "content": user_content})
 
         try:
-            raw = await client.chat(
-                messages=messages,
-                model=self.config.default_model.model,
-                max_tokens=self.config.default_model.max_tokens,
-            )
+            # Streaming输出——用户实时看到回答生成
+            raw = ""
+            try:
+                async for chunk in client.chat_stream(
+                    messages=messages,
+                    model=self.config.default_model.model,
+                    max_tokens=self.config.default_model.max_tokens,
+                ):
+                    raw += chunk
+                    self._notify_chunk("assistant", chunk)
+            except Exception:
+                if not raw:
+                    raw = await client.chat(
+                        messages=messages,
+                        model=self.config.default_model.model,
+                        max_tokens=self.config.default_model.max_tokens,
+                    )
 
             # ResponseValidator：通用语义验证
             from deepforge.core.response_validator import should_validate, validate_response, build_retry_prompt

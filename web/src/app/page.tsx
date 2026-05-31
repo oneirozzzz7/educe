@@ -122,6 +122,27 @@ export default function Page() {
         }
       } else if (msg.type === "chunk") {
         setCurAgent(msg.sender);
+        // text任务streaming：逐字显示
+        if (!workingRef.current) {
+          setMsgs(p => {
+            const last = p[p.length - 1];
+            if (last?.role === "assistant" && last.text !== undefined && !last.steps) {
+              return [...p.slice(0, -1), { ...last, text: last.text + msg.content }];
+            }
+            return [...p, { id: Date.now().toString(), role: "assistant", text: msg.content, timestamp: Date.now() }];
+          });
+        }
+      } else if ((msg as any).type === "build_progress") {
+        // code任务实时进度
+        const step = (msg as any).step;
+        setMsgs(p => {
+          const last = p[p.length - 1];
+          if (last?.steps !== undefined) {
+            const steps = [...(last.steps || []), { agent: "builder", summary: step, done: true }];
+            return [...p.slice(0, -1), { ...last, steps }];
+          }
+          return p;
+        });
       } else if ((msg as any).type === "plan_proposal") {
         setThinking(false);
         if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }

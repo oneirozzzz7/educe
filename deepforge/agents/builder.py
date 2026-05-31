@@ -254,7 +254,10 @@ class BuilderAgent(BaseAgent):
 - JS不能有语法错误
 
 ## 输出格式
-直接输出代码，用```filepath:文件名格式包裹。"""
+直接输出代码，用```filepath:文件名格式包裹。
+在代码中每完成一个主要部分，用HTML注释标注进度：
+<!-- STEP: 描述当前完成的部分 -->
+例如：<!-- STEP: 游戏画布和基础循环 -->"""
 
     def _extract_files(self, content: str) -> dict[str, str]:
         files = {}
