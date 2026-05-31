@@ -125,8 +125,8 @@ class Orchestrator:
         if self.self_evolver:
             self.self_evolver.tick()
             if self.self_evolver.should_start_evolution():
-                asyncio.ensure_future(self.self_evolver.generate_candidate())
-                console.print("[dim]  self-evolver: generating candidate[/dim]")
+                asyncio.ensure_future(self._run_self_evolution())
+                console.print("[dim]  self-evolver: starting evolution cycle[/dim]")
             if self.self_evolver.ab_complete():
                 evo_result = self.self_evolver.finalize()
                 if evo_result.get("result") == "evolved":
@@ -664,6 +664,80 @@ class Orchestrator:
         self.context.metadata["_plan_confirmed"] = True
         self.context.user_request = build_input
         return await self._run_build(build_input)
+
+    async def _run_self_evolution(self):
+        """后台完整进化循环：生成候选→回放历史问题→judge比较→finalize"""
+        if not self.self_evolver:
+            return
+        try:
+            await self.self_evolver.generate_candidate()
+            if not self.self_evolver.evolving:
+                return
+
+            client = self._get_client()
+            if not client:
+                return
+
+            from deepforge.core.activation_engine import ACTIVATION_PROMPT
+            from deepforge.core.checklist_judge import evaluate
+
+            questions = self._get_recent_questions(n=10)
+            if len(questions) < 5:
+                questions = [
+                    "什么是人工智能", "TCP三次握手的过程",
+                    "红烧肉怎么做", "光速为什么不能被超越",
+                    "工作三年感觉迷茫怎么办",
+                ]
+
+            current_seed = self.self_evolver.current_best
+            candidate_seed = self.self_evolver._candidate
+            model = self.config.default_model.model
+            max_tokens = self.config.default_model.max_tokens
+
+            sys_current = ACTIVATION_PROMPT.format(activation_seed=current_seed, extra_context="")
+            sys_candidate = ACTIVATION_PROMPT.format(activation_seed=candidate_seed, extra_context="")
+
+            for q in questions:
+                try:
+                    resp_cur = await client.chat(
+                        messages=[{"role": "system", "content": sys_current},
+                                  {"role": "user", "content": q}],
+                        model=model, max_tokens=max_tokens)
+                    resp_cand = await client.chat(
+                        messages=[{"role": "system", "content": sys_candidate},
+                                  {"role": "user", "content": q}],
+                        model=model, max_tokens=max_tokens)
+
+                    eval_cur = await evaluate(client, model, q, resp_cur)
+                    eval_cand = await evaluate(client, model, q, resp_cand)
+
+                    winner = "candidate" if eval_cand.coverage > eval_cur.coverage else "current" if eval_cur.coverage > eval_cand.coverage else "tie"
+                    self.self_evolver._ab_results.append({
+                        "question": q[:50],
+                        "current_score": eval_cur.coverage,
+                        "candidate_score": eval_cand.coverage,
+                        "winner": winner,
+                    })
+                except Exception:
+                    pass
+
+            if self.self_evolver.ab_complete():
+                result = self.self_evolver.finalize()
+                if result.get("result") == "evolved" and self.activation_engine:
+                    self.activation_engine._current_seed = self.self_evolver.current_best
+                console.print("[dim]  self-evolver: cycle complete - {}[/dim]".format(
+                    result.get("result", "?")))
+        except Exception:
+            pass
+
+    def _get_recent_questions(self, n: int = 10) -> list:
+        questions = []
+        for turn in reversed(self.conversation.turns):
+            if turn.role == "user" and len(turn.content) > 5:
+                questions.append(turn.content)
+                if len(questions) >= n:
+                    break
+        return questions
 
     async def _evolve_from_result(self):
         """后台静默进化——用户无感知"""
