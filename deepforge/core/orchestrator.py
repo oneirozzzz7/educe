@@ -718,8 +718,8 @@ class Orchestrator:
                         "candidate_score": eval_cand.coverage,
                         "winner": winner,
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    console.print("[dim]  self-evolver eval error: {}[/dim]".format(str(e)[:60]))
 
             if self.self_evolver.ab_complete():
                 result = self.self_evolver.finalize()
@@ -727,8 +727,8 @@ class Orchestrator:
                     self.activation_engine._current_seed = self.self_evolver.current_best
                 console.print("[dim]  self-evolver: cycle complete - {}[/dim]".format(
                     result.get("result", "?")))
-        except Exception:
-            pass
+        except Exception as e:
+            console.print("[red]  self-evolver error: {}[/red]".format(str(e)[:100]))
 
     def _get_recent_questions(self, n: int = 10) -> list:
         questions = []
