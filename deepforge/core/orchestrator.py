@@ -363,6 +363,15 @@ class Orchestrator:
                 domain="tech",
             )
 
+        # 给conversation加完成记录（简短摘要，不是完整代码）
+        code_files = self.context.artifacts.get("code_files", [])
+        if code_files:
+            filenames = [f.split("/")[-1] for f in code_files]
+            summary = "[已完成代码生成] 文件：{}".format(", ".join(filenames))
+        else:
+            summary = "[代码任务未能完成]"
+        self.conversation.add_assistant(summary, domain="tech")
+
         if has_output and self.config.evolution.enabled:
             asyncio.create_task(self._evolve_from_result())
 
@@ -917,7 +926,16 @@ class Orchestrator:
             system = "你是一位专业的AI助手，请准确回答用户的问题。"
 
         history = self.conversation.get_history_for_llm()
-        user_content = user_input + (f"\n{file_hint}" if file_hint else "") + (f"\n{file_context}" if file_context else "")
+        # 截断过长的assistant回复（代码输出等），保留最近对话
+        cleaned = []
+        for h in history:
+            content = h.get("content", "")
+            if len(content) > 1500:
+                cleaned.append({"role": h["role"], "content": content[:300] + "\n...(内容过长已截断)"})
+            else:
+                cleaned.append(h)
+        history = cleaned[-6:]
+        user_content = user_input + ("\n{}".format(file_hint) if file_hint else "") + ("\n{}".format(file_context) if file_context else "")
 
         messages = [{"role": "system", "content": system}]
         messages.extend(history)
