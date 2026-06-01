@@ -410,7 +410,10 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 # 处理决策选择（协作式构建）
                 if data.get("type") == "decision_response":
                     user_decisions = data.get("decisions", [])
-                    orchestrator.context.metadata["_user_decisions"] = user_decisions
+                    if user_decisions:
+                        orchestrator.context.metadata["_user_decisions"] = user_decisions
+                    else:
+                        orchestrator.context.metadata["_skip_analysis"] = True
                     orchestrator.context.metadata.pop("_pending_decisions", None)
                     await websocket.send_json({"type": "status", "content": "thinking"})
                     orchestrator.context.metadata["session_id"] = session_id
