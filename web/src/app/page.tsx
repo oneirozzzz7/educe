@@ -379,7 +379,13 @@ export default function Page() {
                           style={{ background: "var(--error)", color: "white" }}>重试</button>
                       </div>
                     ) : (
-                      <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} />
+                      <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime}
+                        onFeedback={(signal) => {
+                          const w = wsRef.current;
+                          if (w && w.readyState === 1) {
+                            w.sendRaw({ type: "feedback", signal, message_id: msg.id });
+                          }
+                        }} />
                     )}
                   </motion.div>
                 ))}

@@ -387,6 +387,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 data = await websocket.receive_json()
                 user_input = data.get("message", "")
 
+                # 处理用户反馈（thumbs up/down）
+                if data.get("type") == "feedback":
+                    signal = data.get("signal", "")
+                    if orchestrator.credibility:
+                        orchestrator.credibility.record_feedback(
+                            session_id, data.get("message_id", ""), signal)
+                    continue
+
                 # 处理方案选择
                 if data.get("type") == "plan_select":
                     plan_id = data.get("plan_id", 1)
