@@ -20,8 +20,8 @@ export function TopBar({ model, connected, onOpenSettings }: {
         <button onClick={toggle}
           className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-[var(--brand-subtle)] transition-colors"
           style={{ borderColor: "var(--border)", color: "var(--text-3)" }}
-          title={theme === "light" ? "切换暗色" : "切换亮色"}>
-          {theme === "light" ? <Moon size={13} /> : <Sun size={13} />}
+          title="主题">
+          <Sun size={13} />
         </button>
         <button onClick={onOpenSettings}
           className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-[var(--brand-subtle)] transition-colors"

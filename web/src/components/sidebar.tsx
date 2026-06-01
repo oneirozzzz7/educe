@@ -133,8 +133,8 @@ export const Sidebar = forwardRef<SidebarRef, {
       {/* 底部 */}
       <div className="px-3 py-2 border-t flex items-center gap-1" style={{ borderColor: "var(--border)" }}>
         <button onClick={toggle} className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-[var(--brand-subtle)] transition-colors" style={{ color: "var(--text-3)" }}
-          title={theme === "light" ? "切换暗色" : "切换亮色"}>
-          {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+          title="主题">
+          <Sun size={14} />
         </button>
         <div className="flex-1" />
         <span className="text-[10px]" style={{ color: "var(--text-4)" }}>v1.5</span>

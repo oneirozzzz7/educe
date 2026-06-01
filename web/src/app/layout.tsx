@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LocaleProvider } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "DeepForge",
-  description: "Idea → Product, powered by multi-agent collaboration",
+  title: "Educe",
+  description: "Draw out latent capabilities from language models",
   icons: {
     icon: "/favicon.svg",
   },
@@ -13,20 +14,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function(){
-            try {
-              var t = localStorage.getItem('df-theme');
-              if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
-                document.documentElement.setAttribute('data-theme','dark');
-              }
-            } catch(e){}
-          })();
-        `}} />
-      </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <LocaleProvider>{children}</LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
