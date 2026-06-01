@@ -250,7 +250,11 @@ class Orchestrator:
         if self.context.metadata.get("_user_decisions"):
             self.context.metadata["expert_name"] = "编程专家"
             self.cognitive_state.phase = "building"
-            return await self._run_build(user_input)
+            result = await self._run_build(user_input)
+            self.context.metadata.pop("_user_decisions", None)
+            self.context.metadata.pop("_skip_analysis", None)
+            self.context.metadata.pop("_pending_request", None)
+            return result
 
         decision = await self._decide(user_input)
 
@@ -391,6 +395,8 @@ class Orchestrator:
             self.context.add_message(fail_msg)
             self._notify(fail_msg)
 
+        self.context.metadata.pop("_skip_analysis", None)
+        self.context.metadata.pop("_pending_request", None)
         return self.context
 
     async def _quick_tool_check(self) -> bool:
