@@ -60,8 +60,12 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
 
   const doneSteps = steps.filter(s => s.done);
   const fileSize = html ? (new Blob([html]).size / 1024).toFixed(1) : "0";
-  const totalExpected = Math.max(doneSteps.length + 1, 3);
-  const progress = isActive ? Math.min(95, Math.round((doneSteps.length / totalExpected) * 80) + (elapsed > 5 ? 10 : 0)) : 100;
+  const streamSize = streamingCode ? streamingCode.length : 0;
+  const progress = isActive
+    ? (streamSize > 0
+      ? Math.min(90, Math.round((streamSize / 8000) * 80))
+      : (doneSteps.length > 0 ? Math.min(80, doneSteps.length * 25) : 5))
+    : 100;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}>
@@ -83,7 +87,9 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
         )}
         <span className="text-[13px] font-medium flex-1 text-left">
           {isActive
-            ? `${STEP_ICONS[currentAgent] || "⚙️"} ${LABELS[currentAgent] || currentAgent || "处理"}中... ${progress}%`
+            ? streamSize > 0
+              ? `💻 生成中... ${(streamSize / 1024).toFixed(1)} KB`
+              : `${STEP_ICONS[currentAgent] || "⚙️"} ${LABELS[currentAgent] || currentAgent || "处理"}中...`
             : `完成 · ${doneSteps.length} 步${html ? ` · ${fileSize} KB` : ""}`}
         </span>
         <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-3)" }}>
