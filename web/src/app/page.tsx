@@ -22,6 +22,7 @@ interface ChatMsg {
   text: string;
   steps?: { agent: string; summary: string; done: boolean }[];
   html?: string;
+  streamingCode?: string;
   timestamp: number;
   files?: UploadedFile[];
   plans?: { id: number; title: string; desc: string; est: string }[];
@@ -133,8 +134,17 @@ export default function Page() {
         }
       } else if (msg.type === "chunk") {
         setCurAgent(msg.sender);
-        // text任务streaming：逐字显示
-        if (!workingRef.current) {
+        if (workingRef.current) {
+          // 代码构建streaming：在WorkCard中显示实时代码
+          setMsgs(p => {
+            const last = p[p.length - 1];
+            if (last?.steps !== undefined) {
+              return [...p.slice(0, -1), { ...last, streamingCode: (last.streamingCode || "") + msg.content }];
+            }
+            return p;
+          });
+        } else {
+          // text任务streaming：逐字显示
           setMsgs(p => {
             const last = p[p.length - 1];
             if (last?.role === "assistant" && last.text !== undefined && !last.steps) {
@@ -389,7 +399,7 @@ export default function Page() {
                         }} />
                     ) : msg.steps !== undefined ? (
                       <WorkCard steps={msg.steps} html={msg.html} isActive={working && msg.id === msgs[msgs.length - 1]?.id}
-                        currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} />
+                        currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} streamingCode={msg.streamingCode} />
                     ) : msg.role === "system" ? (
                       <div className="text-sm rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--error-light)", color: "var(--error)", border: "1px solid var(--error)" }}>
                         <span className="flex-1">{msg.text}</span>

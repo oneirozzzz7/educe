@@ -20,8 +20,8 @@ const STEP_ICONS: Record<string, string> = {
   crowd_user: "👥", memory_keeper: "🧠", assistant: "💬",
 };
 
-export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timestamp }: {
-  steps: StepInfo[]; html?: string; isActive: boolean; currentAgent: string; elapsed: number; timestamp: number;
+export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timestamp, streamingCode }: {
+  steps: StepInfo[]; html?: string; isActive: boolean; currentAgent: string; elapsed: number; timestamp: number; streamingCode?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
@@ -114,6 +114,23 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
               <span className="text-[10px] ml-auto tabular-nums" style={{ color: "var(--text-4)" }}>{elapsed}s</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 构建中实时代码预览 */}
+      {isActive && streamingCode && !html && (
+        <div style={{ borderTop: "1px solid var(--border-light)" }}>
+          <div className="px-4 py-2 flex items-center gap-2">
+            <Code2 size={12} style={{ color: "var(--brand)" }} />
+            <span className="text-[11px] font-medium" style={{ color: "var(--brand)" }}>实时生成中...</span>
+            <span className="text-[10px] ml-auto tabular-nums" style={{ color: "var(--text-4)" }}>
+              {(streamingCode.length / 1024).toFixed(1)} KB
+            </span>
+          </div>
+          <pre className="px-4 pb-3 text-[11px] leading-[1.6] overflow-auto max-h-[300px] font-mono"
+            style={{ color: "var(--text-2)" }}>
+            {streamingCode.slice(-2000)}
+          </pre>
         </div>
       )}
 
