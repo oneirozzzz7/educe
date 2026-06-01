@@ -85,10 +85,11 @@ class AgenticLoop:
         user_request: str,
         call_model_fn: Callable[[list[dict]], Awaitable[str]],
         on_progress: Callable[[str], None] | None = None,
+        on_chunk: Callable[[str], None] | None = None,
+        stream_model_fn: Callable | None = None,
     ) -> dict[str, str]:
         """
-        主循环：发需求给模型→模型输出(可能含action)→执行action→返回结果→模型继续
-        返回最终写入的文件字典。
+        主循环。stream_model_fn如果提供，第一轮用streaming（用户实时看代码生成）。
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -100,7 +101,11 @@ class AgenticLoop:
         for turn in range(self.max_turns):
             self.turns_used = turn + 1
 
-            response = await call_model_fn(messages)
+            # 第一轮用streaming让用户实时看到代码生成
+            if turn == 0 and stream_model_fn and on_chunk:
+                response = await self._stream_call(messages, stream_model_fn, on_chunk)
+            else:
+                response = await call_model_fn(messages)
 
             actions = self._parse_actions(response)
 
@@ -111,6 +116,11 @@ class AgenticLoop:
 
             results = []
             for action in actions:
+                if on_progress:
+                    on_progress("{} {}...".format(
+                        "📝" if action["type"] == "write_file" else
+                        "▶️" if action["type"] == "run" else "📖",
+                        action["type"]))
                 result = await self._execute(action)
                 results.append(result)
                 if result.file_written:
@@ -123,11 +133,26 @@ class AgenticLoop:
             )
 
             if on_progress:
-                summary = ", ".join(r.tool for r in results)
-                on_progress("Turn {}: {}".format(turn + 1, summary))
+                status = "✓" if all(r.success for r in results) else "发现错误，修复中"
+                on_progress("Turn {} {}".format(turn + 1, status))
 
             messages.append({"role": "assistant", "content": response})
             messages.append({"role": "user", "content": result_text})
+
+        return self.files_written
+
+    async def _stream_call(
+        self,
+        messages: list[dict],
+        stream_fn: Callable,
+        on_chunk: Callable[[str], None],
+    ) -> str:
+        """真正的streaming调用——每个token立即推给前端"""
+        full = ""
+        async for chunk in stream_fn(messages):
+            full += chunk
+            on_chunk(chunk)
+        return full
 
         return self.files_written
 

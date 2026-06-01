@@ -485,6 +485,7 @@ class Orchestrator:
                       sender=sender, receiver=agent_name, content=content, data=data or {})
         self.context.add_message(msg)
         self.context.metadata["_notify_fn"] = self._notify
+        self.context.metadata["_chunk_fn"] = self._notify_chunk
 
         output = content
         try:

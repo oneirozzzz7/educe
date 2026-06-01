@@ -86,12 +86,17 @@ class BuilderAgent(BaseAgent):
 
         # 实时progress推送——通过context的notify回调
         notify_fn = context.metadata.get("_notify_fn")
+        chunk_fn = context.metadata.get("_chunk_fn")
 
         def on_progress(msg: str):
             if notify_fn:
                 progress_msg = self.emit("user", "__BUILD_PROGRESS__{}".format(msg),
                                         msg_type=MessageType.SYSTEM)
                 notify_fn(progress_msg)
+
+        def on_chunk(text: str):
+            if chunk_fn:
+                chunk_fn("builder", text)
 
         async def call_model_fn(msgs: list[dict]) -> str:
             return await self.model_client.chat(
@@ -101,6 +106,16 @@ class BuilderAgent(BaseAgent):
                 max_tokens=self.model_config.max_tokens,
             )
 
+        async def stream_model_fn(msgs: list[dict]):
+            """真正的streaming——每个token yield出来"""
+            async for chunk in self.model_client.chat_stream(
+                messages=msgs,
+                model=self.model_config.model,
+                temperature=self.model_config.temperature,
+                max_tokens=self.model_config.max_tokens,
+            ):
+                yield chunk
+
         yield self.emit("user", "__BUILD_PROGRESS__开始构建...",
                        msg_type=MessageType.SYSTEM)
 
@@ -108,6 +123,8 @@ class BuilderAgent(BaseAgent):
             user_request=user_request,
             call_model_fn=call_model_fn,
             on_progress=on_progress,
+            on_chunk=on_chunk,
+            stream_model_fn=stream_model_fn,
         )
 
         if final_files:
