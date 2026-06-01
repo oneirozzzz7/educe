@@ -187,6 +187,9 @@ class ExecutionLoop:
             stderr = stderr_b.decode(errors="replace")[:1000]
 
             if proc.returncode != 0:
+                # 环境错误（缺包等）不算代码bug
+                if "ModuleNotFoundError" in stderr or "ImportError" in stderr:
+                    return errors, stdout, ""
                 line_num = self._parse_python_traceback_line(stderr)
                 ctx = self._get_context(content, line_num) if line_num else ""
                 errors.append(StructuredError(
