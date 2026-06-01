@@ -14,16 +14,18 @@ import { MessageBubble } from "@/components/message-bubble";
 import { FileChips, type UploadedFile } from "@/components/file-chips";
 import { ToastContainer, toast } from "@/components/toast";
 import { PlanProposal } from "@/components/plan-proposal";
+import { DecisionCard } from "@/components/decision-card";
 
 interface ChatMsg {
   id: string;
-  role: "user" | "assistant" | "system" | "plan";
+  role: "user" | "assistant" | "system" | "plan" | "decision";
   text: string;
   steps?: { agent: string; summary: string; done: boolean }[];
   html?: string;
   timestamp: number;
   files?: UploadedFile[];
   plans?: { id: number; title: string; desc: string; est: string }[];
+  decisions?: { question: string; options: string[] }[];
   originalRequest?: string;
 }
 
@@ -152,6 +154,15 @@ export default function Page() {
           }
           return p;
         });
+      } else if ((msg as any).type === "decision_request") {
+        setThinking(false);
+        if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
+        const dm = msg as any;
+        setMsgs(p => [...p, {
+          id: Date.now().toString(), role: "decision" as const, text: "",
+          decisions: dm.decisions,
+          timestamp: Date.now(),
+        }]);
       } else if ((msg as any).type === "plan_proposal") {
         setThinking(false);
         if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
@@ -360,6 +371,14 @@ export default function Page() {
                         <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-[14px] text-white shadow-sm whitespace-pre-line" style={{ background: "var(--brand)" }}>{msg.text}</div>
                         <span className="text-[10px] px-1" style={{ color: "var(--text-4)" }}>{fmtTime(msg.timestamp)}</span>
                       </div>
+                    ) : msg.role === "decision" && msg.decisions ? (
+                      <DecisionCard decisions={msg.decisions}
+                        onSubmit={(choices) => {
+                          const w = wsRef.current;
+                          if (w && w.readyState === 1) {
+                            w.sendRaw({ type: "decision_response", decisions: choices });
+                          }
+                        }} />
                     ) : msg.role === "plan" && msg.plans ? (
                       <PlanProposal plans={msg.plans} originalRequest={msg.originalRequest || ""}
                         onSelect={(planId, userNote) => {

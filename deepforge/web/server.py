@@ -347,6 +347,18 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     "original_request": msg.data.get("original_request", ""),
                 })
                 return
+            if msg.content.startswith("__DECISION_REQUEST__"):
+                import json as _json
+                orchestrator.context.metadata["_pending_request"] = orchestrator.context.user_request
+                try:
+                    decisions = _json.loads(msg.content.replace("__DECISION_REQUEST__", ""))
+                except Exception:
+                    decisions = []
+                await websocket.send_json({
+                    "type": "decision_request",
+                    "decisions": decisions,
+                })
+                return
             if msg.content.startswith("__BUILD_PROGRESS__"):
                 step = msg.content.replace("__BUILD_PROGRESS__", "")
                 await websocket.send_json({"type": "build_progress", "step": step})
@@ -393,6 +405,23 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     if orchestrator.credibility:
                         orchestrator.credibility.record_feedback(
                             session_id, data.get("message_id", ""), signal)
+                    continue
+
+                # 处理决策选择（协作式构建）
+                if data.get("type") == "decision_response":
+                    user_decisions = data.get("decisions", [])
+                    orchestrator.context.metadata["_user_decisions"] = user_decisions
+                    orchestrator.context.metadata.pop("_pending_decisions", None)
+                    await websocket.send_json({"type": "status", "content": "thinking"})
+                    orchestrator.context.metadata["session_id"] = session_id
+                    original = orchestrator.context.metadata.get("_pending_request",
+                              orchestrator.context.user_request)
+                    try:
+                        await orchestrator.run(original)
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "content": str(e)})
+                    await asyncio.sleep(0.05)
+                    await websocket.send_json({"type": "status", "content": "idle"})
                     continue
 
                 # 处理方案选择

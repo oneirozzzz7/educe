@@ -246,6 +246,12 @@ class Orchestrator:
         self.cognitive_state = cs
         self.context.metadata["_cognitive_state"] = cs.to_dict()
 
+        # 如果有用户决策回来——直接走构建
+        if self.context.metadata.get("_user_decisions"):
+            self.context.metadata["expert_name"] = "编程专家"
+            self.cognitive_state.phase = "building"
+            return await self._run_build(user_input)
+
         decision = await self._decide(user_input)
 
         if decision["action"] == "clarify":
@@ -322,6 +328,10 @@ class Orchestrator:
                 build_input = f"测试未通过，请修复：\n{test_report[:1000]}\n\n原始需求：{user_input}"
 
             await self._run_agent("builder", build_input, "user", timeout=150)
+
+            # 如果builder进入了需求确认阶段，停止构建循环
+            if self.context.metadata.get("_pending_decisions"):
+                return self.context
 
             if not self.context.artifacts.get("code_files"):
                 continue

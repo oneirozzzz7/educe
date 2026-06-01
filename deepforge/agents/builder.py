@@ -39,12 +39,36 @@ class BuilderAgent(BaseAgent):
         self.max_tool_rounds = 10
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
-        """核心循环：写代码→运行→看结果→修复→直到通过"""
-        # builder需要更大token空间
-        if self.model_config.max_tokens < 8192:
-            self._model_config.max_tokens = 8192
+        """核心循环：需求分析→构建→验证→修复"""
+        if self.model_config.max_tokens < 32768:
+            self._model_config.max_tokens = 32768
 
-        messages = [{"role": "user", "content": self._build_prompt(message, context)}]
+        # 检查是否有用户选择的决策（协作式构建Phase 2）
+        user_decisions = context.metadata.get("_user_decisions")
+
+        if not user_decisions and not context.metadata.get("_skip_analysis"):
+            analysis = await self._analyze_requirements(message.content, context)
+            if analysis.get("decisions"):
+                import json
+                yield self.emit("user", "__DECISION_REQUEST__" + json.dumps(
+                    analysis["decisions"], ensure_ascii=False),
+                    msg_type=MessageType.SYSTEM)
+                context.metadata["_pending_decisions"] = True
+                return
+
+        # 构建prompt
+        if user_decisions:
+            decisions_text = "\n".join(
+                "- {}: {}".format(d.get("question", ""), d.get("choice", ""))
+                for d in user_decisions)
+            build_input = "{}\n\n用户已确认的选择：\n{}".format(
+                message.content, decisions_text)
+            messages = [{"role": "user", "content": self._build_prompt(
+                Message(type=message.type, sender=message.sender,
+                       receiver=message.receiver, content=build_input),
+                context)}]
+        else:
+            messages = [{"role": "user", "content": self._build_prompt(message, context)}]
 
         output_dir = Path(".deepforge/output")
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -100,29 +124,43 @@ class BuilderAgent(BaseAgent):
 
                 context.add_artifact("engineer_output", response)
 
-                # 检测截断——HTML未闭合或Python语法不完整，请求续写
+                # 检测截断——HTML未闭合或Python语法不完整，循环续写（最多3轮）
                 for filepath, content in list(files.items()):
-                    is_truncated = False
-                    if filepath.endswith(".html") and "</html>" not in content:
-                        is_truncated = True
-                        hint = "缺少</html>闭合标签。请从断点继续输出剩余代码，确保有</script></body></html>。"
-                    elif filepath.endswith(".py"):
-                        open_parens = content.count("(") - content.count(")")
-                        open_brackets = content.count("[") - content.count("]")
-                        open_braces = content.count("{") - content.count("}")
-                        if open_parens > 0 or open_brackets > 0 or open_braces > 0:
+                    for continuation_round in range(3):
+                        is_truncated = False
+                        if filepath.endswith(".html") and "</html>" not in content:
                             is_truncated = True
-                            hint = "代码括号未闭合。请从断点继续输出剩余代码。"
+                            last_lines = content.rstrip().split("\n")[-3:]
+                            hint = (
+                                "代码在以下位置被截断:\n```\n{}\n```\n"
+                                "请**只输出**从断点开始的剩余代码，不要重复已有内容。"
+                                "确保最终有完整的</script></body></html>闭合。"
+                            ).format("\n".join(last_lines))
+                        elif filepath.endswith(".py"):
+                            open_parens = content.count("(") - content.count(")")
+                            open_brackets = content.count("[") - content.count("]")
+                            open_braces = content.count("{") - content.count("}")
+                            if open_parens > 0 or open_brackets > 0 or open_braces > 0:
+                                is_truncated = True
+                                last_lines = content.rstrip().split("\n")[-3:]
+                                hint = (
+                                    "代码在以下位置被截断:\n```\n{}\n```\n"
+                                    "请**只输出**从断点开始的剩余代码，不要重复已有内容。"
+                                ).format("\n".join(last_lines))
 
-                    if is_truncated:
-                        yield self.emit("user", "__BUILD_PROGRESS__检测到代码截断，正在续写...",
-                                       msg_type=MessageType.SYSTEM)
+                        if not is_truncated:
+                            break
+
+                        yield self.emit("user", "__BUILD_PROGRESS__检测到代码截断，续写中(第{}轮)...".format(
+                            continuation_round + 1), msg_type=MessageType.SYSTEM)
                         messages.append({"role": "assistant", "content": response})
-                        messages.append({"role": "user", "content": "代码被截断了——{} {}".format(filepath, hint)})
+                        messages.append({"role": "user", "content": "文件 {} 被截断——{}".format(filepath, hint)})
                         continuation = await self.call_model(messages, context)
-                        files[filepath] = content + "\n" + continuation
+                        content = content + "\n" + continuation
+                        files[filepath] = content
                         full_path = output_dir / filepath
-                        full_path.write_text(files[filepath], encoding="utf-8")
+                        full_path.write_text(content, encoding="utf-8")
+                        response = continuation
 
                 # 自动运行验证
                 yield self.emit("user", "__BUILD_PROGRESS__验证代码质量...",
@@ -169,6 +207,60 @@ class BuilderAgent(BaseAgent):
                 return None
 
         return None
+
+    async def _analyze_requirements(self, user_request: str, context: WorkContext) -> dict:
+        """让模型分析需求的不确定点——不硬编码，模型自己决定"""
+        analysis_prompt = (
+            "分析以下编程需求，找出影响实现方向的关键不确定点。\n\n"
+            "简单、功能明确的工具（如计算器、番茄钟、倒计时器、密码生成器、待办清单等）"
+            "需求已经足够明确，直接回复：[READY]\n\n"
+            "复杂项目（如游戏、管理系统、完整应用等）可能有多种实现方向，"
+            "用以下格式列出关键决策点（最多3个）：\n"
+            "[DECISION] 问题描述\n"
+            "- 选项1\n"
+            "- 选项2\n"
+            "- 选项3（可选）\n\n"
+            "用户需求：{}".format(user_request)
+        )
+
+        cs = context.metadata.get("_cognitive_state", {})
+        if cs.get("task_success_rate", 1.0) < 0.6:
+            analysis_prompt += "\n\n注意：这类任务历史成功率较低，建议仔细确认需求。"
+
+        try:
+            response = await self.model_client.chat(
+                messages=[{"role": "user", "content": analysis_prompt}],
+                model=self.model_config.model,
+                max_tokens=300,
+                temperature=0.0,
+            )
+            return self._parse_decisions(response)
+        except Exception:
+            return {"decisions": []}
+
+    def _parse_decisions(self, response: str) -> dict:
+        """解析模型输出的决策点"""
+        import re
+        if "[READY]" in response:
+            return {"decisions": []}
+
+        decisions = []
+        parts = re.split(r'\[DECISION\]\s*', response)
+        for part in parts[1:]:
+            lines = [l.strip() for l in part.strip().split("\n") if l.strip()]
+            if not lines:
+                continue
+            question = lines[0]
+            options = []
+            for line in lines[1:]:
+                line = re.sub(r'^[-•]\s*', '', line)
+                opt = re.sub(r'^选项\d+[：:]\s*', '', line)
+                if opt and len(opt) > 2:
+                    options.append(opt)
+            if question and options:
+                decisions.append({"question": question, "options": options[:4]})
+
+        return {"decisions": decisions[:3]}
 
     async def _auto_verify(self, files: dict[str, str], output_dir: Path) -> dict:
         """自动运行验证所有产出文件"""
