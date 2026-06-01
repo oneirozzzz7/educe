@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Paperclip, ChevronRight, ArrowUpRight, Copy, Download, X } from "lucide-react";
+import { useLocale } from "@/lib/i18n";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { Sidebar, type SidebarRef } from "@/components/sidebar";
@@ -89,13 +90,14 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
   const [focused, setFocused] = useState(false);
   const composingRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useLocale();
 
   const starters = [
-    { label: "番茄钟", prompt: "做一个番茄钟" },
-    { label: "JSON 工具", prompt: "做一个JSON工具" },
-    { label: "小游戏", prompt: "做一个小游戏" },
-    { label: "数据看板", prompt: "做一个数据看板" },
-    { label: "编辑器", prompt: "做一个编辑器" },
+    { key: "starter.pomodoro" as const, prompt: "做一个番茄钟" },
+    { key: "starter.json" as const, prompt: "做一个JSON工具" },
+    { key: "starter.game" as const, prompt: "做一个小游戏" },
+    { key: "starter.dashboard" as const, prompt: "做一个数据看板" },
+    { key: "starter.editor" as const, prompt: "做一个编辑器" },
   ];
 
   function handleSend() {
@@ -137,7 +139,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
           lineHeight: 1.1,
         }}
       >
-        想做点什么？
+        {t("empty.title")}
       </motion.h1>
 
       <motion.p
@@ -147,7 +149,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
         className="mb-12 text-center"
         style={{ fontSize: "15px", color: "var(--text-3)", lineHeight: 1.6 }}
       >
-        一个游戏、一个工具、一个想法——都行。
+        {t("empty.sub")}
       </motion.p>
 
       {/* Input */}
@@ -167,7 +169,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !composingRef.current) { e.preventDefault(); handleSend(); } }}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder="描述你想做的东西..."
+            placeholder={t("empty.placeholder")}
             rows={1}
             className="w-full resize-none outline-none transition-all duration-300"
             style={{
@@ -217,7 +219,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
       >
         {starters.map((s, i) => (
           <motion.button
-            key={s.label}
+            key={s.key}
             onClick={() => onSend(s.prompt)}
             whileHover={{ scale: 1.04, borderColor: "var(--amber)" }}
             whileTap={{ scale: 0.97 }}
@@ -245,7 +247,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
               (e.target as HTMLElement).style.boxShadow = "none";
             }}
           >
-            {s.label}
+            {t(s.key)}
           </motion.button>
         ))}
       </motion.div>
@@ -255,6 +257,7 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
 
 /* ═══════════ BRIEF BAR ═══════════ */
 function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
+  const { t } = useLocale();
   return (
     <div className="flex items-center gap-3" style={{
       padding: "10px 20px",
@@ -265,7 +268,7 @@ function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
         fontSize: "9px", fontWeight: 600, textTransform: "uppercase" as const,
         letterSpacing: "0.8px", color: "var(--amber)",
         padding: "3px 8px", background: "var(--amber-dim)", borderRadius: "4px",
-      }}>任务</span>
+      }}>{t("brief.label")}</span>
       <span style={{ fontSize: "13px", color: "var(--text-1)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{text}</span>
       <span style={{
         fontSize: "12px", color: "var(--amber)",
@@ -280,7 +283,8 @@ function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
 function ProcessStrip({ step, toolEvents, expanded, onToggle }: {
   step: number; toolEvents: ToolEvent[]; expanded: boolean; onToggle: () => void;
 }) {
-  const steps = ["分析需求", "搭建结构", "填充细节", "测试修复", "完成"];
+  const { t } = useLocale();
+  const steps = [t("process.analyzing"), t("process.structuring"), t("process.detailing"), t("process.testing"), t("process.done")];
 
   return (
     <div style={{
@@ -316,7 +320,7 @@ function ProcessStrip({ step, toolEvents, expanded, onToggle }: {
         <div>
           <button onClick={onToggle} className="flex items-center gap-1.5 py-1 transition-colors" style={{ color: "var(--text-3)", fontSize: "11px", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
             <ChevronRight size={10} style={{ transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
-            详细过程
+            {t("process.activity")}
           </button>
           <AnimatePresence>
             {expanded && (
@@ -340,13 +344,13 @@ function ProcessStrip({ step, toolEvents, expanded, onToggle }: {
                       }} />
                       <span className="flex-1 leading-relaxed">
                         {evt.event === "thinking" && <span style={{ fontStyle: "italic", color: "var(--text-3)" }}>{evt.content?.slice(0, 80)}</span>}
-                        {evt.event === "write_file" && <span>写入 <code style={{ fontFamily: "'Geist Mono'", fontSize: "10px", background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px", color: "var(--text-0)" }}>{evt.file}</code> {evt.size && <span style={{ color: "var(--text-3)" }}>({(evt.size / 1024).toFixed(1)} KB)</span>}</span>}
-                        {evt.event === "run" && <span>运行 <code style={{ fontFamily: "'Geist Mono'", fontSize: "10px", background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px", color: "var(--text-0)" }}>{evt.command?.slice(0, 40)}</code></span>}
+                        {evt.event === "write_file" && <span>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: "10px", background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px", color: "var(--text-0)" }}>{evt.file}</code> {evt.size && <span style={{ color: "var(--text-3)" }}>({(evt.size / 1024).toFixed(1)} KB)</span>}</span>}
+                        {evt.event === "run" && <span>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: "10px", background: "var(--surface-3)", padding: "0 4px", borderRadius: "3px", color: "var(--text-0)" }}>{evt.command?.slice(0, 40)}</code></span>}
                         {evt.event === "run_result" && (evt.success
-                          ? <span style={{ color: "var(--pass)" }}>✓ 通过</span>
+                          ? <span style={{ color: "var(--pass)" }}>✓ {t("log.passed")}</span>
                           : <span style={{ color: "var(--fail)" }}>✗ {evt.output?.slice(0, 60)}</span>
                         )}
-                        {evt.event === "done" && <span style={{ color: "var(--pass)" }}>✓ 完成 · {evt.turns}轮</span>}
+                        {evt.event === "done" && <span style={{ color: "var(--pass)" }}>✓ {t("log.done")} · {evt.turns}{t("complete.rounds")}</span>}
                       </span>
                     </div>
                   ))}
@@ -366,6 +370,7 @@ function DecisionOverlay({ decisions, onSubmit }: {
   onSubmit: (choices: { question: string; choice: string }[]) => void;
 }) {
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const { t } = useLocale();
 
   function select(q: string, opt: string) {
     setChoices(prev => ({ ...prev, [q]: opt }));
@@ -393,8 +398,8 @@ function DecisionOverlay({ decisions, onSubmit }: {
           boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
         }}
       >
-        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-0)", marginBottom: "4px" }}>先确认一下</h3>
-        <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "22px" }}>几个选择，结果会更好。</p>
+        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--text-0)", marginBottom: "4px" }}>{t("decision.title")}</h3>
+        <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "22px" }}>{t("decision.sub")}</p>
 
         {decisions.map((d, di) => (
           <div key={di} style={{ marginBottom: "16px" }}>
@@ -424,14 +429,14 @@ function DecisionOverlay({ decisions, onSubmit }: {
               fontSize: "13px", fontWeight: 600, border: "none",
               background: "var(--amber)", color: "var(--void)",
               cursor: "pointer", fontFamily: "inherit",
-            }}>确认开始</button>
+            }}>{ t("decision.confirm") }</button>
           <button onClick={() => onSubmit([])}
             style={{
               padding: "9px 16px", borderRadius: "8px",
               fontSize: "13px", border: "none",
               background: "transparent", color: "var(--text-3)",
               cursor: "pointer", fontFamily: "inherit",
-            }}>跳过</button>
+            }}>{ t("decision.skip") }</button>
         </div>
       </motion.div>
     </motion.div>
@@ -502,6 +507,7 @@ function CompleteBar({ fileName, size, rounds, elapsed, onCopy, onDownload, onOp
   fileName: string; size: string; rounds: number; elapsed: number;
   onCopy: () => void; onDownload: () => void; onOpen: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <motion.div
       initial={{ y: 60, opacity: 0 }}
@@ -514,13 +520,13 @@ function CompleteBar({ fileName, size, rounds, elapsed, onCopy, onDownload, onOp
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-0)", fontFamily: "'Geist Mono', monospace" }}>{fileName}</div>
         <div className="flex gap-3 mt-0.5" style={{ fontSize: "11px", color: "var(--text-3)" }}>
-          <span>{size}</span><span>{rounds}轮</span><span>{elapsed}s</span><span style={{ color: "var(--pass)" }}>✓ 通过</span>
+          <span>{size}</span><span>{rounds} {t("complete.rounds")}</span><span>{elapsed}s</span><span style={{ color: "var(--pass)" }}>✓ {t("complete.passed")}</span>
         </div>
       </div>
       <div className="flex gap-1.5">
-        <button onClick={onCopy} className="transition-all hover:bg-[var(--surface-2)]" style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-1)", background: "none", color: "var(--text-1)", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><Copy size={11} />复制</button>
-        <button onClick={onDownload} className="transition-all hover:bg-[var(--surface-2)]" style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-1)", background: "none", color: "var(--text-1)", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><Download size={11} />下载</button>
-        <button onClick={onOpen} className="transition-all" style={{ padding: "6px 14px", borderRadius: "6px", border: "none", background: "var(--amber)", color: "var(--void)", fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><ArrowUpRight size={11} />新窗口</button>
+        <button onClick={onCopy} className="transition-all hover:bg-[var(--surface-2)]" style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-1)", background: "none", color: "var(--text-1)", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><Copy size={11} />{t("action.copy")}</button>
+        <button onClick={onDownload} className="transition-all hover:bg-[var(--surface-2)]" style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--border-1)", background: "none", color: "var(--text-1)", fontSize: "11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><Download size={11} />{t("action.download")}</button>
+        <button onClick={onOpen} className="transition-all" style={{ padding: "6px 14px", borderRadius: "6px", border: "none", background: "var(--amber)", color: "var(--void)", fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}><ArrowUpRight size={11} />{t("action.open")}</button>
       </div>
     </motion.div>
   );
@@ -532,6 +538,7 @@ function ConversationThread({ msgs, thinking, thinkingElapsed, expertName, onFee
   onFeedback: (signal: "up" | "down", id: string) => void; fmtTime: (ts: number) => string;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const { t } = useLocale();
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   return (

@@ -46,3 +46,5 @@ static/
 Makefile
 requirements.txt
 index.html
+web/tsconfig.tsbuildinfo
+web/tsconfig.tsbuildinfo

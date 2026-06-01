@@ -44,6 +44,13 @@ const dict = {
   "tagline": { en: "draw out", zh: "引而出之" },
   "time.now": { en: "now", zh: "进行中" },
   "time.just": { en: "just now", zh: "刚刚" },
+  "convo.placeholder": { en: "Ask a follow-up...", zh: "继续追问..." },
+  "error.disconnected": { en: "Not connected", zh: "未连接" },
+  "log.write": { en: "Write", zh: "写入" },
+  "log.run": { en: "Run", zh: "运行" },
+  "log.passed": { en: "Passed", zh: "通过" },
+  "log.done": { en: "Done", zh: "完成" },
+  "settings": { en: "Settings", zh: "设置" },
 } as const;
 
 export type DictKey = keyof typeof dict;
