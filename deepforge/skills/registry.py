@@ -75,6 +75,7 @@ class SkillRegistry:
     def _load_from_dir(self, directory: Path, source: str) -> None:
         if not directory.exists():
             return
+        # JSON格式skill
         for path in directory.glob("*.json"):
             try:
                 with open(path) as f:
@@ -84,6 +85,42 @@ class SkillRegistry:
                 self._skills[skill.name] = skill
             except Exception:
                 pass
+        # Markdown格式skill（Claude Code风格：目录/skill.md）
+        for skill_dir in directory.iterdir():
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "skill.md"
+            if not skill_md.exists():
+                continue
+            try:
+                content = skill_md.read_text(encoding="utf-8")
+                meta, body = self._parse_skill_md(content)
+                if meta.get("name"):
+                    skill = Skill(
+                        name=meta["name"],
+                        description=meta.get("description", ""),
+                        tags=meta.get("tags", []),
+                        prompt_template=body,
+                        source=source,
+                    )
+                    self._skills[skill.name] = skill
+            except Exception:
+                pass
+
+    def _parse_skill_md(self, content: str) -> tuple:
+        """解析markdown skill的frontmatter和正文"""
+        import re
+        match = re.match(r'^---\n(.*?)\n---\n(.*)', content, re.DOTALL)
+        if not match:
+            return {}, content
+        frontmatter = match.group(1)
+        body = match.group(2).strip()
+        meta = {}
+        for line in frontmatter.split("\n"):
+            if ":" in line:
+                key, val = line.split(":", 1)
+                meta[key.strip()] = val.strip()
+        return meta, body
 
     def get(self, name: str) -> Skill | None:
         return self._skills.get(name)

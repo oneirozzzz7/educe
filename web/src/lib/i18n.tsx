@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { Locale } from "./types";
 
 const dict = {
@@ -61,10 +61,12 @@ const LocaleContext = createContext<LocaleCtx>({
 });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    if (typeof window === "undefined") return "zh";
-    return (localStorage.getItem("educe-lang") as Locale) || "zh";
-  });
+  const [locale, setLocaleState] = useState<Locale>("zh");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("educe-lang") as Locale;
+    if (saved && saved !== locale) setLocaleState(saved);
+  }, []);
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);

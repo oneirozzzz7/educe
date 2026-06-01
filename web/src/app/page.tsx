@@ -374,16 +374,16 @@ export default function Page() {
             {!hasMessages && !working && (
               <div className="flex-1 flex items-center justify-center">
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="text-center w-full max-w-[560px]">
-                  <div className="flex justify-center mb-6">
+                  <div className="flex justify-center mb-8">
                     <LogoBrand size={52} />
                   </div>
-                  <h1 className="text-[26px] font-semibold tracking-tight mb-1.5" style={{ color: "var(--text)" }}>想做点什么？</h1>
-                  <p className="text-[14px] mb-10" style={{ color: "var(--text-3)" }}>描述你的想法，智能体会帮你实现</p>
+                  <h1 className="text-[30px] tracking-tight mb-2" style={{ fontFamily: "'Instrument Serif', Georgia, serif", color: "var(--text-0)" }}>想做点什么？</h1>
+                  <p className="text-[14px] mb-10" style={{ color: "var(--text-3)" }}>一个游戏、一个工具、一个想法——都行。</p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {[["🍅", "番茄钟"], ["🔧", "JSON工具"], ["🎮", "小游戏"], ["📝", "编辑器"], ["🧮", "计算器"]].map(([icon, label]) => (
                       <button key={label} onClick={() => send(`做一个${label}`)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] rounded-full border transition-all hover:shadow-sm"
-                        style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", color: "var(--text-2)" }}>
+                        className="flex items-center gap-1.5 px-4 py-2 text-[13px] rounded-full transition-all hover:border-[var(--amber)] hover:text-[var(--text-0)] hover:bg-[var(--amber-glow)]"
+                        style={{ background: "transparent", border: "1px solid var(--border-1)", color: "var(--text-2)" }}>
                         <span>{icon}</span>{label}
                       </button>
                     ))}

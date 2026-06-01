@@ -1,0 +1,192 @@
+{
+  "hypothesis_3": {
+    "hypothesis": 3,
+    "accuracy": 0.7142857142857143,
+    "conclusion": "信号检测基本准确——需要修复误判case",
+    "details": [
+      {
+        "input": "谢谢，很有帮助",
+        "expected": "grateful",
+        "got": "grateful",
+        "correct": true,
+        "desc": "明确感谢"
+      },
+      {
+        "input": "不对，你说错了",
+        "expected": "error",
+        "got": "error",
+        "correct": true,
+        "desc": "明确否定"
+      },
+      {
+        "input": "继续深入讲讲",
+        "expected": "engaged",
+        "got": "engaged",
+        "correct": true,
+        "desc": "追问"
+      },
+      {
+        "input": "这个过程中叶绿体起什么作用",
+        "expected": "engaged",
+        "got": "engaged",
+        "correct": true,
+        "desc": "具体追问"
+      },
+      {
+        "input": "今天天气怎么样",
+        "expected": "topic_switch",
+        "got": "topic_switch",
+        "correct": true,
+        "desc": "换话题"
+      },
+      {
+        "input": "做一个番茄钟",
+        "expected": "topic_switch",
+        "got": "topic_switch",
+        "correct": true,
+        "desc": "从聊天切到工具"
+      },
+      {
+        "input": "你好",
+        "expected": "unknown",
+        "got": "unknown",
+        "correct": true,
+        "desc": "无前文"
+      },
+      {
+        "input": "帮我做一个坦克大战游戏呗",
+        "expected": "topic_switch",
+        "got": "topic_switch",
+        "correct": true,
+        "desc": "从闲聊切到代码"
+      },
+      {
+        "input": "上面提及的论文对自进化有什么参考价值",
+        "expected": "topic_switch",
+        "got": "engaged",
+        "correct": false,
+        "desc": "从代码切到论文"
+      },
+      {
+        "input": "改成暗色主题",
+        "expected": "engaged",
+        "got": "topic_switch",
+        "correct": false,
+        "desc": "代码修改请求"
+      },
+      {
+        "input": "不是这样的，重新回答",
+        "expected": "error",
+        "got": "error",
+        "correct": true,
+        "desc": "否定要求重答"
+      },
+      {
+        "input": "学到了，感谢",
+        "expected": "grateful",
+        "got": "grateful",
+        "correct": true,
+        "desc": "学到+感谢"
+      },
+      {
+        "input": "嗯，那如果考虑通货膨胀呢",
+        "expected": "engaged",
+        "got": "topic_switch",
+        "correct": false,
+        "desc": "条件追问"
+      },
+      {
+        "input": "好的明白了，另外问下，Python和Go哪个好",
+        "expected": "topic_switch",
+        "got": "grateful",
+        "correct": false,
+        "desc": "确认后换话题"
+      }
+    ]
+  },
+  "hypothesis_2": {
+    "hypothesis": 2,
+    "avg_a": 7.57,
+    "avg_b": 7.49,
+    "avg_c": 7.14,
+    "delta_ab": -0.08,
+    "conclusion": "知识注入影响微小——差异-0.08在噪声范围内",
+    "insights_before": 119,
+    "insights_after": 141
+  },
+  "hypothesis_1": {
+    "hypothesis": 1,
+    "accuracy": 0.625,
+    "conclusion": "弱模型部分理解——需要轻量辅助但不需要完整ContextAnalyzer",
+    "details": [
+      {
+        "name": "代码后聊天",
+        "expected": "NO_CODE",
+        "got": "NO_CODE",
+        "correct": true,
+        "reason": "问AI知识，不需要代码"
+      },
+      {
+        "name": "代码后修改",
+        "expected": "NEED_CODE",
+        "got": "NO_CODE",
+        "correct": false,
+        "reason": "要修改刚才的代码"
+      },
+      {
+        "name": "代码后感谢",
+        "expected": "NO_CODE",
+        "got": "NO_CODE",
+        "correct": true,
+        "reason": "感谢，不需要代码"
+      },
+      {
+        "name": "聊天后要做工具",
+        "expected": "NEED_CODE",
+        "got": "NEED_CODE",
+        "correct": true,
+        "reason": "明确要做工具"
+      },
+      {
+        "name": "代码→聊天→再改代码",
+        "expected": "NEED_CODE",
+        "got": "NO_CODE",
+        "correct": false,
+        "reason": "回到之前的代码修改"
+      },
+      {
+        "name": "论文讨论不是代码",
+        "expected": "NO_CODE",
+        "got": "NO_CODE",
+        "correct": true,
+        "reason": "问论文，不是改代码（即使上一轮是代码）"
+      },
+      {
+        "name": "模糊请求-帮我看看",
+        "expected": "NO_CODE",
+        "got": "NO_CODE",
+        "correct": true,
+        "reason": "模糊请求但上下文是聊天"
+      },
+      {
+        "name": "模糊请求-帮我搞一下",
+        "expected": "NEED_CODE",
+        "got": "NO_CODE",
+        "correct": false,
+        "reason": "模糊请求但上下文是代码修改"
+      }
+    ]
+  },
+  "hypothesis_4": {
+    "hypothesis": 4,
+    "variant_variance": 1.4366826133333335,
+    "within_variance": 0.06181941333333338,
+    "significant": true,
+    "conclusion": "激发语差异显著——值得做演化优化",
+    "variant_means": [
+      7.8224,
+      8.0412,
+      5.8644
+    ]
+  }
+}
