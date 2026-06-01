@@ -19,6 +19,7 @@ export const Sidebar = forwardRef<SidebarRef, {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [showCount, setShowCount] = useState(20);
 
   const loadTasks = useCallback(() => {
     setLoading(true);
@@ -105,7 +106,7 @@ export const Sidebar = forwardRef<SidebarRef, {
           tasks.filter(t => {
             const text = t.title || t.request || "";
             return !search || text.toLowerCase().includes(search.toLowerCase());
-          }).slice(0, 20).map(t => {
+          }).slice(0, showCount).map(t => {
             const isActive = activeSessionId && t.id === activeSessionId;
             return (
             <button key={t.id} onClick={() => handleTaskClick(t)}
@@ -119,6 +120,13 @@ export const Sidebar = forwardRef<SidebarRef, {
               </span>
             </button>
           );})
+        )}
+        {tasks.length > showCount && (
+          <button onClick={() => setShowCount(prev => prev + 20)}
+            className="w-full py-2 text-[11px] text-center hover:bg-[var(--brand-subtle)] transition-colors rounded-lg"
+            style={{ color: "var(--text-3)" }}>
+            加载更多
+          </button>
         )}
       </div>
 
