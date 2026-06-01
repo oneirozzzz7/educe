@@ -75,7 +75,7 @@ class BuilderAgent(BaseAgent):
 
         # 模型自主工具循环——真正的Claude Code机制
         from deepforge.core.agentic_loop import AgenticLoop
-        agentic = AgenticLoop(output_dir=output_dir, max_turns=10)
+        agentic = AgenticLoop(output_dir=output_dir, max_turns=6)
 
         user_request = message.content
         if user_decisions:
@@ -84,10 +84,14 @@ class BuilderAgent(BaseAgent):
                 for d in user_decisions)
             user_request = "{}\n\n用户已确认:\n{}".format(message.content, decisions_text)
 
-        progress_msgs: list[str] = []
+        # 实时progress推送——通过context的notify回调
+        notify_fn = context.metadata.get("_notify_fn")
 
         def on_progress(msg: str):
-            progress_msgs.append(msg)
+            if notify_fn:
+                progress_msg = self.emit("user", "__BUILD_PROGRESS__{}".format(msg),
+                                        msg_type=MessageType.SYSTEM)
+                notify_fn(progress_msg)
 
         async def call_model_fn(msgs: list[dict]) -> str:
             return await self.model_client.chat(
@@ -105,10 +109,6 @@ class BuilderAgent(BaseAgent):
             call_model_fn=call_model_fn,
             on_progress=on_progress,
         )
-
-        for pm in progress_msgs:
-            yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
-                           msg_type=MessageType.SYSTEM)
 
         if final_files:
             for filepath, code in final_files.items():

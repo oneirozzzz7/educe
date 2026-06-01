@@ -322,46 +322,10 @@ class Orchestrator:
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
-        max_tester_rejects = 1  # 优化4: Tester打回上限1次
+        await self._run_agent("builder", user_input, "user", timeout=900)
 
-        for iteration in range(1, self.max_iterations + 1):
-            if iteration == 1:
-                build_input = user_input
-            else:
-                test_report = self.context.artifacts.get("test_result", {}).get("report", "")
-                build_input = f"测试未通过，请修复：\n{test_report[:1000]}\n\n原始需求：{user_input}"
-
-            await self._run_agent("builder", build_input, "user", timeout=600)
-
-            # 如果builder进入了需求确认阶段，停止构建循环
-            if self.context.metadata.get("_pending_decisions"):
-                return self.context
-
-            if not self.context.artifacts.get("code_files"):
-                continue
-
-            # 优化2: Tester轻量化——先用工具快速检查
-            if "tester" in self.agents:
-                quick_pass = await self._quick_tool_check()
-                if quick_pass and iteration <= max_tester_rejects:
-                    # 工具检查通过——跳过LLM Tester（省时间）
-                    console.print(f"[green]✅ 工具验证通过 (迭代{iteration})[/green]")
-                    break
-                elif not quick_pass and iteration <= max_tester_rejects:
-                    # 工具检查有问题——才调LLM Tester深度分析
-                    await self._run_agent("tester", "请测试Builder的产出物", "builder", timeout=60)
-                    test_result = self.context.artifacts.get("test_result", {})
-                    if test_result.get("passed", True):
-                        console.print(f"[green]✅ 测试通过 (迭代{iteration})[/green]")
-                        break
-                    else:
-                        console.print(f"[yellow]🔄 测试未通过，回退修复 (迭代{iteration})[/yellow]")
-                else:
-                    # 优化4: 超过打回上限——带着反馈直接交付
-                    console.print(f"[yellow]⚠ 达到打回上限，交付当前版本[/yellow]")
-                    break
-            else:
-                break
+        if self.context.metadata.get("_pending_decisions"):
+            return self.context
 
         has_output = bool(self.context.artifacts.get("code_files"))
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
@@ -520,6 +484,7 @@ class Orchestrator:
         msg = Message(type=MessageType.TASK if sender != "user" else MessageType.USER_INPUT,
                       sender=sender, receiver=agent_name, content=content, data=data or {})
         self.context.add_message(msg)
+        self.context.metadata["_notify_fn"] = self._notify
 
         output = content
         try:
