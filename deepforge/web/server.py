@@ -363,6 +363,15 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 step = msg.content.replace("__BUILD_PROGRESS__", "")
                 await websocket.send_json({"type": "build_progress", "step": step})
                 return
+            if msg.content.startswith("__TOOL_EVENT__"):
+                import json as _json
+                try:
+                    evt = _json.loads(msg.content.replace("__TOOL_EVENT__", ""))
+                    evt["type"] = "tool_event"
+                    await websocket.send_json(evt)
+                except Exception:
+                    pass
+                return
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
                 "type": "agent_message",

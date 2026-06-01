@@ -20,8 +20,20 @@ const STEP_ICONS: Record<string, string> = {
   crowd_user: "👥", memory_keeper: "🧠", assistant: "💬",
 };
 
-export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timestamp, streamingCode }: {
-  steps: StepInfo[]; html?: string; isActive: boolean; currentAgent: string; elapsed: number; timestamp: number; streamingCode?: string;
+interface ToolEvent {
+  event: string;
+  content?: string;
+  file?: string;
+  size?: number;
+  command?: string;
+  success?: boolean;
+  output?: string;
+  files?: string[];
+  turns?: number;
+}
+
+export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timestamp, streamingCode, toolEvents }: {
+  steps: StepInfo[]; html?: string; isActive: boolean; currentAgent: string; elapsed: number; timestamp: number; streamingCode?: string; toolEvents?: ToolEvent[];
 }) {
   const [expanded, setExpanded] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
@@ -99,8 +111,69 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
         <ChevronDown size={14} className={cn("transition-transform", !expanded && "-rotate-90")} style={{ color: "var(--text-3)" }} />
       </button>
 
-      {/* 步骤列表 */}
-      {expanded && doneSteps.length > 0 && (
+      {/* 动作序列——展示模型每一步的思考和行动 */}
+      {expanded && (toolEvents?.length || 0) > 0 && (
+        <div className="px-4 py-2 space-y-1" style={{ borderTop: "1px solid var(--border-light)" }}>
+          {toolEvents!.map((evt, i) => (
+            <div key={i} className="py-0.5">
+              {evt.event === "thinking" && (
+                <div className="flex items-start gap-2">
+                  <span className="text-xs shrink-0 mt-0.5">💭</span>
+                  <span className="text-xs italic" style={{ color: "var(--text-3)" }}>{evt.content}</span>
+                </div>
+              )}
+              {evt.event === "write_file" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">📝</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-2)" }}>写入 {evt.file}</span>
+                </div>
+              )}
+              {evt.event === "run" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">▶️</span>
+                  <code className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: "var(--bg-sunken)", color: "var(--text-2)" }}>{evt.command}</code>
+                </div>
+              )}
+              {(evt.event === "run_result" || evt.event === "write_file_result") && (
+                <div className="flex items-start gap-2 ml-5">
+                  {evt.success ? (
+                    <Check size={11} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
+                  ) : (
+                    <span className="text-[11px] shrink-0">✗</span>
+                  )}
+                  <span className={cn("text-[11px]", evt.success ? "" : "font-medium")}
+                    style={{ color: evt.success ? "var(--text-3)" : "var(--error, #ef4444)" }}>
+                    {evt.output?.split("\n")[0]?.slice(0, 80)}
+                  </span>
+                </div>
+              )}
+              {evt.event === "read_file_result" && (
+                <div className="flex items-center gap-2 ml-5">
+                  <Check size={11} style={{ color: "var(--success)" }} />
+                  <span className="text-[11px]" style={{ color: "var(--text-3)" }}>已读取</span>
+                </div>
+              )}
+              {evt.event === "done" && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-xs">✅</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--success)" }}>
+                    完成 · {evt.turns}轮 · {evt.files?.join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+          {isActive && !(toolEvents?.some(e => e.event === "done")) && (
+            <div className="flex items-center gap-2 py-1">
+              <Loader2 size={11} className="animate-spin shrink-0" style={{ color: "var(--brand)" }} />
+              <span className="text-[11px]" style={{ color: "var(--brand)" }}>执行中...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 旧步骤列表（兼容无toolEvents的情况） */}
+      {expanded && doneSteps.length > 0 && !(toolEvents?.length) && (
         <div className="px-4 py-2" style={{ borderTop: "1px solid var(--border-light)" }}>
           {doneSteps.map((s, i) => (
             <div key={i} className="flex items-center gap-2 py-1.5">

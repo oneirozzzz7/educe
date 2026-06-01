@@ -16,6 +16,18 @@ import { ToastContainer, toast } from "@/components/toast";
 import { PlanProposal } from "@/components/plan-proposal";
 import { DecisionCard } from "@/components/decision-card";
 
+interface ToolEvent {
+  event: string;
+  content?: string;
+  file?: string;
+  size?: number;
+  command?: string;
+  success?: boolean;
+  output?: string;
+  files?: string[];
+  turns?: number;
+}
+
 interface ChatMsg {
   id: string;
   role: "user" | "assistant" | "system" | "plan" | "decision";
@@ -23,6 +35,7 @@ interface ChatMsg {
   steps?: { agent: string; summary: string; done: boolean }[];
   html?: string;
   streamingCode?: string;
+  toolEvents?: ToolEvent[];
   timestamp: number;
   files?: UploadedFile[];
   plans?: { id: number; title: string; desc: string; est: string }[];
@@ -161,6 +174,16 @@ export default function Page() {
           if (last?.steps !== undefined) {
             const steps = [...(last.steps || []), { agent: "builder", summary: step, done: true }];
             return [...p.slice(0, -1), { ...last, steps }];
+          }
+          return p;
+        });
+      } else if ((msg as any).type === "tool_event") {
+        const evt = msg as ToolEvent & { type: string };
+        setMsgs(p => {
+          const last = p[p.length - 1];
+          if (last?.steps !== undefined) {
+            const events = [...(last.toolEvents || []), evt];
+            return [...p.slice(0, -1), { ...last, toolEvents: events }];
           }
           return p;
         });
@@ -399,7 +422,8 @@ export default function Page() {
                         }} />
                     ) : msg.steps !== undefined ? (
                       <WorkCard steps={msg.steps} html={msg.html} isActive={working && msg.id === msgs[msgs.length - 1]?.id}
-                        currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} streamingCode={msg.streamingCode} />
+                        currentAgent={curAgent} elapsed={elapsed} timestamp={msg.timestamp} streamingCode={msg.streamingCode}
+                        toolEvents={msg.toolEvents} />
                     ) : msg.role === "system" ? (
                       <div className="text-sm rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--error-light)", color: "var(--error)", border: "1px solid var(--error)" }}>
                         <span className="flex-1">{msg.text}</span>

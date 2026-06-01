@@ -87,9 +87,11 @@ class AgenticLoop:
         on_progress: Callable[[str], None] | None = None,
         on_chunk: Callable[[str], None] | None = None,
         stream_model_fn: Callable | None = None,
+        on_tool_event: Callable[[dict], None] | None = None,
     ) -> dict[str, str]:
         """
-        主循环。stream_model_fn如果提供，第一轮用streaming（用户实时看代码生成）。
+        主循环。模型自主决定写什么/运行什么/修什么。
+        on_tool_event: 结构化事件推送，让前端展示每一步动作和结果。
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,28 +103,51 @@ class AgenticLoop:
         for turn in range(self.max_turns):
             self.turns_used = turn + 1
 
-            # 第一轮用streaming让用户实时看到代码生成
             if turn == 0 and stream_model_fn and on_chunk:
                 response = await self._stream_call(messages, stream_model_fn, on_chunk)
             else:
                 response = await call_model_fn(messages)
 
+            # 提取模型的思考文本（action块之前的内容）
+            thinking = self._extract_thinking(response)
+            if thinking and on_tool_event:
+                on_tool_event({"event": "thinking", "content": thinking})
+
             actions = self._parse_actions(response)
 
             if not actions:
-                if on_progress:
-                    on_progress("完成")
+                if on_tool_event:
+                    on_tool_event({"event": "done",
+                                  "files": list(self.files_written.keys()),
+                                  "turns": self.turns_used})
                 break
 
             results = []
             for action in actions:
-                if on_progress:
-                    on_progress("{} {}...".format(
-                        "📝" if action["type"] == "write_file" else
-                        "▶️" if action["type"] == "run" else "📖",
-                        action["type"]))
+                # 动作开始事件
+                if on_tool_event:
+                    evt = {"event": action["type"]}
+                    if action["type"] == "write_file":
+                        lines = action["body"].split("\n")
+                        for l in lines:
+                            if l.startswith("path:"):
+                                evt["file"] = l.split(":", 1)[1].strip()
+                                break
+                    elif action["type"] == "run":
+                        evt["command"] = action["body"].strip()[:100]
+                    on_tool_event(evt)
+
                 result = await self._execute(action)
                 results.append(result)
+
+                # 动作结果事件
+                if on_tool_event:
+                    on_tool_event({
+                        "event": "{}_result".format(action["type"]),
+                        "success": result.success,
+                        "output": result.output[:300],
+                    })
+
                 if result.file_written:
                     self.files_written[result.file_written] = (
                         self.output_dir / result.file_written
@@ -132,14 +157,21 @@ class AgenticLoop:
                 "工具 {} 执行结果:\n{}".format(r.tool, r.output) for r in results
             )
 
-            if on_progress:
-                status = "✓" if all(r.success for r in results) else "发现错误，修复中"
-                on_progress("Turn {} {}".format(turn + 1, status))
-
             messages.append({"role": "assistant", "content": response})
             messages.append({"role": "user", "content": result_text})
 
         return self.files_written
+
+    @staticmethod
+    def _extract_thinking(response: str) -> str:
+        """提取action块之前的文本作为模型的思考"""
+        first_action = response.find("```action:")
+        if first_action <= 0:
+            return ""
+        text = response[:first_action].strip()
+        if len(text) < 5:
+            return ""
+        return text[:200]
 
     async def _stream_call(
         self,

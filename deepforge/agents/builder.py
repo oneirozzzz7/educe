@@ -84,19 +84,20 @@ class BuilderAgent(BaseAgent):
                 for d in user_decisions)
             user_request = "{}\n\n用户已确认:\n{}".format(message.content, decisions_text)
 
-        # 实时progress推送——通过context的notify回调
+        # 实时事件推送——通过context的notify回调
         notify_fn = context.metadata.get("_notify_fn")
         chunk_fn = context.metadata.get("_chunk_fn")
-
-        def on_progress(msg: str):
-            if notify_fn:
-                progress_msg = self.emit("user", "__BUILD_PROGRESS__{}".format(msg),
-                                        msg_type=MessageType.SYSTEM)
-                notify_fn(progress_msg)
 
         def on_chunk(text: str):
             if chunk_fn:
                 chunk_fn("builder", text)
+
+        def on_tool_event(evt: dict):
+            if notify_fn:
+                import json as _json
+                msg = self.emit("user", "__TOOL_EVENT__" + _json.dumps(evt, ensure_ascii=False),
+                               msg_type=MessageType.SYSTEM)
+                notify_fn(msg)
 
         async def call_model_fn(msgs: list[dict]) -> str:
             return await self.model_client.chat(
@@ -107,7 +108,6 @@ class BuilderAgent(BaseAgent):
             )
 
         async def stream_model_fn(msgs: list[dict]):
-            """真正的streaming——每个token yield出来"""
             async for chunk in self.model_client.chat_stream(
                 messages=msgs,
                 model=self.model_config.model,
@@ -122,9 +122,9 @@ class BuilderAgent(BaseAgent):
         final_files = await agentic.run(
             user_request=user_request,
             call_model_fn=call_model_fn,
-            on_progress=on_progress,
             on_chunk=on_chunk,
             stream_model_fn=stream_model_fn,
+            on_tool_event=on_tool_event,
         )
 
         if final_files:
