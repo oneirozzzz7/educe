@@ -332,34 +332,22 @@ class BuilderAgent(BaseAgent):
 ## 用户需求
 {message.content}
 {file_section}{domain_section}{skill_hint}{compiled_knowledge}{recall_section}
-## 规则
-- 第一行就开始写代码，不要任何前言
-- 不要说"让我先看看"、"我来创建"等废话
-- 如果验证发现问题，你会收到错误信息，请修复
-- 反复迭代直到验证通过
+## 核心要求
+1. 第一行就开始写代码，不要任何前言或废话
+2. 输出完整、可直接运行的代码——不能有截断、不能有TODO占位
+3. 安全优先：用户输入必须转义(防XSS)、正则操作需超时保护、不信任外部数据
+4. 功能完整：所有UI交互、事件处理、错误处理都要实现，不遗漏
 
-## 你也可以使用工具（可选）
+## 输出格式
+- 用```filepath:文件名格式包裹代码
+- 单HTML文件优先（内嵌CSS+JS），确保DOCTYPE和完整闭合标签
+- 在代码中标注进度：<!-- STEP: 描述当前完成的部分 -->
+
+## 你可以使用的工具（可选）
 - 写文件: <tool>write_file</tool><params>{{"path":"文件名.html","content":"完整代码"}}</params>
 - 验证HTML: <tool>run_html</tool><params>{{"path":"文件名.html"}}</params>
 - 运行Python: <tool>run_python</tool><params>{{"path":"脚本.py"}}</params>
-- 读文件: <tool>read_file</tool><params>{{"path":"文件路径"}}</params>
-
-## 绝对规则
-- 必须输出完整可运行的代码文件，不要输出描述或摘要
-- 用```filepath:文件名格式包裹代码
-- 单HTML文件优先（内嵌CSS+JS）
-- CSS必须用:root变量系统（--primary、--bg、--text等），不要硬编码颜色
-- CSS必须有@keyframes动画（loading、pulse、fadeIn等至少1个）
-- 精致UI：渐变、阴影、圆角、hover动效(transition:0.2s)、响应式(@media)
-- 完整功能：try/catch错误处理、localStorage持久化、复制按钮(navigator.clipboard)
-- HTML必须有DOCTYPE和完整闭合标签
-- JS不能有语法错误
-
-## 输出格式
-直接输出代码，用```filepath:文件名格式包裹。
-在代码中每完成一个主要部分，用HTML注释标注进度：
-<!-- STEP: 描述当前完成的部分 -->
-例如：<!-- STEP: 游戏画布和基础循环 -->"""
+- 读文件: <tool>read_file</tool><params>{{"path":"文件路径"}}</params>"""
 
     def _extract_files(self, content: str) -> dict[str, str]:
         files = {}
