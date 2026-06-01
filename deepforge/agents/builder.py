@@ -73,127 +73,57 @@ class BuilderAgent(BaseAgent):
         output_dir = Path(".deepforge/output")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 判断是否需要增量步骤构建
-        use_steps = await self._should_use_steps(message.content, context)
+        # 模型自主工具循环——真正的Claude Code机制
+        from deepforge.core.agentic_loop import AgenticLoop
+        agentic = AgenticLoop(output_dir=output_dir, max_turns=10)
 
-        if use_steps:
-            yield self.emit("user", "__BUILD_PROGRESS__规划构建步骤...",
-                           msg_type=MessageType.SYSTEM)
-            from deepforge.core.step_builder import StepBuilder
-            step_builder = StepBuilder(max_steps=5, max_fix_per_step=3)
+        user_request = message.content
+        if user_decisions:
+            decisions_text = "\n".join(
+                "- {}: {}".format(d.get("question", ""), d.get("choice", ""))
+                for d in user_decisions)
+            user_request = "{}\n\n用户已确认:\n{}".format(message.content, decisions_text)
 
-            async def model_fn(prompt: str) -> str:
-                return await self.call_model(
-                    [{"role": "user", "content": prompt}], context)
+        progress_msgs: list[str] = []
 
-            steps = await step_builder.plan_steps(message.content, model_fn)
-            yield self.emit("user", "__BUILD_PROGRESS__分解为{}个步骤".format(len(steps)),
-                           msg_type=MessageType.SYSTEM)
+        def on_progress(msg: str):
+            progress_msgs.append(msg)
 
-            progress_msgs = []
-
-            def on_progress(msg):
-                progress_msgs.append(msg)
-
-            final_files = await step_builder.build_incremental(
-                steps=steps,
-                call_model_fn=model_fn,
-                output_dir=output_dir,
-                original_request=context.user_request or message.content,
-                on_progress=on_progress,
+        async def call_model_fn(msgs: list[dict]) -> str:
+            return await self.model_client.chat(
+                messages=msgs,
+                model=self.model_config.model,
+                temperature=self.model_config.temperature,
+                max_tokens=self.model_config.max_tokens,
             )
 
-            for pm in progress_msgs:
-                yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
-                               msg_type=MessageType.SYSTEM)
+        yield self.emit("user", "__BUILD_PROGRESS__开始构建...",
+                       msg_type=MessageType.SYSTEM)
 
-            if final_files:
-                for filepath, code in final_files.items():
-                    full_path = output_dir / filepath
-                    full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_text(code, encoding="utf-8")
-                    prev_files = context.artifacts.get("code_files", [])
-                    context.add_artifact("code_files", prev_files + [str(full_path)])
-                context.add_artifact("output_dir", str(output_dir))
-                context.add_artifact("engineer_output", "incremental build")
-                self._record_success(context.user_request, final_files)
-                code_content = "\n\n".join(
-                    "```filepath:{}\n{}\n```".format(fp, code)
-                    for fp, code in final_files.items())
-                yield self.emit("user", code_content)
-        else:
-            # 单次生成 + 框架驱动验证修复循环
-            yield self.emit("user", "__BUILD_PROGRESS__生成代码中...",
+        final_files = await agentic.run(
+            user_request=user_request,
+            call_model_fn=call_model_fn,
+            on_progress=on_progress,
+        )
+
+        for pm in progress_msgs:
+            yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
                            msg_type=MessageType.SYSTEM)
-            response = await self.call_model(messages, context)
-            files = self._extract_files(response)
 
-            if not files:
-                context.add_artifact("engineer_output", response)
-                yield self.emit("user", response)
-                return
-
-            from deepforge.core.execution_loop import ExecutionLoop
-            loop = ExecutionLoop(max_rounds=5)
-
-            progress_msgs = []
-
-            def on_progress(msg):
-                progress_msgs.append(msg)
-
-            async def model_fn(fix_prompt: str) -> str:
-                return await self.call_model(
-                    [{"role": "user", "content": self._build_prompt(
-                        Message(type=message.type, sender=message.sender,
-                               receiver=message.receiver, content=fix_prompt),
-                        context)}], context)
-
-            final_files, verify_result = await loop.run(
-                files=files,
-                output_dir=output_dir,
-                call_model_fn=model_fn,
-                on_progress=on_progress,
-            )
-
-            for pm in progress_msgs:
-                yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
-                               msg_type=MessageType.SYSTEM)
-
+        if final_files:
             for filepath, code in final_files.items():
                 full_path = output_dir / filepath
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                full_path.write_text(code, encoding="utf-8")
                 prev_files = context.artifacts.get("code_files", [])
                 context.add_artifact("code_files", prev_files + [str(full_path)])
-
             context.add_artifact("output_dir", str(output_dir))
-            context.add_artifact("engineer_output", response)
-
-            if verify_result.passed:
-                self._record_success(context.user_request, final_files)
-
+            context.add_artifact("engineer_output", "agentic build")
+            self._record_success(context.user_request, final_files)
             code_content = "\n\n".join(
                 "```filepath:{}\n{}\n```".format(fp, code)
                 for fp, code in final_files.items())
             yield self.emit("user", code_content)
-
-    async def _should_use_steps(self, user_request: str, context: WorkContext) -> bool:
-        """模型判断是否需要分步构建。快速，~10 tokens。"""
-        if context.metadata.get("skill_prompt"):
-            return False
-        try:
-            result = await self.model_client.chat(
-                messages=[{"role": "user", "content":
-                    "判断任务复杂度。SIMPLE=单一功能<200行(计算器/番茄钟/密码生成器)。"
-                    "COMPLEX=多功能交互>400行(游戏/编辑器/管理系统)。只回复SIMPLE或COMPLEX。\n"
-                    "任务: {}".format(user_request)}],
-                model=self.model_config.model,
-                max_tokens=10,
-                temperature=0.0,
-            )
-            return "COMPLEX" in result.upper()
-        except Exception:
-            return False
+        else:
+            yield self.emit("user", "未能生成代码文件，请更具体描述需求。")
 
     def _extract_tool_call(self, response: str) -> dict | None:
         """从LLM回复中提取工具调用"""

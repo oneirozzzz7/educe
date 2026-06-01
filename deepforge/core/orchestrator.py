@@ -331,7 +331,7 @@ class Orchestrator:
                 test_report = self.context.artifacts.get("test_result", {}).get("report", "")
                 build_input = f"测试未通过，请修复：\n{test_report[:1000]}\n\n原始需求：{user_input}"
 
-            await self._run_agent("builder", build_input, "user", timeout=150)
+            await self._run_agent("builder", build_input, "user", timeout=600)
 
             # 如果builder进入了需求确认阶段，停止构建循环
             if self.context.metadata.get("_pending_decisions"):
