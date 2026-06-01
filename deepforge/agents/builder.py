@@ -73,120 +73,127 @@ class BuilderAgent(BaseAgent):
         output_dir = Path(".deepforge/output")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for round_num in range(self.max_tool_rounds):
-            if round_num == 0:
-                yield self.emit("user", "__BUILD_PROGRESS__生成代码中...",
+        # 判断是否需要增量步骤构建
+        use_steps = await self._should_use_steps(message.content, context)
+
+        if use_steps:
+            yield self.emit("user", "__BUILD_PROGRESS__规划构建步骤...",
+                           msg_type=MessageType.SYSTEM)
+            from deepforge.core.step_builder import StepBuilder
+            step_builder = StepBuilder(max_steps=5, max_fix_per_step=3)
+
+            async def model_fn(prompt: str) -> str:
+                return await self.call_model(
+                    [{"role": "user", "content": prompt}], context)
+
+            steps = await step_builder.plan_steps(message.content, model_fn)
+            yield self.emit("user", "__BUILD_PROGRESS__分解为{}个步骤".format(len(steps)),
+                           msg_type=MessageType.SYSTEM)
+
+            progress_msgs = []
+
+            def on_progress(msg):
+                progress_msgs.append(msg)
+
+            final_files = await step_builder.build_incremental(
+                steps=steps,
+                call_model_fn=model_fn,
+                output_dir=output_dir,
+                original_request=context.user_request or message.content,
+                on_progress=on_progress,
+            )
+
+            for pm in progress_msgs:
+                yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
                                msg_type=MessageType.SYSTEM)
 
-            response = await self.call_model(messages, context)
-
-            # 检查是否有工具调用指令
-            tool_call = self._extract_tool_call(response)
-
-            if tool_call:
-                tool_name = tool_call["name"]
-                tool_params = tool_call["params"]
-
-                # 自动补全路径
-                if "path" in tool_params and not tool_params["path"].startswith("/"):
-                    tool_params["path"] = str(output_dir / tool_params["path"])
-
-                result = await execute_tool(self.tools, tool_name, tool_params)
-
-                messages.append({"role": "assistant", "content": response})
-                messages.append({"role": "user", "content": f"工具 {tool_name} 执行结果:\n{result}"})
-
-                # 如果写了文件，记录到artifacts
-                if tool_name == "write_file" and "path" in tool_params:
-                    file_path = tool_params["path"]
-                    context.add_artifact("code_files", context.artifacts.get("code_files", []) + [file_path])
-                    context.add_artifact("output_dir", str(output_dir))
-                    if file_path.endswith(".html"):
-                        context.add_artifact("project_type", "static_html")
-                    elif file_path.endswith(".py"):
-                        context.add_artifact("project_type", "python_script")
-
-                continue
-
-            # 无工具调用——检查是否有内嵌代码需要提取
-            files = self._extract_files(response)
-            if files:
-                for filepath, content in files.items():
+            if final_files:
+                for filepath, code in final_files.items():
                     full_path = output_dir / filepath
                     full_path.parent.mkdir(parents=True, exist_ok=True)
-                    full_path.write_text(content, encoding="utf-8")
-
+                    full_path.write_text(code, encoding="utf-8")
                     prev_files = context.artifacts.get("code_files", [])
                     context.add_artifact("code_files", prev_files + [str(full_path)])
-                    context.add_artifact("output_dir", str(output_dir))
-                    context.add_artifact("project_type",
-                        "static_html" if filepath.endswith(".html") else "python_script" if filepath.endswith(".py") else "files")
+                context.add_artifact("output_dir", str(output_dir))
+                context.add_artifact("engineer_output", "incremental build")
+                self._record_success(context.user_request, final_files)
+                code_content = "\n\n".join(
+                    "```filepath:{}\n{}\n```".format(fp, code)
+                    for fp, code in final_files.items())
+                yield self.emit("user", code_content)
+        else:
+            # 单次生成 + 框架驱动验证修复循环
+            yield self.emit("user", "__BUILD_PROGRESS__生成代码中...",
+                           msg_type=MessageType.SYSTEM)
+            response = await self.call_model(messages, context)
+            files = self._extract_files(response)
 
-                context.add_artifact("engineer_output", response)
-
-                # 检测截断——HTML未闭合或Python语法不完整，循环续写（最多3轮）
-                for filepath, content in list(files.items()):
-                    for continuation_round in range(3):
-                        is_truncated = False
-                        if filepath.endswith(".html") and "</html>" not in content:
-                            is_truncated = True
-                            last_lines = content.rstrip().split("\n")[-3:]
-                            hint = (
-                                "代码在以下位置被截断:\n```\n{}\n```\n"
-                                "请**只输出**从断点开始的剩余代码，不要重复已有内容。"
-                                "确保最终有完整的</script></body></html>闭合。"
-                            ).format("\n".join(last_lines))
-                        elif filepath.endswith(".py"):
-                            open_parens = content.count("(") - content.count(")")
-                            open_brackets = content.count("[") - content.count("]")
-                            open_braces = content.count("{") - content.count("}")
-                            if open_parens > 0 or open_brackets > 0 or open_braces > 0:
-                                is_truncated = True
-                                last_lines = content.rstrip().split("\n")[-3:]
-                                hint = (
-                                    "代码在以下位置被截断:\n```\n{}\n```\n"
-                                    "请**只输出**从断点开始的剩余代码，不要重复已有内容。"
-                                ).format("\n".join(last_lines))
-
-                        if not is_truncated:
-                            break
-
-                        yield self.emit("user", "__BUILD_PROGRESS__检测到代码截断，续写中(第{}轮)...".format(
-                            continuation_round + 1), msg_type=MessageType.SYSTEM)
-                        messages.append({"role": "assistant", "content": response})
-                        messages.append({"role": "user", "content": "文件 {} 被截断——{}".format(filepath, hint)})
-                        continuation = await self.call_model(messages, context)
-                        content = content + "\n" + continuation
-                        files[filepath] = content
-                        full_path = output_dir / filepath
-                        full_path.write_text(content, encoding="utf-8")
-                        response = continuation
-
-                # 自动运行验证
-                yield self.emit("user", "__BUILD_PROGRESS__验证代码质量...",
-                               msg_type=MessageType.SYSTEM)
-                verify_result = await self._auto_verify(files, output_dir)
-                if verify_result["has_issues"]:
-                    yield self.emit("user", "__BUILD_PROGRESS__发现问题，正在修复...",
-                                   msg_type=MessageType.SYSTEM)
-                    messages.append({"role": "assistant", "content": response})
-                    messages.append({"role": "user", "content": f"代码已写入，但验证发现问题:\n{verify_result['report']}\n\n请修复这些问题，重新输出完整文件。"})
-
-                    # 记录失败到记忆
-                    self._record_failure(verify_result['report'])
-                    continue
-                else:
-                    # 验证通过——记录成功模式到知识库（进化闭环）
-                    self._record_success(context.user_request, files)
-                    # 把完整代码带在消息里，让前端能展示预览
-                    code_content = "\n\n".join(f"```filepath:{fp}\n{code}\n```" for fp, code in files.items())
-                    yield self.emit("user", code_content)
-                    break
-            else:
-                # 纯文本回复
+            if not files:
                 context.add_artifact("engineer_output", response)
                 yield self.emit("user", response)
-                break
+                return
+
+            from deepforge.core.execution_loop import ExecutionLoop
+            loop = ExecutionLoop(max_rounds=5)
+
+            progress_msgs = []
+
+            def on_progress(msg):
+                progress_msgs.append(msg)
+
+            async def model_fn(fix_prompt: str) -> str:
+                return await self.call_model(
+                    [{"role": "user", "content": self._build_prompt(
+                        Message(type=message.type, sender=message.sender,
+                               receiver=message.receiver, content=fix_prompt),
+                        context)}], context)
+
+            final_files, verify_result = await loop.run(
+                files=files,
+                output_dir=output_dir,
+                call_model_fn=model_fn,
+                on_progress=on_progress,
+            )
+
+            for pm in progress_msgs:
+                yield self.emit("user", "__BUILD_PROGRESS__{}".format(pm),
+                               msg_type=MessageType.SYSTEM)
+
+            for filepath, code in final_files.items():
+                full_path = output_dir / filepath
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                full_path.write_text(code, encoding="utf-8")
+                prev_files = context.artifacts.get("code_files", [])
+                context.add_artifact("code_files", prev_files + [str(full_path)])
+
+            context.add_artifact("output_dir", str(output_dir))
+            context.add_artifact("engineer_output", response)
+
+            if verify_result.passed:
+                self._record_success(context.user_request, final_files)
+
+            code_content = "\n\n".join(
+                "```filepath:{}\n{}\n```".format(fp, code)
+                for fp, code in final_files.items())
+            yield self.emit("user", code_content)
+
+    async def _should_use_steps(self, user_request: str, context: WorkContext) -> bool:
+        """模型判断是否需要分步构建。快速，~10 tokens。"""
+        if context.metadata.get("skill_prompt"):
+            return False
+        try:
+            result = await self.model_client.chat(
+                messages=[{"role": "user", "content":
+                    "判断任务复杂度。SIMPLE=单一功能<200行(计算器/番茄钟/密码生成器)。"
+                    "COMPLEX=多功能交互>400行(游戏/编辑器/管理系统)。只回复SIMPLE或COMPLEX。\n"
+                    "任务: {}".format(user_request)}],
+                model=self.model_config.model,
+                max_tokens=10,
+                temperature=0.0,
+            )
+            return "COMPLEX" in result.upper()
+        except Exception:
+            return False
 
     def _extract_tool_call(self, response: str) -> dict | None:
         """从LLM回复中提取工具调用"""

@@ -1,0 +1,262 @@
+"""
+框架驱动的执行反馈循环
+核心思想：不等模型调工具——框架每次提取代码后自动运行验证，有错就喂回去让模型修。
+"""
+from __future__ import annotations
+
+import re
+import asyncio
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Awaitable
+
+
+@dataclass
+class StructuredError:
+    file: str
+    line: int | None
+    error_type: str
+    message: str
+    context_lines: str = ""
+
+
+@dataclass
+class VerifyResult:
+    passed: bool
+    errors: list[StructuredError] = field(default_factory=list)
+    stdout: str = ""
+    stderr: str = ""
+
+
+class ExecutionLoop:
+    def __init__(self, max_rounds: int = 5):
+        self.max_rounds = max_rounds
+        self.rounds_used = 0
+
+    async def run(
+        self,
+        files: dict[str, str],
+        output_dir: Path,
+        call_model_fn: Callable[[str], Awaitable[str]],
+        on_progress: Callable[[str], None] | None = None,
+    ) -> tuple[dict[str, str], VerifyResult]:
+        result = VerifyResult(passed=True)
+
+        for round_num in range(self.max_rounds):
+            self.rounds_used = round_num + 1
+            result = await self.verify_files(files, output_dir)
+
+            if result.passed:
+                if on_progress:
+                    on_progress("验证通过 ✓")
+                break
+
+            if on_progress:
+                on_progress("发现{}个错误，修复中({}/{})...".format(
+                    len(result.errors), round_num + 1, self.max_rounds))
+
+            fix_prompt = self.build_fix_prompt(files, result)
+            response = await call_model_fn(fix_prompt)
+            new_files = self._extract_files(response)
+
+            if not new_files:
+                break
+
+            files.update(new_files)
+
+        return files, result
+
+    async def verify_files(self, files: dict[str, str], output_dir: Path) -> VerifyResult:
+        errors: list[StructuredError] = []
+        stdout_all = ""
+        stderr_all = ""
+
+        for filepath, content in files.items():
+            full_path = output_dir / filepath
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text(content, encoding="utf-8")
+
+            if filepath.endswith(".html"):
+                html_errors = await self._verify_html(filepath, content, full_path)
+                errors.extend(html_errors)
+            elif filepath.endswith(".py"):
+                py_errors, stdout, stderr = await self._verify_python(filepath, content, full_path)
+                errors.extend(py_errors)
+                stdout_all += stdout
+                stderr_all += stderr
+            elif filepath.endswith(".js"):
+                js_errors = await self._verify_js(filepath, content, full_path)
+                errors.extend(js_errors)
+
+        return VerifyResult(
+            passed=len(errors) == 0,
+            errors=errors,
+            stdout=stdout_all[:2000],
+            stderr=stderr_all[:2000],
+        )
+
+    def build_fix_prompt(self, files: dict[str, str], result: VerifyResult) -> str:
+        sections = []
+        for i, err in enumerate(result.errors[:3]):
+            ctx = err.context_lines or ""
+            loc = "第{}行".format(err.line) if err.line else ""
+            sections.append(
+                "错误{}: {} {} — {}\n  {}\n{}".format(
+                    i + 1, err.file, loc, err.error_type,
+                    err.message,
+                    "  上下文:\n{}".format(ctx) if ctx else "",
+                )
+            )
+
+        prompt = "代码有{}个错误需要修复：\n\n{}\n\n请修复后输出完整文件，用```filepath:文件名格式包裹。".format(
+            len(result.errors), "\n\n".join(sections))
+
+        if result.stderr:
+            prompt += "\n\n运行时错误:\n```\n{}\n```".format(result.stderr[:500])
+
+        return prompt
+
+    async def _verify_html(self, filepath: str, content: str, full_path: Path) -> list[StructuredError]:
+        errors = []
+
+        if "<!DOCTYPE" not in content and "<!doctype" not in content:
+            errors.append(StructuredError(
+                file=filepath, line=None, error_type="structure",
+                message="缺少DOCTYPE声明"))
+
+        if "</html>" not in content:
+            errors.append(StructuredError(
+                file=filepath, line=None, error_type="structure",
+                message="HTML标签未闭合（缺少</html>）——代码可能被截断"))
+
+        js_blocks = re.findall(r'<script[^>]*>([\s\S]*?)</script>', content)
+        for i, js in enumerate(js_blocks):
+            if len(js.strip()) < 10:
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".js", mode="w", delete=False) as f:
+                f.write(js)
+                tmp = f.name
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "node", "--check", tmp,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+                if proc.returncode != 0:
+                    err_text = stderr.decode(errors="replace")
+                    line_num = self._parse_node_error_line(err_text)
+                    js_start = self._find_script_start_line(content, i)
+                    abs_line = (js_start + line_num) if js_start and line_num else None
+                    ctx = self._get_context(content, abs_line) if abs_line else ""
+                    errors.append(StructuredError(
+                        file=filepath, line=abs_line,
+                        error_type="syntax",
+                        message=err_text.strip()[:200],
+                        context_lines=ctx))
+            except (asyncio.TimeoutError, FileNotFoundError):
+                pass
+            finally:
+                Path(tmp).unlink(missing_ok=True)
+
+        return errors
+
+    async def _verify_python(self, filepath: str, content: str, full_path: Path) -> tuple[list[StructuredError], str, str]:
+        errors = []
+
+        try:
+            compile(content, filepath, "exec")
+        except SyntaxError as e:
+            ctx = self._get_context(content, e.lineno)
+            errors.append(StructuredError(
+                file=filepath, line=e.lineno,
+                error_type="syntax",
+                message=str(e.msg),
+                context_lines=ctx))
+            return errors, "", ""
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "python", str(full_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=10)
+            stdout = stdout_b.decode(errors="replace")[:1000]
+            stderr = stderr_b.decode(errors="replace")[:1000]
+
+            if proc.returncode != 0:
+                line_num = self._parse_python_traceback_line(stderr)
+                ctx = self._get_context(content, line_num) if line_num else ""
+                errors.append(StructuredError(
+                    file=filepath, line=line_num,
+                    error_type="runtime",
+                    message=stderr.strip()[-300:],
+                    context_lines=ctx))
+            return errors, stdout, stderr
+        except asyncio.TimeoutError:
+            return errors, "", "执行超时(>10s)"
+        except FileNotFoundError:
+            return errors, "", ""
+
+    async def _verify_js(self, filepath: str, content: str, full_path: Path) -> list[StructuredError]:
+        errors = []
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "node", "--check", str(full_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+            if proc.returncode != 0:
+                err_text = stderr.decode(errors="replace")
+                line_num = self._parse_node_error_line(err_text)
+                ctx = self._get_context(content, line_num) if line_num else ""
+                errors.append(StructuredError(
+                    file=filepath, line=line_num,
+                    error_type="syntax",
+                    message=err_text.strip()[:200],
+                    context_lines=ctx))
+        except (asyncio.TimeoutError, FileNotFoundError):
+            pass
+        return errors
+
+    def _get_context(self, content: str, line: int | None, radius: int = 3) -> str:
+        if not line:
+            return ""
+        lines = content.split("\n")
+        start = max(0, line - radius - 1)
+        end = min(len(lines), line + radius)
+        result = []
+        for i in range(start, end):
+            marker = " → " if i == line - 1 else "   "
+            result.append("{}{:>4} | {}".format(marker, i + 1, lines[i]))
+        return "\n".join(result)
+
+    @staticmethod
+    def _parse_node_error_line(stderr: str) -> int | None:
+        m = re.search(r':(\d+)\b', stderr)
+        return int(m.group(1)) if m else None
+
+    @staticmethod
+    def _parse_python_traceback_line(stderr: str) -> int | None:
+        matches = re.findall(r'line (\d+)', stderr)
+        return int(matches[-1]) if matches else None
+
+    @staticmethod
+    def _find_script_start_line(html: str, block_index: int) -> int | None:
+        count = 0
+        for i, line in enumerate(html.split("\n"), 1):
+            if "<script" in line.lower():
+                if count == block_index:
+                    return i
+                count += 1
+        return None
+
+    @staticmethod
+    def _extract_files(content: str) -> dict[str, str]:
+        files = {}
+        for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)```', content):
+            files[match.group(1).strip()] = match.group(2)
+        return files
