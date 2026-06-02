@@ -172,7 +172,7 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
       <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
         {/* User brief */}
         <div className="flex justify-end mb-4">
-          <div style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "var(--void)", fontSize: 13, lineHeight: 1.5 }}>{brief}</div>
+          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#111", fontSize: 13, lineHeight: 1.5 }}>{brief}</div>
         </div>
 
         {/* AI explanation text (streaming) */}
@@ -379,7 +379,7 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
       ))}
       <div className="flex gap-2 mt-4">
         <button onClick={() => onSubmit(Object.entries(choices).map(([q, c]) => ({ question: q, choice: c })))}
-          style={{ padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 600, border: "none", background: "var(--amber)", color: "var(--void)", cursor: "pointer", fontFamily: "inherit" }}>
+          style={{ padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 600, border: "none", background: "var(--amber)", color: "#111", cursor: "pointer", fontFamily: "inherit" }}>
           {t("decision.confirm")}
         </button>
         <button onClick={() => onSubmit([])}
@@ -529,7 +529,7 @@ function GlobalInput({ onSend, phase, onStop }: { onSend: (t: string) => void; p
         {/* Send / Stop button */}
         {isGenerating ? (
           <button onClick={onStop} className="absolute right-[8px] bottom-[9px] transition-all duration-200 hover:opacity-80"
-            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "var(--fail)", color: "var(--void)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "var(--fail)", color: "#111", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
             title="Stop">
             <div style={{ width: 12, height: 12, borderRadius: 2, background: "var(--void)" }} />
           </button>
@@ -613,7 +613,7 @@ function ConversationView({ msgs, thinking, thinkingElapsed, expertName, onSend,
             <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               {msg.role === "user" ? (
                 <div className="flex justify-end">
-                  <div style={{ maxWidth: "75%", padding: "10px 18px", borderRadius: "18px 18px 4px 18px", background: "var(--amber)", color: "var(--void)", fontSize: 14, lineHeight: 1.5 }}>{msg.text}</div>
+                  <div className="user-bubble" style={{ maxWidth: "75%", padding: "10px 18px", borderRadius: "18px 18px 4px 18px", background: "var(--amber)", color: "#111", fontSize: 14, lineHeight: 1.5 }}>{msg.text}</div>
                 </div>
               ) : msg.role === "system" ? (
                 <div style={{ padding: "10px 16px", borderRadius: 10, background: "var(--fail-dim)", color: "var(--fail)", fontSize: 13, border: "1px solid var(--fail-dim)" }}>{msg.text}</div>
@@ -896,7 +896,7 @@ export default function Page() {
                     {msgs.map(msg => (
                       <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
                         {msg.role === "user" ? (
-                          <div style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "var(--void)", fontSize: 13, lineHeight: 1.5 }}>{msg.text}</div>
+                          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#111", fontSize: 13, lineHeight: 1.5 }}>{msg.text}</div>
                         ) : (
                           <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} onFeedback={s => { wsRef.current?.sendRaw({ type: "feedback", signal: s, message_id: msg.id }); }} />
                         )}
