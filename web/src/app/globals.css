@@ -183,7 +183,7 @@ body::after {
   background: var(--surface-1);
   border: 1px solid var(--border-2);
   border-radius: 14px;
-  padding: 16px 56px 16px 20px;
+  padding: 16px 56px 16px 48px;
   font-size: 15px;
   font-family: inherit;
   color: var(--text-0);

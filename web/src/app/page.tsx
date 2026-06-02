@@ -32,6 +32,7 @@ interface UploadedFile {
 interface Decision { question: string; options: string[]; }
 
 const EASE = [0.16, 1, 0.3, 1] as const;
+const ACCEPT = ".txt,.py,.js,.ts,.tsx,.jsx,.css,.html,.json,.md,.yaml,.yml,.xml,.csv,.sh,.sql,.go,.java,.c,.cpp,.h,.rb,.rs,.swift,.pdf,.xlsx,.xls,.docx,.png,.jpg,.jpeg,.gif,.webp,.svg";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Helpers
@@ -224,7 +225,7 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
       </div>
 
       {/* Input at bottom of chat panel */}
-      <GlobalInput onSend={onSend} phase={phase} onStop={onStop} />
+      <GlobalInput onSend={onSend} phase={phase} onStop={onStop} files={[]} onFileSelect={() => {}} onRemoveFile={() => {}} uploading={false} fileInputRef={{ current: null }} />
     </div>
   );
 }
@@ -501,44 +502,77 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    GlobalInput — always visible at bottom of canvas
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function GlobalInput({ onSend, phase, onStop }: { onSend: (t: string) => void; phase: AppPhase; onStop?: () => void }) {
+function GlobalInput({ onSend, phase, onStop, files, onFileSelect, onRemoveFile, uploading, fileInputRef }: {
+  onSend: (t: string) => void; phase: AppPhase; onStop?: () => void;
+  files: UploadedFile[]; onFileSelect: (f: FileList) => void; onRemoveFile: (id: string) => void;
+  uploading: boolean; fileInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
   const [text, setText] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const compRef = useRef(false);
   const { t } = useLocale();
   const isGenerating = phase === "active";
-  const canSend = text.trim() && !isGenerating;
+  const canSend = (text.trim() || files.length > 0) && !isGenerating;
 
   function submit() {
-    if (!text.trim() || isGenerating) return;
+    if (!canSend) return;
     onSend(text.trim());
     setText("");
   }
 
   return (
-    <div className="shrink-0" style={{ padding: "12px 20px 16px", background: "linear-gradient(transparent, var(--void) 8px)", backdropFilter: "blur(8px)" }}>
-      <div className="max-w-[680px] mx-auto relative">
-        <textarea value={text} onChange={e => setText(e.target.value)}
-          onCompositionStart={() => { compRef.current = true; }}
-          onCompositionEnd={e => { compRef.current = false; setText((e.target as HTMLTextAreaElement).value); }}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !compRef.current) { e.preventDefault(); submit(); } }}
-          placeholder={isGenerating ? (t("building") + "...") : t("empty.placeholder")}
-          rows={1}
-          className="educe-input"
-          style={{ opacity: isGenerating ? 0.7 : 1 }}
-        />
-        {/* Send / Stop button */}
-        {isGenerating ? (
-          <button onClick={onStop} className="absolute right-[8px] bottom-[9px] transition-all duration-200 hover:opacity-80"
-            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "var(--fail)", color: "#111", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-            title="Stop">
-            <div style={{ width: 12, height: 12, borderRadius: 2, background: "var(--void)" }} />
-          </button>
-        ) : (
-          <button onClick={submit} disabled={!canSend} className="absolute right-[8px] bottom-[9px] transition-all duration-200"
-            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: canSend ? "var(--amber)" : "var(--surface-2)", color: canSend ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: canSend ? "pointer" : "default", opacity: canSend ? 1 : 0.5, transform: `scale(${canSend ? 1 : 0.93})` }}>
-            <Send size={15} />
-          </button>
+    <div className="shrink-0" style={{ padding: "12px 20px 16px", background: "linear-gradient(transparent, var(--void) 8px)", backdropFilter: "blur(8px)" }}
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) onFileSelect(e.dataTransfer.files); }}>
+      <div className="max-w-[680px] mx-auto">
+        {/* File chips */}
+        {files.length > 0 && (
+          <div className="mb-2">
+            <FileChips files={files} onRemove={onRemoveFile} />
+          </div>
         )}
+        {/* Drag overlay */}
+        {dragOver && (
+          <div className="mb-2 py-3 text-center text-[12px] rounded-xl border-2 border-dashed transition-all"
+            style={{ borderColor: "var(--amber)", background: "var(--amber-dim)", color: "var(--amber)" }}>
+            松手上传文件
+          </div>
+        )}
+        <div className="relative">
+          <textarea value={text} onChange={e => setText(e.target.value)}
+            onCompositionStart={() => { compRef.current = true; }}
+            onCompositionEnd={e => { compRef.current = false; setText((e.target as HTMLTextAreaElement).value); }}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !compRef.current) { e.preventDefault(); submit(); } }}
+            placeholder={isGenerating ? (t("building") + "...") : t("empty.placeholder")}
+            rows={1}
+            className="educe-input"
+            style={{ opacity: isGenerating ? 0.7 : 1, paddingLeft: 48 }}
+          />
+          {/* Paperclip button */}
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploading || isGenerating}
+            className="absolute left-[10px] bottom-[10px] w-[36px] h-[36px] rounded-[10px] flex items-center justify-center transition-all hover:bg-[var(--surface-2)]"
+            style={{ color: uploading ? "var(--amber)" : "var(--text-3)", border: "none", background: "none", cursor: isGenerating ? "default" : "pointer" }}
+            title="上传文件">
+            {uploading ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--amber)" }}>...</span> : <Paperclip size={15} />}
+          </button>
+          {/* Send / Stop button */}
+          {isGenerating ? (
+            <button onClick={onStop} className="absolute right-[8px] bottom-[9px] transition-all duration-200 hover:opacity-80"
+              style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "var(--fail)", color: "#111", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+              title="Stop">
+              <div style={{ width: 12, height: 12, borderRadius: 2, background: "var(--void)" }} />
+            </button>
+          ) : (
+            <button onClick={submit} disabled={!canSend} className="absolute right-[8px] bottom-[9px] transition-all duration-200"
+              style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: canSend ? "var(--amber)" : "var(--surface-2)", color: canSend ? "#111" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: canSend ? "pointer" : "default", opacity: canSend ? 1 : 0.5, transform: `scale(${canSend ? 1 : 0.93})` }}>
+              <Send size={15} />
+            </button>
+          )}
+          {/* Hidden file input */}
+          <input ref={fileInputRef} type="file" multiple accept={ACCEPT} className="hidden"
+            onChange={e => { if (e.target.files) onFileSelect(e.target.files); e.target.value = ""; }} />
+        </div>
       </div>
     </div>
   );
@@ -805,20 +839,55 @@ export default function Page() {
     return () => ws.close();
   }, []);
 
+  // ── File Upload ──
+  async function handleFileSelect(selectedFiles: FileList) {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    setUploading(true);
+    const newFiles: UploadedFile[] = [];
+    for (let i = 0; i < Math.min(selectedFiles.length, 5); i++) {
+      const file = selectedFiles[i];
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const d = await new Promise<Record<string, unknown>>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `http://${API_HOST}/api/upload/${sidRef.current}`);
+          xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("parse")); } };
+          xhr.onerror = () => reject(new Error("network"));
+          xhr.send(formData);
+        });
+        if (d.status === "ok" && d.file) newFiles.push(d.file as UploadedFile);
+        else newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: String(d.error || "failed") });
+      } catch {
+        newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: "上传失败" });
+      }
+    }
+    setFiles(prev => [...prev, ...newFiles.filter(f => !f.error)]);
+    if (newFiles.some(f => f.error)) toast(newFiles.filter(f => f.error).map(f => `${f.name}: ${f.error}`).join(", "), "error");
+    setUploading(false);
+  }
+
+  function removeFile(id: string) {
+    setFiles(prev => prev.filter(f => f.id !== id));
+    fetch(`http://${API_HOST}/api/upload/${sidRef.current}/${id}`, { method: "DELETE" }).catch(() => {});
+  }
+
   // ── Actions ──
   function send(text: string) {
-    const v = text.trim(); if (!v) return;
+    const v = text.trim(); if (!v && files.length === 0) return;
     const w = wsRef.current;
     if (!w || w.readyState !== 1) { toast(t("error.disconnected"), "error"); return; }
 
-    setBrief(v);
+    setBrief(v || files.map(f => f.name).join(", "));
     setPhase("active"); setSubPhase("thinking");
     setHtml(null); setStreamingCode(""); setToolEvents([]); setRightPanel("code"); setDecisions(null); setFileName(""); setFileSize(0);
-    setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v, timestamp: Date.now() }]);
+    setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
 
-    w.send(v);
+    const fileIds = files.map(f => f.id);
+    w.send(v, fileIds.length > 0 ? fileIds : undefined);
+    setFiles([]);
   }
 
   function handleDecision(choices: { question: string; choice: string }[]) {
@@ -978,7 +1047,7 @@ export default function Page() {
 
                   {/* Input — inside chat panel when artifact visible, at bottom otherwise */}
                   {showArtifact && (
-                    <GlobalInput onSend={send} phase={phase} onStop={() => {
+                    <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} onStop={() => {
                       wsRef.current?.close(); setPhase("idle");
                       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
                     }} />
@@ -1005,7 +1074,7 @@ export default function Page() {
 
         {/* Global input — visible when no artifact panel (idle, conversation, thinking without pipeline) */}
         {!showArtifact && (
-          <GlobalInput onSend={send} phase={phase} onStop={() => {
+          <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} onStop={() => {
             wsRef.current?.close(); setPhase("idle");
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
           }} />
