@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Copy, Download, ArrowUpRight, ChevronRight } from "lucide-react";
+import { Send, Copy, Download, ArrowUpRight, ChevronRight, Paperclip } from "lucide-react";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/lib/i18n";
 import { Sidebar, type SidebarRef } from "@/components/sidebar";
 import { SettingsModal } from "@/components/settings-modal";
 import { MessageBubble } from "@/components/message-bubble";
+import { FileChips } from "@/components/file-chips";
 import { ToastContainer, toast } from "@/components/toast";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -172,121 +173,122 @@ function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ProcessPanel (left)
+   ProcessBar (bottom thin progress strip)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
-  toolEvents: ToolEvent[]; subPhase: SubPhase;
+function ProcessBar({ toolEvents, subPhase, expanded, onToggle, decisions, onDecision }: {
+  toolEvents: ToolEvent[]; subPhase: SubPhase; expanded: boolean; onToggle: () => void;
   decisions: Decision[] | null; onDecision: (choices: { question: string; choice: string }[]) => void;
 }) {
   const { t } = useLocale();
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [toolEvents, subPhase]);
+
+  const summary = toolEvents.map((evt, i) => {
+    const isLast = i === toolEvents.length - 1 && subPhase !== "done";
+    const color = evt.event === "thinking" ? "var(--text-3)"
+      : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+      : evt.event === "run" ? "var(--sage)"
+      : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+      : evt.event === "done" ? "var(--pass)" : "var(--text-3)";
+
+    let label = "";
+    if (evt.event === "thinking") label = t("process.analyzing");
+    else if (evt.event === "write_file" || evt.event === "write_file_result") label = `${t("log.write")} ${evt.file || ""}`;
+    else if (evt.event === "run") label = t("log.run");
+    else if (evt.event === "run_result") label = evt.success ? `✓` : `✗`;
+    else if (evt.event === "done") label = `✓ ${t("log.done")}`;
+
+    return { color, label, isLast };
+  });
 
   return (
-    <div className="flex flex-col min-h-0" style={{ width: "35%", minWidth: 280, maxWidth: 380, borderRight: "1px solid var(--border-0)", background: "var(--void)" }}>
-      {/* Header */}
-      <div className="flex items-center gap-2.5 shrink-0" style={{ height: 38, padding: "0 20px", borderBottom: "1px solid var(--border-0)" }}>
-        {subPhase !== "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite", boxShadow: "0 0 8px var(--amber-dim)" }} />}
-        {subPhase === "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--pass)", boxShadow: "0 0 8px var(--pass-dim)" }} />}
-        <span style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.7px", color: subPhase === "done" ? "var(--pass)" : "var(--text-2)" }}>
-          {subPhase === "done" ? t("process.done") : t("process.header")}
-        </span>
-        <style>{`@keyframes e-pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
-      </div>
-
-      {/* Activity list */}
-      <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
-        {/* Thinking placeholder before first event */}
-        {toolEvents.length === 0 && subPhase === "thinking" && (
-          <div className="flex items-center gap-3">
-            <div style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--surface-3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--text-3)", animation: "e-pulse 2s ease-in-out infinite" }} />
-            </div>
-            <span style={{ fontSize: 13, color: "var(--text-2)" }}>{t("thinking")}...</span>
+    <div className="shrink-0" style={{ borderTop: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
+      {/* Thin summary row */}
+      <div className="flex items-center gap-1 px-5" style={{ height: 36 }}>
+        {subPhase !== "done" && toolEvents.length === 0 && (
+          <div className="flex items-center gap-2">
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite" }} />
+            <span style={{ fontSize: 12, color: "var(--text-2)" }}>{t("thinking")}...</span>
           </div>
         )}
-
-        {/* Timeline with connecting line */}
-        <div className="relative" style={{ paddingLeft: 8 }}>
-          {/* Vertical connector line */}
-          {toolEvents.length > 1 && (
-            <div className="absolute" style={{ left: 8, top: 14, bottom: 14, width: 1, background: "linear-gradient(var(--border-1), var(--border-0))" }} />
-          )}
-
-          {toolEvents.map((evt, i) => (
-            <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: i * 0.03 }}
-              className="flex gap-3 relative" style={{ padding: "8px 0" }}>
-              {/* Node dot with icon */}
-              <div style={{
-                width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                zIndex: 1,
-                background: evt.event === "thinking" ? "var(--surface-3)"
-                  : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber-dim)"
-                  : evt.event === "run" ? "var(--sage-dim)"
-                  : evt.event === "run_result" ? (evt.success ? "var(--pass-dim)" : "var(--fail-dim)")
-                  : evt.event === "done" ? "var(--pass-dim)"
-                  : "var(--surface-3)",
-              }}>
-                <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" style={{
-                  color: evt.event === "thinking" ? "var(--text-3)"
-                    : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
-                    : evt.event === "run" ? "var(--sage)"
-                    : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
-                    : evt.event === "done" ? "var(--pass)"
-                    : "var(--text-3)",
-                }}>
-                  {evt.event === "thinking" && <><circle cx="8" cy="8" r="2"/><circle cx="3" cy="8" r="1.5" opacity=".5"/><circle cx="13" cy="8" r="1.5" opacity=".5"/></>}
-                  {(evt.event === "write_file" || evt.event === "write_file_result") && <path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>}
-                  {evt.event === "run" && <path d="M4 2l10 6-10 6z"/>}
-                  {evt.event === "run_result" && (evt.success ? <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/> : <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>)}
-                  {evt.event === "done" && <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
-                  {!["thinking", "write_file", "write_file_result", "run", "run_result", "done"].includes(evt.event) && <circle cx="8" cy="8" r="3"/>}
-                </svg>
+        <div className="flex items-center gap-0 flex-1 overflow-hidden">
+          {summary.slice(-6).map((s, i) => (
+            <div key={i} className="flex items-center gap-0 shrink-0">
+              {i > 0 && <span style={{ fontSize: 10, color: "var(--border-2)", margin: "0 6px" }}>→</span>}
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, boxShadow: s.isLast ? `0 0 6px ${s.color}` : "none", animation: s.isLast ? "e-pulse 2s ease-in-out infinite" : "none" }} />
+                <span className="truncate" style={{ fontSize: 11, color: s.isLast ? "var(--text-1)" : "var(--text-3)", maxWidth: 140 }}>{s.label}</span>
               </div>
-
-              {/* Content */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {evt.event === "thinking" && (
-                  <>
-                    <div style={{ fontSize: 13, color: "var(--text-1)" }}>{t("process.analyzing")}</div>
-                    {evt.content && <div className="truncate" style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", marginTop: 3 }}>&ldquo;{evt.content.slice(0, 80)}&rdquo;</div>}
-                  </>
-                )}
-                {(evt.event === "write_file" || evt.event === "write_file_result") && (
-                  <div style={{ fontSize: 13, color: "var(--text-1)" }}>
-                    {t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.file}</code>
-                    {evt.size ? <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>({(evt.size / 1024).toFixed(1)} KB)</span> : null}
-                  </div>
-                )}
-                {evt.event === "run" && (
-                  <div style={{ fontSize: 13, color: "var(--text-1)" }}>
-                    {t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.command?.slice(0, 50)}</code>
-                  </div>
-                )}
-                {evt.event === "run_result" && (
-                  <div style={{ fontSize: 12, color: evt.success ? "var(--pass)" : "var(--fail)", fontWeight: 500 }}>
-                    {evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 60)}`}
-                  </div>
-                )}
-                {evt.event === "done" && (
-                  <div style={{ fontSize: 13, color: "var(--pass)", fontWeight: 600 }}>
-                    ✓ {t("log.done")} · {evt.turns} {t("complete.rounds")}
-                  </div>
-                )}
-              </div>
-            </motion.div>
+            </div>
           ))}
         </div>
-
-        {/* Inline decision card */}
-        <AnimatePresence>
-          {subPhase === "deciding" && decisions && (
-            <InlineDecision decisions={decisions} onSubmit={onDecision} />
-          )}
-        </AnimatePresence>
-        <div ref={endRef} />
+        <button onClick={onToggle} className="flex items-center gap-1 shrink-0 ml-2 transition-colors hover:text-[var(--text-1)]" style={{ fontSize: 11, color: "var(--text-3)", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
+          <ChevronRight size={10} style={{ transform: expanded ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform 0.2s" }} />
+          <span>{expanded ? "" : t("process.activity")}</span>
+        </button>
       </div>
+
+      {/* Expandable detail panel */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="max-h-[260px] overflow-y-auto px-5 pb-4 pt-1" style={{ borderTop: "1px solid var(--border-0)" }}>
+              {/* Timeline */}
+              <div className="relative" style={{ paddingLeft: 8 }}>
+                {toolEvents.length > 1 && (
+                  <div className="absolute" style={{ left: 8, top: 14, bottom: 14, width: 1, background: "linear-gradient(var(--border-1), var(--border-0))" }} />
+                )}
+                {toolEvents.map((evt, i) => (
+                  <div key={i} className="flex gap-3 relative" style={{ padding: "6px 0" }}>
+                    <div style={{
+                      width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1,
+                      background: evt.event === "thinking" ? "var(--surface-3)"
+                        : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber-dim)"
+                        : evt.event === "run" ? "var(--sage-dim)"
+                        : evt.event === "run_result" ? (evt.success ? "var(--pass-dim)" : "var(--fail-dim)")
+                        : evt.event === "done" ? "var(--pass-dim)" : "var(--surface-3)",
+                    }}>
+                      <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" style={{
+                        color: evt.event === "thinking" ? "var(--text-3)"
+                          : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+                          : evt.event === "run" ? "var(--sage)"
+                          : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+                          : evt.event === "done" ? "var(--pass)" : "var(--text-3)",
+                      }}>
+                        {evt.event === "thinking" && <><circle cx="8" cy="8" r="2"/><circle cx="3" cy="8" r="1.5" opacity=".5"/><circle cx="13" cy="8" r="1.5" opacity=".5"/></>}
+                        {(evt.event === "write_file" || evt.event === "write_file_result") && <path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>}
+                        {evt.event === "run" && <path d="M4 2l10 6-10 6z"/>}
+                        {evt.event === "run_result" && (evt.success ? <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/> : <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>)}
+                        {evt.event === "done" && <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+                        {!["thinking", "write_file", "write_file_result", "run", "run_result", "done"].includes(evt.event) && <circle cx="8" cy="8" r="3"/>}
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text-1)", lineHeight: 1.5 }}>
+                      {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>&ldquo;{evt.content?.slice(0, 100)}&rdquo;</span>}
+                      {(evt.event === "write_file" || evt.event === "write_file_result") && <span>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.file}</code>{evt.size ? <span style={{ color: "var(--text-3)", marginLeft: 4 }}>({(evt.size / 1024).toFixed(1)} KB)</span> : null}</span>}
+                      {evt.event === "run" && <span>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.command?.slice(0, 60)}</code></span>}
+                      {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)", fontWeight: 500 }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 80)}`}</span>}
+                      {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")} · {evt.turns} {t("complete.rounds")}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Inline decision */}
+              <AnimatePresence>
+                {subPhase === "deciding" && decisions && (
+                  <InlineDecision decisions={decisions} onSubmit={onDecision} />
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -566,6 +568,7 @@ export default function Page() {
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
   const [rightPanel, setRightPanel] = useState<"code" | "preview">("code");
+  const [expandedLog, setExpandedLog] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
 
@@ -580,6 +583,12 @@ export default function Page() {
   const [connected, setConnected] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // ── File upload ──
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Refs ──
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
@@ -793,10 +802,10 @@ export default function Page() {
           {isBuild && !isConvo && (
             <motion.div key="build" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
               <BriefBar text={brief} elapsed={elapsed} />
-              <div className="flex flex-1 min-h-0">
-                <ProcessPanel toolEvents={toolEvents} subPhase={subPhase} decisions={decisions} onDecision={handleDecision} />
-                <CodePreviewPanel streamingCode={streamingCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} />
-              </div>
+              <CodePreviewPanel streamingCode={streamingCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} />
+              {phase === "active" && (
+                <ProcessBar toolEvents={toolEvents} subPhase={subPhase} expanded={expandedLog} onToggle={() => setExpandedLog(!expandedLog)} decisions={decisions} onDecision={handleDecision} />
+              )}
               {phase === "complete" && html && (
                 <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(streamingCode.length / 1024).toFixed(1)} KB`}
                   rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
