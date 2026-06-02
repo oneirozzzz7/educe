@@ -27,7 +27,7 @@ interface ChatMsg {
   text: string; timestamp: number;
 }
 interface UploadedFile {
-  id: string; name: string; size: number; mime_type: string; is_image: boolean; error?: string;
+  id: string; name: string; size: number; mime_type: string; is_image: boolean; error?: string; preview_url?: string;
 }
 interface Decision { question: string; options: string[]; }
 
@@ -225,7 +225,7 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
       </div>
 
       {/* Input at bottom of chat panel */}
-      <GlobalInput onSend={onSend} phase={phase} onStop={onStop} files={[]} onFileSelect={() => {}} onRemoveFile={() => {}} uploading={false} fileInputRef={{ current: null }} />
+      <GlobalInput onSend={onSend} phase={phase} onStop={onStop} files={[]} onFileSelect={() => {}} onRemoveFile={() => {}} uploading={false} fileInputRef={{ current: null }} supportsVision={true} />
     </div>
   );
 }
@@ -502,10 +502,10 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    GlobalInput — always visible at bottom of canvas
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function GlobalInput({ onSend, phase, onStop, files, onFileSelect, onRemoveFile, uploading, fileInputRef }: {
+function GlobalInput({ onSend, phase, onStop, files, onFileSelect, onRemoveFile, uploading, fileInputRef, supportsVision }: {
   onSend: (t: string) => void; phase: AppPhase; onStop?: () => void;
   files: UploadedFile[]; onFileSelect: (f: FileList) => void; onRemoveFile: (id: string) => void;
-  uploading: boolean; fileInputRef: React.RefObject<HTMLInputElement | null>;
+  uploading: boolean; fileInputRef: React.RefObject<HTMLInputElement | null>; supportsVision: boolean;
 }) {
   const [text, setText] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -529,7 +529,7 @@ function GlobalInput({ onSend, phase, onStop, files, onFileSelect, onRemoveFile,
         {/* File chips */}
         {files.length > 0 && (
           <div className="mb-2">
-            <FileChips files={files} onRemove={onRemoveFile} />
+            <FileChips files={files} onRemove={onRemoveFile} supportsVision={supportsVision} />
           </div>
         )}
         {/* Drag overlay */}
@@ -856,8 +856,16 @@ export default function Page() {
           xhr.onerror = () => reject(new Error("network"));
           xhr.send(formData);
         });
-        if (d.status === "ok" && d.file) newFiles.push(d.file as UploadedFile);
-        else newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: String(d.error || "failed") });
+        if (d.status === "ok" && d.file) {
+          const uploaded = d.file as UploadedFile;
+          // Generate preview URL for images
+          if (uploaded.is_image && file.type.startsWith("image/")) {
+            uploaded.preview_url = URL.createObjectURL(file);
+          }
+          newFiles.push(uploaded);
+        } else {
+          newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: String(d.error || "failed") });
+        }
       } catch {
         newFiles.push({ id: Date.now().toString(), name: file.name, size: file.size, mime_type: "", is_image: false, error: "上传失败" });
       }
@@ -906,6 +914,7 @@ export default function Page() {
 
   const hasConversation = msgs.some(m => m.role === "assistant");
   const showArtifact = hasArtifact && (phase === "active" || phase === "complete");
+  const supportsVision = /gpt-4o|claude|gemini/i.test(model);
 
   // Derived: split streamingCode into explanation text (before code marker) and actual code (after)
   const codeMarkerIdx = streamingCode.indexOf("```action:write_file");
@@ -1047,7 +1056,7 @@ export default function Page() {
 
                   {/* Input — inside chat panel when artifact visible, at bottom otherwise */}
                   {showArtifact && (
-                    <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} onStop={() => {
+                    <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} supportsVision={supportsVision} onStop={() => {
                       wsRef.current?.close(); setPhase("idle");
                       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
                     }} />
@@ -1074,7 +1083,7 @@ export default function Page() {
 
         {/* Global input — visible when no artifact panel (idle, conversation, thinking without pipeline) */}
         {!showArtifact && (
-          <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} onStop={() => {
+          <GlobalInput onSend={send} phase={phase} files={files} onFileSelect={handleFileSelect} onRemoveFile={removeFile} uploading={uploading} fileInputRef={fileInputRef} supportsVision={supportsVision} onStop={() => {
             wsRef.current?.close(); setPhase("idle");
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
           }} />
