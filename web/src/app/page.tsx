@@ -415,7 +415,14 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 
   useEffect(() => {
     if (rightPanel === "preview" && html && iframeRef.current) {
-      iframeRef.current.srcdoc = html;
+      // Try preview server first (supports multi-file projects + CDN)
+      // Fall back to srcdoc for simple single-file HTML
+      const previewUrl = `http://${window.location.hostname}:8080/`;
+      fetch(previewUrl, { method: "HEAD", mode: "no-cors" }).then(() => {
+        if (iframeRef.current) iframeRef.current.src = previewUrl;
+      }).catch(() => {
+        if (iframeRef.current) iframeRef.current.srcdoc = html;
+      });
     }
   }, [rightPanel, html]);
 
@@ -492,7 +499,7 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
         {/* Preview */}
         {rightPanel === "preview" && html && (
           <motion.iframe ref={iframeRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
-            sandbox="allow-scripts allow-same-origin" className="absolute inset-0 w-full h-full border-none" style={{ background: "#fff" }} />
+            className="absolute inset-0 w-full h-full border-none" style={{ background: "#fff" }} />
         )}
       </div>
     </div>
@@ -1017,9 +1024,22 @@ export default function Page() {
                     )}
 
                     {/* Tool events — inside a subtle bordered box, part of AI response */}
-                    {toolEvents.length > 0 && (
+                    {toolEvents.filter(evt =>
+                      // Skip thinking events (already shown in buildExplanation)
+                      evt.event !== "thinking" &&
+                      // Skip events with no meaningful content
+                      !(evt.event === "write_file_result" && !evt.file) &&
+                      !(evt.event === "read_file_result") &&
+                      // Skip empty write_file events
+                      !(evt.event === "write_file" && !evt.file)
+                    ).length > 0 && (
                       <div className="mb-4" style={{ padding: "10px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
-                        {toolEvents.map((evt, i) => (
+                        {toolEvents.filter(evt =>
+                          evt.event !== "thinking" &&
+                          !(evt.event === "write_file_result" && !evt.file) &&
+                          !(evt.event === "read_file_result") &&
+                          !(evt.event === "write_file" && !evt.file)
+                        ).map((evt, i) => (
                           <div key={i} className="flex items-center gap-2 py-1" style={{ fontSize: 12 }}>
                             <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
                               background: evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
@@ -1027,11 +1047,10 @@ export default function Page() {
                                 : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
                                 : evt.event === "done" ? "var(--pass)" : "var(--text-3)" }} />
                             <span style={{ color: "var(--text-2)" }}>
-                              {evt.event === "write_file" && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code></>}
-                              {evt.event === "run" && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command?.slice(0, 40)}</code></>}
-                              {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 50)}`}</span>}
+                              {(evt.event === "write_file" || evt.event === "write_file_result") && evt.file && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code>{evt.size ? <span style={{ marginLeft: 4, color: "var(--text-3)" }}>({(evt.size/1024).toFixed(1)}KB)</span> : null}</>}
+                              {evt.event === "run" && evt.command && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command.slice(0, 50)}</code></>}
+                              {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 60)}`}</span>}
                               {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")}</span>}
-                              {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>{evt.content?.slice(0, 60)}</span>}
                             </span>
                           </div>
                         ))}
