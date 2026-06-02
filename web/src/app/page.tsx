@@ -319,10 +319,10 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName }: {
+function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase }: {
   streamingCode: string; html: string | null;
   rightPanel: "code" | "preview"; setRightPanel: (v: "code" | "preview") => void;
-  fileName: string;
+  fileName: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
 }) {
   const { t } = useLocale();
   const codeEndRef = useRef<HTMLDivElement>(null);
@@ -383,11 +383,21 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
         {rightPanel === "code" && (
           <div className="absolute inset-0 overflow-y-auto" onScroll={onCodeScroll} style={{ padding: "12px 0" }}>
             {lines.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4">
-                {[200, 300, 140].map((w, i) => (
-                  <div key={i} style={{ width: w, height: i === 1 ? 160 : 14, background: "var(--surface-2)", borderRadius: 8, animation: `e-skel 2s ease-in-out ${i * 0.2}s infinite` }} />
-                ))}
-                <style>{`@keyframes e-skel{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
+              <div className="flex flex-col items-center justify-center h-full gap-5 px-8">
+                {/* Small breathing sigil */}
+                <Sigil size={48} />
+                {/* Dynamic status text */}
+                <div className="text-center max-w-[400px]">
+                  <div style={{ fontSize: 14, color: "var(--text-1)", marginBottom: 8 }}>
+                    {subPhase === "thinking" ? t("process.analyzing") : subPhase === "building" ? t("process.structuring") : t("thinking")}...
+                  </div>
+                  {/* Show latest thinking content from tool events */}
+                  {toolEvents.filter(e => e.event === "thinking" && e.content).slice(-1).map((evt, i) => (
+                    <div key={i} style={{ fontSize: 13, color: "var(--text-3)", fontStyle: "italic", lineHeight: 1.6 }}>
+                      &ldquo;{evt.content!.slice(0, 120)}{evt.content!.length > 120 ? "..." : ""}&rdquo;
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               lines.map((line, i) => (
@@ -804,7 +814,7 @@ export default function Page() {
           {isBuild && !isConvo && (
             <motion.div key="build" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
               <BriefBar text={brief} elapsed={elapsed} />
-              <CodePreviewPanel streamingCode={streamingCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} />
+              <CodePreviewPanel streamingCode={streamingCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
               {phase === "active" && (
                 <ProcessBar toolEvents={toolEvents} subPhase={subPhase} expanded={expandedLog} onToggle={() => setExpandedLog(!expandedLog)} decisions={decisions} onDecision={handleDecision} />
               )}
