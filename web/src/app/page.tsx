@@ -181,11 +181,6 @@ function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [toolEvents, subPhase]);
 
-  const dotColor: Record<string, string> = {
-    thinking: "var(--text-3)", write_file: "var(--amber)", write_file_result: "var(--amber)",
-    run: "var(--sage)", run_result: "var(--sage)", done: "var(--pass)", read_file_result: "var(--text-3)",
-  };
-
   return (
     <div className="flex flex-col min-h-0" style={{ width: "35%", minWidth: 280, maxWidth: 380, borderRight: "1px solid var(--border-0)" }}>
       {/* Header */}
@@ -202,47 +197,86 @@ function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
       <div className="flex-1 overflow-y-auto" style={{ padding: "14px 16px" }}>
         {/* Thinking placeholder before first event */}
         {toolEvents.length === 0 && subPhase === "thinking" && (
-          <div className="flex items-center gap-2.5">
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--text-3)", animation: "e-pulse 2s ease-in-out infinite" }} />
+          <div className="flex items-center gap-3">
+            <div style={{ width: 17, height: 17, borderRadius: "50%", background: "var(--surface-3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--text-3)", animation: "e-pulse 2s ease-in-out infinite" }} />
+            </div>
             <span style={{ fontSize: 13, color: "var(--text-2)" }}>{t("thinking")}...</span>
           </div>
         )}
 
-        {toolEvents.map((evt, i) => (
-          <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}
-            className="flex gap-2.5" style={{ padding: "5px 0" }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)") : (dotColor[evt.event] || "var(--text-3)"), marginTop: 6, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {evt.event === "thinking" && (
-                <>
-                  <div style={{ fontSize: 13, color: "var(--text-1)" }}>{t("process.analyzing")}</div>
-                  {evt.content && <div className="truncate" style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", marginTop: 2, maxWidth: "100%" }}>{evt.content.slice(0, 80)}</div>}
-                </>
-              )}
-              {evt.event === "write_file" && (
-                <div style={{ fontSize: 13, color: "var(--text-1)" }}>
-                  {t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3, color: "var(--text-0)" }}>{evt.file}</code>
-                  {evt.size ? <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>({(evt.size / 1024).toFixed(1)} KB)</span> : null}
-                </div>
-              )}
-              {evt.event === "run" && (
-                <div style={{ fontSize: 13, color: "var(--text-1)" }}>
-                  {t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3, color: "var(--text-0)" }}>{evt.command?.slice(0, 50)}</code>
-                </div>
-              )}
-              {evt.event === "run_result" && (
-                <div style={{ fontSize: 12, color: evt.success ? "var(--pass)" : "var(--fail)" }}>
-                  {evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 60)}`}
-                </div>
-              )}
-              {evt.event === "done" && (
-                <div style={{ fontSize: 13, color: "var(--pass)", fontWeight: 500 }}>
-                  ✓ {t("log.done")} · {evt.turns} {t("complete.rounds")}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ))}
+        {/* Timeline with connecting line */}
+        <div className="relative" style={{ paddingLeft: 8 }}>
+          {/* Vertical connector line */}
+          {toolEvents.length > 1 && (
+            <div className="absolute" style={{ left: 8, top: 14, bottom: 14, width: 1, background: "linear-gradient(var(--border-1), var(--border-0))" }} />
+          )}
+
+          {toolEvents.map((evt, i) => (
+            <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: i * 0.03 }}
+              className="flex gap-3 relative" style={{ padding: "7px 0" }}>
+              {/* Node dot with icon */}
+              <div style={{
+                width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                zIndex: 1,
+                background: evt.event === "thinking" ? "var(--surface-3)"
+                  : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber-dim)"
+                  : evt.event === "run" ? "var(--sage-dim)"
+                  : evt.event === "run_result" ? (evt.success ? "var(--pass-dim)" : "var(--fail-dim)")
+                  : evt.event === "done" ? "var(--pass-dim)"
+                  : "var(--surface-3)",
+              }}>
+                <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" style={{
+                  color: evt.event === "thinking" ? "var(--text-3)"
+                    : evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+                    : evt.event === "run" ? "var(--sage)"
+                    : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+                    : evt.event === "done" ? "var(--pass)"
+                    : "var(--text-3)",
+                }}>
+                  {evt.event === "thinking" && <><circle cx="8" cy="8" r="2"/><circle cx="3" cy="8" r="1.5" opacity=".5"/><circle cx="13" cy="8" r="1.5" opacity=".5"/></>}
+                  {(evt.event === "write_file" || evt.event === "write_file_result") && <path d="M3 2h7l3 3v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>}
+                  {evt.event === "run" && <path d="M4 2l10 6-10 6z"/>}
+                  {evt.event === "run_result" && (evt.success ? <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/> : <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>)}
+                  {evt.event === "done" && <path d="M3 8l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+                  {!["thinking", "write_file", "write_file_result", "run", "run_result", "done"].includes(evt.event) && <circle cx="8" cy="8" r="3"/>}
+                </svg>
+              </div>
+
+              {/* Content */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {evt.event === "thinking" && (
+                  <>
+                    <div style={{ fontSize: 13, color: "var(--text-1)" }}>{t("process.analyzing")}</div>
+                    {evt.content && <div className="truncate" style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", marginTop: 2 }}>{evt.content.slice(0, 80)}</div>}
+                  </>
+                )}
+                {(evt.event === "write_file" || evt.event === "write_file_result") && (
+                  <div style={{ fontSize: 13, color: "var(--text-1)" }}>
+                    {t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.file}</code>
+                    {evt.size ? <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>({(evt.size / 1024).toFixed(1)} KB)</span> : null}
+                  </div>
+                )}
+                {evt.event === "run" && (
+                  <div style={{ fontSize: 13, color: "var(--text-1)" }}>
+                    {t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "1px 5px", borderRadius: 3, color: "var(--text-0)" }}>{evt.command?.slice(0, 50)}</code>
+                  </div>
+                )}
+                {evt.event === "run_result" && (
+                  <div style={{ fontSize: 12, color: evt.success ? "var(--pass)" : "var(--fail)", fontWeight: 500 }}>
+                    {evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 60)}`}
+                  </div>
+                )}
+                {evt.event === "done" && (
+                  <div style={{ fontSize: 13, color: "var(--pass)", fontWeight: 600 }}>
+                    ✓ {t("log.done")} · {evt.turns} {t("complete.rounds")}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
 
         {/* Inline decision card */}
         <AnimatePresence>
@@ -336,24 +370,24 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0" style={{ background: "var(--surface-0)" }}>
       {/* Tab bar */}
-      <div className="flex items-center shrink-0" style={{ height: 36, padding: "0 16px", borderBottom: "1px solid var(--border-0)", background: showTabs ? "var(--surface-0)" : "var(--surface-1)" }}>
+      <div className="flex items-center shrink-0" style={{ height: 38, padding: "0 16px", borderBottom: "1px solid var(--border-0)", background: showTabs ? "var(--surface-0)" : "var(--surface-1)" }}>
         {!showTabs ? (
           <>
-            {streamingCode && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)", marginRight: 8, animation: "e-pulse 2s ease-in-out infinite" }} />}
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "var(--text-1)" }}>{fileName || "..."}</span>
-            {streamingCode && <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>{(streamingCode.length / 1024).toFixed(1)} KB</span>}
+            {streamingCode && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--amber)", marginRight: 10, animation: "e-pulse 2s ease-in-out infinite", boxShadow: "0 0 6px var(--amber-dim)" }} />}
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>{fileName || "..."}</span>
+            {streamingCode && <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", marginLeft: "auto", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4 }}>{(streamingCode.length / 1024).toFixed(1)} KB</span>}
           </>
         ) : (
           <>
             {(["code", "preview"] as const).map(tab => (
               <button key={tab} onClick={() => setRightPanel(tab)}
-                className="relative transition-colors" style={{ padding: "10px 14px", fontSize: 12, fontWeight: 500, color: rightPanel === tab ? "var(--text-0)" : "var(--text-3)", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                className="relative transition-colors" style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: rightPanel === tab ? "var(--text-0)" : "var(--text-3)", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 {tab === "code" ? "Code" : "Preview"}
-                {rightPanel === tab && <div className="absolute bottom-0 left-[14px] right-[14px]" style={{ height: 1.5, background: "var(--amber)", borderRadius: 1 }} />}
+                {rightPanel === tab && <div className="absolute bottom-0 left-[16px] right-[16px]" style={{ height: 2, background: "var(--amber)", borderRadius: 1 }} />}
               </button>
             ))}
             <span style={{ flex: 1 }} />
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>{fileName}</span>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", background: "var(--surface-2)", padding: "2px 8px", borderRadius: 4 }}>{fileName}</span>
           </>
         )}
       </div>
@@ -432,22 +466,35 @@ function CompleteBar({ fileName, size, rounds, elapsed, html }: {
 
   return (
     <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4, ease: EASE }}
-      className="flex items-center gap-4 shrink-0" style={{ padding: "12px 20px", borderTop: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
-      <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--pass-dim)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pass)", fontSize: 13 }}>✓</div>
+      className="flex items-center gap-4 shrink-0" style={{ padding: "14px 24px", borderTop: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--pass-dim)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pass)", fontSize: 14, boxShadow: "0 0 12px var(--pass-dim)" }}>✓</div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-0)", fontFamily: "'Geist Mono', monospace" }}>{fileName}</div>
-        <div className="flex gap-3 mt-0.5" style={{ fontSize: 11, color: "var(--text-3)" }}>
-          <span>{size}</span><span>{rounds} {t("complete.rounds")}</span><span>{elapsed}s</span><span style={{ color: "var(--pass)" }}>✓ {t("complete.passed")}</span>
+        <div className="flex gap-3 mt-1" style={{ fontSize: 11, color: "var(--text-3)" }}>
+          <span>{size}</span>
+          <span>{rounds} {t("complete.rounds")}</span>
+          <span>{elapsed}s</span>
+          <span style={{ color: "var(--pass)", fontWeight: 500 }}>✓ {t("complete.passed")}</span>
         </div>
       </div>
-      <div className="flex gap-1.5">
+      <div className="flex gap-2">
         {[
-          { fn: copy, icon: <Copy size={11} />, label: t("action.copy"), primary: false },
-          { fn: download, icon: <Download size={11} />, label: t("action.download"), primary: false },
-          { fn: open, icon: <ArrowUpRight size={11} />, label: t("action.open"), primary: true },
+          { fn: copy, icon: <Copy size={12} />, label: t("action.copy"), primary: false },
+          { fn: download, icon: <Download size={12} />, label: t("action.download"), primary: false },
+          { fn: open, icon: <ArrowUpRight size={12} />, label: t("action.open"), primary: true },
         ].map(b => (
-          <button key={b.label} onClick={b.fn} className="transition-all hover:opacity-90"
-            style={{ padding: "6px 12px", borderRadius: 6, border: b.primary ? "none" : "1px solid var(--border-1)", background: b.primary ? "var(--amber)" : "none", color: b.primary ? "var(--void)" : "var(--text-1)", fontSize: 11, fontWeight: b.primary ? 600 : 400, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+          <button key={b.label} onClick={b.fn}
+            className="complete-bar-btn"
+            style={{
+              padding: "7px 14px", borderRadius: 7,
+              border: b.primary ? "none" : "1px solid var(--border-1)",
+              background: b.primary ? "var(--amber)" : "var(--surface-2)",
+              color: b.primary ? "var(--void)" : "var(--text-1)",
+              fontSize: 12, fontWeight: b.primary ? 600 : 500,
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+              fontFamily: "inherit",
+              boxShadow: b.primary ? "0 2px 12px var(--amber-dim)" : "none",
+            }}>
             {b.icon}{b.label}
           </button>
         ))}

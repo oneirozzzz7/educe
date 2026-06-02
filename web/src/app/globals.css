@@ -138,6 +138,15 @@ body::after {
   box-shadow: 0 0 0 1px var(--amber-glow);
 }
 
+/* ═══ Educe: CompleteBar buttons ═══ */
+.complete-bar-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.complete-bar-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
 /* ═══ Educe: Starter Pills ═══ */
 .starter-pill {
   padding: 8px 20px;
