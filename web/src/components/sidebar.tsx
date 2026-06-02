@@ -13,8 +13,8 @@ export interface SidebarRef { refresh: () => void }
 
 export const Sidebar = forwardRef<SidebarRef, {
   collapsed: boolean; onCollapse: () => void; onTaskSelect?: (task: TaskItem) => void; onNewTask?: () => void;
-  activeSessionId?: string;
-}>(function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask, activeSessionId }, ref) {
+  activeSessionId?: string; onOpenSettings?: () => void;
+}>(function Sidebar({ collapsed, onCollapse, onTaskSelect, onNewTask, activeSessionId, onOpenSettings }, ref) {
   const { locale, setLocale, t } = useLocale();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,11 +61,8 @@ export const Sidebar = forwardRef<SidebarRef, {
   return (
     <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: "var(--sidebar-width)", borderRight: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
       {/* Brand */}
-      <div className="px-5 pt-5 pb-5 flex items-baseline">
+      <div className="px-5 pt-5 pb-5 flex items-center">
         <LogoMark size={24} />
-        <span className="ml-2.5 text-[9px] font-medium uppercase tracking-[0.1em]" style={{ color: "var(--text-3)" }}>
-          {t("tagline")}
-        </span>
         <div className="flex-1" />
         <button onClick={onCollapse} className="w-6 h-6 rounded-md flex items-center justify-center transition-colors hover:bg-[var(--amber-glow)]" style={{ color: "var(--text-3)" }}>
           <PanelLeftClose size={13} />
@@ -155,10 +152,10 @@ export const Sidebar = forwardRef<SidebarRef, {
           </button>
         </div>
         <div className="flex-1" />
-        <div className="flex items-center gap-1.5 text-[11px] px-2" style={{ color: "var(--text-3)" }}>
+        <button onClick={onOpenSettings} className="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md transition-colors hover:bg-[var(--surface-2)]" style={{ color: "var(--text-3)", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
           <span className="w-[5px] h-[5px] rounded-full" style={{ background: "var(--pass)", boxShadow: "0 0 6px var(--pass-dim)" }}></span>
-          <span style={{ fontFamily: "var(--font-mono, monospace)" }}>v1.5</span>
-        </div>
+          <span style={{ fontFamily: "'Geist Mono', monospace" }}>v1.5</span>
+        </button>
       </div>
     </div>
   );
