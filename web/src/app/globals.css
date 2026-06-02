@@ -126,3 +126,53 @@ body::after {
   vertical-align: middle;
   margin-left: 2px;
 }
+
+/* ═══ Educe: Starter Pills ═══ */
+.starter-pill {
+  padding: 8px 20px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border-1);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.starter-pill:hover {
+  color: var(--text-0);
+  background: var(--amber-glow);
+  border-color: var(--amber);
+  box-shadow: 0 0 24px var(--amber-dim), 0 0 0 1px var(--amber-glow);
+  transform: translateY(-2px);
+}
+.starter-pill:active {
+  transform: translateY(0) scale(0.97);
+  transition-duration: 0.1s;
+}
+
+/* ═══ Educe: Input glow on focus ═══ */
+.educe-input {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 14px;
+  padding: 16px 56px 16px 20px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-0);
+  line-height: 1.5;
+  min-height: 56px;
+  max-height: 140px;
+  resize: none;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.3s, box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+}
+.educe-input::placeholder {
+  color: var(--text-3);
+}
+.educe-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-dim), 0 16px 48px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(212,148,76,0.05);
+}

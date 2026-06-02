@@ -55,21 +55,32 @@ function highlightLine(raw: string): string {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Sigil
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function Sigil({ size = 88 }: { size?: number }) {
+function Sigil({ size = 96 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 88 88" style={{ width: size, height: size }}>
-      <circle cx="44" cy="44" r="42" fill="none" stroke="var(--border-1)" strokeWidth="0.4" />
-      <circle cx="44" cy="44" r="30" fill="none" stroke="var(--border-0)" strokeWidth="0.4" />
-      <circle cx="44" cy="44" r="18" fill="none" stroke="var(--border-0)" strokeWidth="0.3" opacity="0.5" />
-      <circle cx="44" cy="44" r="42" fill="none" stroke="var(--amber)" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="66 198" style={{ animation: "e-spin 12s linear infinite", transformOrigin: "center" }} />
-      <circle cx="44" cy="44" r="30" fill="none" stroke="var(--amber-bright)" strokeWidth="1" strokeLinecap="round" strokeDasharray="38 150" opacity="0.5" style={{ animation: "e-spin-r 18s linear infinite", transformOrigin: "center" }} />
-      <circle cx="44" cy="44" r="18" fill="none" stroke="var(--amber)" strokeWidth="0.6" strokeLinecap="round" strokeDasharray="20 94" opacity="0.3" style={{ animation: "e-spin 8s linear infinite", transformOrigin: "center" }} />
-      <circle cx="44" cy="44" r="8" fill="var(--amber)" opacity="0.05" style={{ animation: "e-breathe 4s ease-in-out infinite" }} />
-      <circle cx="44" cy="44" r="3.5" fill="var(--amber)" opacity="0.8" />
+    <svg viewBox="0 0 96 96" style={{ width: size, height: size }}>
+      {/* Static rings — structure */}
+      <circle cx="48" cy="48" r="46" fill="none" stroke="var(--border-1)" strokeWidth="0.5" />
+      <circle cx="48" cy="48" r="33" fill="none" stroke="var(--border-1)" strokeWidth="0.4" />
+      <circle cx="48" cy="48" r="20" fill="none" stroke="var(--border-0)" strokeWidth="0.3" opacity="0.6" />
+      {/* Orbiting arcs — energy */}
+      <circle cx="48" cy="48" r="46" fill="none" stroke="var(--amber)" strokeWidth="2"
+        strokeLinecap="round" strokeDasharray="60 160"
+        style={{ animation: "e-spin 10s linear infinite", transformOrigin: "center" }} />
+      <circle cx="48" cy="48" r="33" fill="none" stroke="var(--amber-bright)" strokeWidth="1.2"
+        strokeLinecap="round" strokeDasharray="40 168"
+        opacity="0.55" style={{ animation: "e-spin-r 16s linear infinite", transformOrigin: "center" }} />
+      <circle cx="48" cy="48" r="20" fill="none" stroke="var(--amber)" strokeWidth="0.7"
+        strokeLinecap="round" strokeDasharray="22 104"
+        opacity="0.35" style={{ animation: "e-spin 7s linear infinite", transformOrigin: "center" }} />
+      {/* Core — the seed */}
+      <circle cx="48" cy="48" r="10" fill="var(--amber)" opacity="0.04"
+        style={{ animation: "e-breathe 4s ease-in-out infinite" }} />
+      <circle cx="48" cy="48" r="4" fill="var(--amber)" opacity="0.85" />
+      <circle cx="48" cy="48" r="2" fill="var(--text-0)" opacity="0.6" />
       <style>{`
         @keyframes e-spin{to{transform:rotate(360deg)}}
         @keyframes e-spin-r{to{transform:rotate(-360deg)}}
-        @keyframes e-breathe{0%,100%{opacity:.04}50%{opacity:.12}}
+        @keyframes e-breathe{0%,100%{opacity:.03}50%{opacity:.1}}
       `}</style>
     </svg>
   );
@@ -80,7 +91,6 @@ function Sigil({ size = 88 }: { size?: number }) {
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function EmptyState({ onSend }: { onSend: (t: string) => void }) {
   const [input, setInput] = useState("");
-  const [focused, setFocused] = useState(false);
   const compRef = useRef(false);
   const { t } = useLocale();
 
@@ -96,48 +106,48 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Glow */}
-      <div className="absolute pointer-events-none" style={{ top: "28%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 400, background: "radial-gradient(ellipse, rgba(212,148,76,0.06) 0%, transparent 65%)" }} />
+      {/* Atmospheric glow — layered for depth */}
+      <div className="absolute pointer-events-none" style={{ top: "30%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, background: "radial-gradient(ellipse at center, rgba(212,148,76,0.08) 0%, rgba(212,148,76,0.03) 35%, transparent 65%)" }} />
+      <div className="absolute pointer-events-none" style={{ top: "32%", left: "50%", transform: "translate(-50%,-50%)", width: 300, height: 300, background: "radial-gradient(circle, rgba(212,148,76,0.05) 0%, transparent 60%)", filter: "blur(40px)" }} />
 
-      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, ease: EASE }} className="relative z-10">
-        <Sigil size={88} />
+      {/* Sigil */}
+      <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, ease: EASE }} className="relative z-10">
+        <Sigil size={96} />
       </motion.div>
 
-      <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15, ease: EASE }}
-        className="mt-10 mb-3 text-center z-10" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 38, color: "var(--text-0)", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
+      {/* Title */}
+      <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
+        className="mt-12 mb-3 text-center z-10" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, color: "var(--text-0)", letterSpacing: "-0.015em", lineHeight: 1.15 }}>
         {t("empty.title")}
       </motion.h1>
 
-      <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.25, ease: EASE }}
-        className="mb-12 text-center z-10" style={{ fontSize: 15, color: "var(--text-3)", lineHeight: 1.6 }}>
+      {/* Subtitle */}
+      <motion.p initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
+        className="mb-14 text-center z-10" style={{ fontSize: 15, color: "var(--text-3)", lineHeight: 1.6, maxWidth: 420 }}>
         {t("empty.sub")}
       </motion.p>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.35, ease: EASE }}
-        className="w-full max-w-[560px] relative z-10 px-6">
+      {/* Input */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4, ease: EASE }}
+        className="w-full max-w-[540px] relative z-10 px-6">
         <div className="relative">
           <textarea value={input} onChange={e => setInput(e.target.value)}
             onCompositionStart={() => { compRef.current = true; }} onCompositionEnd={e => { compRef.current = false; setInput((e.target as HTMLTextAreaElement).value); }}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !compRef.current) { e.preventDefault(); submit(); } }}
-            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
             placeholder={t("empty.placeholder")} rows={1}
-            className="w-full resize-none outline-none transition-all duration-300"
-            style={{ background: "var(--surface-1)", border: `1px solid ${focused ? "var(--amber)" : "var(--border-1)"}`, borderRadius: 16, padding: "18px 60px 18px 22px", fontSize: 15, fontFamily: "inherit", color: "var(--text-0)", lineHeight: 1.5, minHeight: 58, maxHeight: 140, boxShadow: focused ? "0 0 0 3px var(--amber-dim), 0 12px 40px rgba(0,0,0,0.3)" : "0 4px 20px rgba(0,0,0,0.15)" }} />
-          <button onClick={submit} disabled={!input.trim()} className="absolute right-[10px] bottom-[10px] transition-all duration-200"
-            style={{ width: 40, height: 40, borderRadius: 12, border: "none", background: input.trim() ? "var(--amber)" : "var(--surface-2)", color: input.trim() ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: input.trim() ? "pointer" : "default", opacity: input.trim() ? 1 : 0.6, transform: `scale(${input.trim() ? 1 : 0.95})` }}>
-            <Send size={16} />
+            className="educe-input" />
+          <button onClick={submit} disabled={!input.trim()} className="absolute right-[8px] bottom-[9px] transition-all duration-200"
+            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: input.trim() ? "var(--amber)" : "var(--surface-2)", color: input.trim() ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: input.trim() ? "pointer" : "default", opacity: input.trim() ? 1 : 0.5, transform: `scale(${input.trim() ? 1 : 0.93})` }}>
+            <Send size={15} />
           </button>
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5, ease: EASE }}
-        className="flex flex-wrap gap-2.5 justify-center mt-7 px-6 max-w-[560px] z-10">
+      {/* Starters */}
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.55, ease: EASE }}
+        className="flex flex-wrap gap-2 justify-center mt-6 px-6 max-w-[540px] z-10">
         {starters.map(s => (
-          <button key={s.key} onClick={() => onSend(s.prompt)}
-            className="transition-all duration-200 hover:scale-[1.04] active:scale-[0.97]"
-            style={{ padding: "8px 18px", borderRadius: 100, fontSize: 13, fontFamily: "inherit", color: "var(--text-2)", background: "transparent", border: "1px solid var(--border-1)", cursor: "pointer" }}
-            onMouseEnter={e => { const s = (e.currentTarget as HTMLElement).style; s.color = "var(--text-0)"; s.background = "var(--amber-glow)"; s.borderColor = "var(--amber)"; s.boxShadow = "0 0 20px var(--amber-dim)"; }}
-            onMouseLeave={e => { const s = (e.currentTarget as HTMLElement).style; s.color = "var(--text-2)"; s.background = "transparent"; s.borderColor = "var(--border-1)"; s.boxShadow = "none"; }}>
+          <button key={s.key} onClick={() => onSend(s.prompt)} className="starter-pill">
             {t(s.key)}
           </button>
         ))}
