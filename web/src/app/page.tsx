@@ -973,8 +973,8 @@ export default function Page() {
           )}
         </AnimatePresence>
 
-        {/* Global input — visible when no artifact (full-width chat or idle) */}
-        {!showArtifact && (phase !== "idle" || hasConversation) && (
+        {/* Global input — visible when no artifact panel (idle, conversation, thinking without pipeline) */}
+        {!showArtifact && (
           <GlobalInput onSend={send} phase={phase} onStop={() => {
             wsRef.current?.close(); setPhase("idle");
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
