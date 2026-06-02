@@ -841,7 +841,16 @@ export default function Page() {
   // Derived: split streamingCode into explanation text (before code marker) and actual code (after)
   const codeMarkerIdx = streamingCode.indexOf("```action:write_file");
   const buildExplanation = codeMarkerIdx > 0 ? streamingCode.slice(0, codeMarkerIdx).trim() : (codeMarkerIdx === -1 ? streamingCode : "");
-  const buildCode = codeMarkerIdx >= 0 ? streamingCode.slice(codeMarkerIdx) : "";
+  // Strip metadata header (```action:write_file\npath: xxx\n---\n) from code
+  let buildCode = codeMarkerIdx >= 0 ? streamingCode.slice(codeMarkerIdx) : "";
+  let derivedFileName = fileName;
+  const headerEndIdx = buildCode.indexOf("---\n");
+  if (headerEndIdx >= 0) {
+    const headerBlock = buildCode.slice(0, headerEndIdx);
+    const pathMatch = headerBlock.match(/path:\s*(.+)/);
+    if (pathMatch) derivedFileName = pathMatch[1].trim();
+    buildCode = buildCode.slice(headerEndIdx + 4);
+  }
 
   return (
     <div className="h-screen flex" style={{ background: "var(--void)" }}>
@@ -981,9 +990,9 @@ export default function Page() {
                   {showArtifact && (
                     <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
-                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} />
                       {phase === "complete" && html && (
-                        <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
+                        <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
                           rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
                       )}
                     </motion.div>
