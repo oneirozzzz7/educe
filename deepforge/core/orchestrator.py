@@ -322,10 +322,70 @@ class Orchestrator:
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
-        await self._run_agent("builder", user_input, "user", timeout=900)
+        # ═══ A. 生成需求清单（核心功能 checklist）═══
+        checklist = []
+        try:
+            from deepforge.core.checklist_judge import generate_checklist
+            from deepforge.models.router import ModelClient
+            client = ModelClient(api_key=self.config.default_model.api_key,
+                                base_url=self.config.default_model.base_url)
+            checklist = await generate_checklist(client, self.config.default_model.model, user_input)
+        except Exception:
+            pass
+
+        # ═══ B. 把 checklist 注入 builder prompt ═══
+        build_input = user_input
+        if checklist:
+            checklist_text = "\n".join(f"  {i+1}. {item}" for i, item in enumerate(checklist))
+            build_input = (
+                f"{user_input}\n\n"
+                f"【核心功能要求（必须全部实现）】\n{checklist_text}\n\n"
+                f"请逐项实现以上所有功能，确保每项都能正常工作。"
+            )
+
+        # ═══ 执行构建 ═══
+        await self._run_agent("builder", build_input, "user", timeout=900)
 
         if self.context.metadata.get("_pending_decisions"):
             return self.context
+
+        # ═══ C. Checklist 验收 ═══
+        has_output = bool(self.context.artifacts.get("code_files"))
+        if has_output and checklist:
+            try:
+                from deepforge.core.checklist_judge import verify_checklist
+                code_output = self.context.artifacts.get("engineer_output", "")
+                if len(code_output) < 100:
+                    # Read actual files for verification
+                    from pathlib import Path
+                    output_dir = self.context.artifacts.get("output_dir", "")
+                    code_files = self.context.artifacts.get("code_files", [])
+                    parts = []
+                    for fp in code_files[:3]:
+                        p = Path(fp) if Path(fp).is_absolute() else Path(output_dir) / fp
+                        if p.exists():
+                            parts.append(p.read_text(encoding="utf-8", errors="ignore")[:5000])
+                    code_output = "\n".join(parts)
+
+                covered = await verify_checklist(client, self.config.default_model.model, checklist, code_output)
+                coverage = sum(covered) / len(covered) if covered else 1.0
+
+                # ═══ D. 不通过则修复 ═══
+                if coverage < 0.8 and covered:
+                    missing = [checklist[i] for i, c in enumerate(covered) if not c]
+                    if missing:
+                        fix_request = (
+                            f"当前代码缺少以下功能，请补充实现：\n"
+                            + "\n".join(f"- {item}" for item in missing)
+                            + "\n\n请在现有代码基础上添加缺失功能。"
+                        )
+                        # 通知前端正在修复
+                        progress_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                                              content="__BUILD_PROGRESS__验收发现缺失功能，修复中...")
+                        self._notify(progress_msg)
+                        await self._run_agent("builder", fix_request, "system", timeout=300)
+            except Exception:
+                pass
 
         has_output = bool(self.context.artifacts.get("code_files"))
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
