@@ -895,10 +895,12 @@ export default function Page() {
               {showArtifact && <BriefBar text={brief} elapsed={elapsed} />}
               <div className="flex flex-1 min-h-0">
                 {/* Chat panel — always present, adapts width */}
-                <div className={`flex flex-col min-h-0 transition-all duration-300 ${showArtifact ? "" : "max-w-[680px] mx-auto w-full"}`}
-                  style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)" } : { background: "var(--void)" }}>
+                <div className="flex flex-col min-h-0 transition-all duration-300 flex-1"
+                  style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
                   {/* Scrollable chat content */}
-                  <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px" : "32px 24px 120px" }}>
+                  <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px" : "24px 28px 120px" }}>
+                    {/* Constrain message width for readability */}
+                    <div style={{ maxWidth: showArtifact ? "100%" : "760px", margin: showArtifact ? undefined : "0 auto" }}>
                     {/* User messages + AI replies */}
                     {msgs.map(msg => (
                       <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
@@ -925,23 +927,27 @@ export default function Page() {
                       </div>
                     )}
 
-                    {/* Tool events */}
-                    {toolEvents.map((evt, i) => (
-                      <div key={i} className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                          background: evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
-                            : evt.event === "run" ? "var(--sage)"
-                            : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
-                            : evt.event === "done" ? "var(--pass)" : "var(--text-3)" }} />
-                        <span style={{ color: "var(--text-2)" }}>
-                          {evt.event === "write_file" && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code></>}
-                          {evt.event === "run" && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command?.slice(0, 40)}</code></>}
-                          {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 50)}`}</span>}
-                          {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")}</span>}
-                          {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>{evt.content?.slice(0, 60)}</span>}
-                        </span>
+                    {/* Tool events — inside a subtle bordered box, part of AI response */}
+                    {toolEvents.length > 0 && (
+                      <div className="mb-4" style={{ padding: "10px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                        {toolEvents.map((evt, i) => (
+                          <div key={i} className="flex items-center gap-2 py-1" style={{ fontSize: 12 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                              background: evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+                                : evt.event === "run" ? "var(--sage)"
+                                : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+                                : evt.event === "done" ? "var(--pass)" : "var(--text-3)" }} />
+                            <span style={{ color: "var(--text-2)" }}>
+                              {evt.event === "write_file" && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code></>}
+                              {evt.event === "run" && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command?.slice(0, 40)}</code></>}
+                              {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 50)}`}</span>}
+                              {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")}</span>}
+                              {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>{evt.content?.slice(0, 60)}</span>}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
 
                     {/* Thinking indicator */}
                     {thinking && (
@@ -958,6 +964,7 @@ export default function Page() {
                         <InlineDecision decisions={decisions} onSubmit={handleDecision} />
                       )}
                     </AnimatePresence>
+                    </div>{/* close maxWidth container */}
                   </div>
 
                   {/* Input — inside chat panel when artifact visible, at bottom otherwise */}
