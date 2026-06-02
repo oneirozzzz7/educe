@@ -174,7 +174,7 @@ body::after {
 /* ═══ Educe: Input glow on focus ═══ */
 .educe-input {
   background: var(--surface-1);
-  border: 1px solid var(--border-1);
+  border: 1px solid var(--border-2);
   border-radius: 14px;
   padding: 16px 56px 16px 20px;
   font-size: 15px;
@@ -187,7 +187,7 @@ body::after {
   outline: none;
   width: 100%;
   transition: border-color 0.3s, box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.02);
 }
 .educe-input::placeholder {
   color: var(--text-3);

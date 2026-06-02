@@ -9,6 +9,16 @@ import { cn } from "@/lib/utils";
 
 interface TaskItem { id: string; request?: string; title?: string; project_type?: string; created_at: number; updated_at?: number; turns?: number; response?: string }
 
+function formatRelativeTime(ts: number, locale: string): string {
+  const now = Date.now() / 1000;
+  const diff = now - ts;
+  if (diff < 60) return locale === "zh" ? "刚刚" : "just now";
+  if (diff < 3600) return locale === "zh" ? `${Math.floor(diff / 60)}分钟前` : `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return locale === "zh" ? `${Math.floor(diff / 3600)}小时前` : `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return locale === "zh" ? `${Math.floor(diff / 86400)}天前` : `${Math.floor(diff / 86400)}d ago`;
+  return new Date(ts * 1000).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" });
+}
+
 export interface SidebarRef { refresh: () => void }
 
 export const Sidebar = forwardRef<SidebarRef, {
@@ -93,7 +103,7 @@ export const Sidebar = forwardRef<SidebarRef, {
       </div>
 
       {/* ─── Search (if many tasks) ─── */}
-      {tasks.length > 3 && (
+      {tasks.length > 8 && (
         <div className="px-3 pb-2">
           <div className="relative">
             <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-3)" }} />
@@ -131,7 +141,7 @@ export const Sidebar = forwardRef<SidebarRef, {
                 }}>
                 <span className="truncate block leading-[1.4]">{task.title || task.request || (locale === "zh" ? "未命名" : "Untitled")}</span>
                 <span className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--text-3)" }}>
-                  {new Date((task.updated_at || task.created_at) * 1000).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {formatRelativeTime(task.updated_at || task.created_at, locale)}
                   {task.turns && task.turns > 1 && (
                     <span className="px-1 rounded text-[9px]" style={{ background: "var(--amber-dim)", color: "var(--amber)" }}>
                       {task.turns}{locale === "zh" ? "轮" : "r"}

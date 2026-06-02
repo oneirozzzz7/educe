@@ -99,16 +99,15 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
     { key: "starter.json", prompt: "做一个JSON工具" },
     { key: "starter.game", prompt: "做一个小游戏" },
     { key: "starter.dashboard", prompt: "做一个数据看板" },
-    { key: "starter.editor", prompt: "做一个编辑器" },
   ];
 
   function submit() { const v = input.trim(); if (v) { onSend(v); setInput(""); } }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="flex-1 flex flex-col items-center relative overflow-hidden" style={{ justifyContent: "center", paddingBottom: "8%" }}>
       {/* Atmospheric glow — layered for depth */}
-      <div className="absolute pointer-events-none" style={{ top: "30%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, background: "radial-gradient(ellipse at center, rgba(212,148,76,0.08) 0%, rgba(212,148,76,0.03) 35%, transparent 65%)" }} />
-      <div className="absolute pointer-events-none" style={{ top: "32%", left: "50%", transform: "translate(-50%,-50%)", width: 300, height: 300, background: "radial-gradient(circle, rgba(212,148,76,0.05) 0%, transparent 60%)", filter: "blur(40px)" }} />
+      <div className="absolute pointer-events-none" style={{ top: "25%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, background: "radial-gradient(ellipse at center, rgba(212,148,76,0.08) 0%, rgba(212,148,76,0.03) 35%, transparent 65%)" }} />
+      <div className="absolute pointer-events-none" style={{ top: "27%", left: "50%", transform: "translate(-50%,-50%)", width: 300, height: 300, background: "radial-gradient(circle, rgba(212,148,76,0.05) 0%, transparent 60%)", filter: "blur(40px)" }} />
 
       {/* Sigil */}
       <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, ease: EASE }} className="relative z-10">
@@ -117,7 +116,7 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
 
       {/* Title */}
       <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
-        className="mt-12 mb-3 text-center z-10" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, color: "var(--text-0)", letterSpacing: "-0.015em", lineHeight: 1.15 }}>
+        className="mt-14 mb-4 text-center z-10" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 36, color: "var(--text-0)", letterSpacing: "-0.015em", lineHeight: 1.15 }}>
         {t("empty.title")}
       </motion.h1>
 
