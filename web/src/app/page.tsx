@@ -155,6 +155,81 @@ function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BuildChatPanel (left side — conversation + process + input)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, onDecision, onSend, onStop, phase }: {
+  brief: string; explanation: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
+  decisions: Decision[] | null; onDecision: (c: { question: string; choice: string }[]) => void;
+  onSend: (t: string) => void; onStop: () => void; phase: AppPhase;
+}) {
+  const { t } = useLocale();
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [explanation, toolEvents]);
+
+  return (
+    <div className="flex flex-col min-h-0" style={{ width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)" }}>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
+        {/* User brief */}
+        <div className="flex justify-end mb-4">
+          <div style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "var(--void)", fontSize: 13, lineHeight: 1.5 }}>{brief}</div>
+        </div>
+
+        {/* AI explanation text (streaming) */}
+        {explanation && (
+          <div className="mb-4" style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7 }}>
+            {explanation}
+            {subPhase === "building" && !explanation.endsWith("\n") && (
+              <span style={{ display: "inline-block", width: 5, height: 14, background: "var(--amber)", borderRadius: 1, marginLeft: 2, verticalAlign: "text-bottom", animation: "e-blink .8s step-end infinite" }} />
+            )}
+          </div>
+        )}
+
+        {/* Tool events as inline markers */}
+        {toolEvents.map((evt, i) => (
+          <div key={i} className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12 }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+              background: evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+                : evt.event === "run" ? "var(--sage)"
+                : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+                : evt.event === "done" ? "var(--pass)" : "var(--text-3)",
+            }} />
+            <span style={{ color: "var(--text-2)" }}>
+              {evt.event === "write_file" && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code></>}
+              {evt.event === "run" && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command?.slice(0, 40)}</code></>}
+              {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 50)}`}</span>}
+              {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")}</span>}
+              {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>{evt.content?.slice(0, 60)}</span>}
+            </span>
+          </div>
+        ))}
+
+        {/* Thinking indicator when no events yet */}
+        {toolEvents.length === 0 && !explanation && (
+          <div className="flex items-center gap-2" style={{ fontSize: 13, color: "var(--text-2)" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite" }} />
+            {t("thinking")}...
+          </div>
+        )}
+
+        {/* Inline decision */}
+        <AnimatePresence>
+          {subPhase === "deciding" && decisions && (
+            <InlineDecision decisions={decisions} onSubmit={onDecision} />
+          )}
+        </AnimatePresence>
+
+        <div ref={endRef} />
+      </div>
+
+      {/* Input at bottom of chat panel */}
+      <GlobalInput onSend={onSend} phase={phase} onStop={onStop} />
+    </div>
+  );
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ProcessBar (bottom thin progress strip)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function ProcessBar({ toolEvents, subPhase, expanded, onToggle, decisions, onDecision }: {
@@ -575,6 +650,7 @@ export default function Page() {
   // ── Build state ──
   const [brief, setBrief] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [aiText, setAiText] = useState("");
   const [streamingCode, setStreamingCode] = useState("");
   const [html, setHtml] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
@@ -687,6 +763,7 @@ export default function Page() {
       // ── chunk ──
       else if (msg.type === "chunk") {
         if (phaseRef.current === "active" && subRef.current === "building") {
+          // All chunks go to streamingCode; we split text/code in render via derived state
           setStreamingCode(prev => prev + msg.content);
         } else {
           setMode("conversation");
@@ -756,6 +833,11 @@ export default function Page() {
   const isConvo = mode === "conversation" && msgs.some(m => m.role === "assistant");
   const isBuild = mode === "build" && (phase === "active" || phase === "complete");
 
+  // Derived: split streamingCode into explanation text (before code marker) and actual code (after)
+  const codeMarkerIdx = streamingCode.indexOf("```action:write_file");
+  const buildExplanation = codeMarkerIdx > 0 ? streamingCode.slice(0, codeMarkerIdx).trim() : (codeMarkerIdx === -1 ? streamingCode : "");
+  const buildCode = codeMarkerIdx >= 0 ? streamingCode.slice(codeMarkerIdx) : "";
+
   return (
     <div className="h-screen flex" style={{ background: "var(--void)" }}>
       <Sidebar ref={sidebarRef} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -814,24 +896,32 @@ export default function Page() {
           {isBuild && !isConvo && (
             <motion.div key="build" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
               <BriefBar text={brief} elapsed={elapsed} />
-              <CodePreviewPanel streamingCode={streamingCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
-              {phase === "active" && (
-                <ProcessBar toolEvents={toolEvents} subPhase={subPhase} expanded={expandedLog} onToggle={() => setExpandedLog(!expandedLog)} decisions={decisions} onDecision={handleDecision} />
-              )}
-              {phase === "complete" && html && (
-                <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(streamingCode.length / 1024).toFixed(1)} KB`}
-                  rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
-              )}
+              <div className="flex flex-1 min-h-0">
+                <BuildChatPanel brief={brief} explanation={buildExplanation} toolEvents={toolEvents} subPhase={subPhase}
+                  decisions={decisions} onDecision={handleDecision} onSend={send} onStop={() => {
+                    wsRef.current?.close(); setPhase("idle");
+                    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+                  }} phase={phase} />
+                <div className="flex-1 flex flex-col min-h-0">
+                  <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
+                  {phase === "complete" && html && (
+                    <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
+                      rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Global input — always visible */}
-        <GlobalInput onSend={send} phase={phase} onStop={() => {
-          wsRef.current?.close();
-          setPhase("idle");
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        }} />
+        {/* Global input — visible in idle and conversation mode (build mode has it inside ChatPanel) */}
+        {!isBuild && (
+          <GlobalInput onSend={send} phase={phase} onStop={() => {
+            wsRef.current?.close();
+            setPhase("idle");
+            if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+          }} />
+        )}
       </div>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} model={model} onModelChange={setModel} />
