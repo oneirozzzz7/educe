@@ -74,7 +74,10 @@ body {
 }
 
 /* Selection on amber backgrounds needs contrast */
-[style*="background: var(--amber)"] ::selection,
+.user-bubble {
+  width: fit-content;
+  word-break: break-word;
+}
 .user-bubble ::selection {
   background: rgba(0, 0, 0, 0.3);
   color: #fff;
