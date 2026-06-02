@@ -172,7 +172,7 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
       <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
         {/* User brief */}
         <div className="flex justify-end mb-4">
-          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#111", fontSize: 13, lineHeight: 1.5 }}>{brief}</div>
+          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#000", fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>{brief}</div>
         </div>
 
         {/* AI explanation text (streaming) */}
@@ -613,7 +613,7 @@ function ConversationView({ msgs, thinking, thinkingElapsed, expertName, onSend,
             <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               {msg.role === "user" ? (
                 <div className="flex justify-end">
-                  <div className="user-bubble" style={{ maxWidth: "75%", padding: "10px 18px", borderRadius: "18px 18px 4px 18px", background: "var(--amber)", color: "#111", fontSize: 14, lineHeight: 1.5 }}>{msg.text}</div>
+                  <div className="user-bubble" style={{ maxWidth: "75%", padding: "10px 18px", borderRadius: "18px 18px 4px 18px", background: "var(--amber)", color: "#000", fontSize: 14, lineHeight: 1.5, fontWeight: 500 }}>{msg.text}</div>
                 </div>
               ) : msg.role === "system" ? (
                 <div style={{ padding: "10px 16px", borderRadius: 10, background: "var(--fail-dim)", color: "var(--fail)", fontSize: 13, border: "1px solid var(--fail-dim)" }}>{msg.text}</div>
@@ -896,7 +896,7 @@ export default function Page() {
                     {msgs.map(msg => (
                       <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
                         {msg.role === "user" ? (
-                          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#111", fontSize: 13, lineHeight: 1.5 }}>{msg.text}</div>
+                          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#000", fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>{msg.text}</div>
                         ) : (
                           <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} onFeedback={s => { wsRef.current?.sendRaw({ type: "feedback", signal: s, message_id: msg.id }); }} />
                         )}
