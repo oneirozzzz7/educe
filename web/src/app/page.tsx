@@ -173,7 +173,7 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
       <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
         {/* User brief */}
         <div className="flex justify-end mb-4">
-          <div className="user-bubble" style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "#000", fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>{brief}</div>
+          <div className="user-bubble">{brief}</div>
         </div>
 
         {/* AI explanation text (streaming) */}
@@ -648,7 +648,7 @@ function ConversationView({ msgs, thinking, thinkingElapsed, expertName, onSend,
               {msg.role === "user" ? (
                 <div className="flex justify-end">
                   <div className="relative group/user">
-                    <div className="user-bubble" style={{ maxWidth: "75%", padding: "10px 18px", borderRadius: "18px 18px 4px 18px", background: "var(--amber)", color: "#000", fontSize: 14, lineHeight: 1.5, fontWeight: 500 }}>{msg.text}</div>
+                    <div className="user-bubble">{msg.text}</div>
                     <button onClick={() => navigator.clipboard.writeText(msg.text)}
                       className="absolute -left-8 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center opacity-0 group-hover/user:opacity-100 transition-opacity"
                       style={{ background: "var(--surface-2)", color: "var(--text-3)" }} title="Copy">
