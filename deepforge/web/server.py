@@ -163,7 +163,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
                             if html_files:
-                                content = html_files[0].read_text(encoding="utf-8", errors="ignore")[:15000]
+                                content = html_files[0].read_text(encoding="utf-8", errors="ignore")[:50000]
                                 turn["response"] = f"```filepath:{html_files[0].name}\n{content}\n```"
                     except Exception:
                         pass
