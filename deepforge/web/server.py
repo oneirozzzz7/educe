@@ -154,6 +154,19 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         store = SessionStore()
         turns = store.get_session(task_id)
         if turns:
+            # Enrich: if turn response is a short marker, try to load actual file content
+            for turn in turns:
+                resp = turn.get("response", "")
+                if turn.get("type") == "code" and len(resp) < 100:
+                    try:
+                        work_dir = Path(".deepforge/output")
+                        if work_dir.exists():
+                            html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
+                            if html_files:
+                                content = html_files[0].read_text(encoding="utf-8", errors="ignore")[:15000]
+                                turn["response"] = f"```filepath:{html_files[0].name}\n{content}\n```"
+                    except Exception:
+                        pass
             return {"session_id": task_id, "turns": turns}
         from deepforge.core.task_store import TaskStore
         old_store = TaskStore()
