@@ -35,7 +35,7 @@ export interface ErrorMessage {
 
 export type ServerMessage = AgentMessage | StatusMessage | ChunkMessage | ErrorMessage;
 
-export interface DeepForgeWS {
+export interface EduceWS {
   send: (message: string, fileIds?: string[]) => void;
   sendRaw: (data: Record<string, unknown>) => void;
   readonly readyState: number;
@@ -46,10 +46,10 @@ export interface DeepForgeWS {
 }
 
 export const API_HOST = typeof window !== "undefined"
-  ? (window as any).__DEEPFORGE_API_HOST || "localhost:7860"
+  ? (window as any).__EDUCE_API_HOST || (window as any).__DEEPFORGE_API_HOST || "localhost:7860"
   : "localhost:7860";
 
-export function createWS(sessionId: string): DeepForgeWS {
+export function createWS(sessionId: string): EduceWS {
   const proto = typeof window !== "undefined" && location.protocol === "https:" ? "wss:" : "ws:";
   const url = `${proto}//${API_HOST}/ws/${sessionId}`;
 
@@ -60,18 +60,18 @@ export function createWS(sessionId: string): DeepForgeWS {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   function connect() {
-    console.log("[DeepForge] Connecting to", url);
+    console.log("[Educe] Connecting to", url);
     ws = new WebSocket(url);
-    ws.onopen = () => { console.log("[DeepForge] Connected"); connectHandlers.forEach((h) => h()) };
+    ws.onopen = () => { console.log("[Educe] Connected"); connectHandlers.forEach((h) => h()) };
     ws.onclose = (e) => {
-      console.log("[DeepForge] Disconnected", e.code, e.reason);
+      console.log("[Educe] Disconnected", e.code, e.reason);
       disconnectHandlers.forEach((h) => h());
       reconnectTimer = setTimeout(connect, 3000);
     };
-    ws.onerror = (e) => { console.error("[DeepForge] WebSocket error", e) };
+    ws.onerror = () => { console.warn("[Educe] WebSocket — backend not reachable") };
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data) as ServerMessage;
-      console.log("[DeepForge] Received", data.type, (data as any).sender || "");
+      console.log("[Educe] Received", data.type, (data as any).sender || "");
       messageHandlers.forEach((h) => h(data));
     };
   }
