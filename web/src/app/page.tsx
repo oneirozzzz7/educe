@@ -162,10 +162,12 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
 function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
   const { t } = useLocale();
   return (
-    <div className="flex items-center gap-3 shrink-0" style={{ height: 40, padding: "0 20px", borderBottom: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
-      <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--amber)", padding: "3px 8px", background: "var(--amber-dim)", borderRadius: 4 }}>{t("brief.label")}</span>
-      <span className="truncate" style={{ fontSize: 13, color: "var(--text-1)", flex: 1 }}>{text}</span>
-      <span style={{ fontSize: 12, color: "var(--amber)", fontFamily: "'Geist Mono', monospace", fontVariantNumeric: "tabular-nums", padding: "2px 8px", background: "rgba(212,148,76,0.03)", borderRadius: 4 }}>{elapsed}s</span>
+    <div className="flex items-center gap-3 shrink-0 relative" style={{ height: 42, padding: "0 24px", borderBottom: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
+      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", color: "var(--amber)", padding: "3px 9px", background: "var(--amber-dim)", borderRadius: 4, border: "1px solid rgba(212,148,76,0.15)" }}>{t("brief.label")}</span>
+      <span className="truncate" style={{ fontSize: 13, color: "var(--text-1)", flex: 1, fontWeight: 500 }}>{text}</span>
+      <span style={{ fontSize: 12, color: "var(--amber)", fontFamily: "'Geist Mono', monospace", fontVariantNumeric: "tabular-nums", padding: "3px 10px", background: "rgba(212,148,76,0.04)", borderRadius: 5, border: "1px solid rgba(212,148,76,0.1)" }}>{elapsed}s</span>
+      {/* Subtle amber accent line at bottom */}
+      <div className="absolute bottom-0 left-[24px] right-[24px]" style={{ height: 1, background: "linear-gradient(90deg, var(--amber-dim) 0%, transparent 50%, var(--amber-dim) 100%)", opacity: 0.5 }} />
     </div>
   );
 }
@@ -182,19 +184,19 @@ function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [toolEvents, subPhase]);
 
   return (
-    <div className="flex flex-col min-h-0" style={{ width: "35%", minWidth: 280, maxWidth: 380, borderRight: "1px solid var(--border-0)" }}>
+    <div className="flex flex-col min-h-0" style={{ width: "35%", minWidth: 280, maxWidth: 380, borderRight: "1px solid var(--border-0)", background: "var(--void)" }}>
       {/* Header */}
-      <div className="flex items-center gap-2 shrink-0" style={{ height: 36, padding: "0 18px", borderBottom: "1px solid var(--border-0)" }}>
-        {subPhase !== "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite" }} />}
-        {subPhase === "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--pass)" }} />}
-        <span style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.6px", color: "var(--text-2)" }}>
+      <div className="flex items-center gap-2.5 shrink-0" style={{ height: 38, padding: "0 20px", borderBottom: "1px solid var(--border-0)" }}>
+        {subPhase !== "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite", boxShadow: "0 0 8px var(--amber-dim)" }} />}
+        {subPhase === "done" && <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--pass)", boxShadow: "0 0 8px var(--pass-dim)" }} />}
+        <span style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.7px", color: subPhase === "done" ? "var(--pass)" : "var(--text-2)" }}>
           {subPhase === "done" ? t("process.done") : t("process.header")}
         </span>
-        <style>{`@keyframes e-pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+        <style>{`@keyframes e-pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
       </div>
 
       {/* Activity list */}
-      <div className="flex-1 overflow-y-auto" style={{ padding: "14px 16px" }}>
+      <div className="flex-1 overflow-y-auto" style={{ padding: "16px 18px" }}>
         {/* Thinking placeholder before first event */}
         {toolEvents.length === 0 && subPhase === "thinking" && (
           <div className="flex items-center gap-3">
@@ -214,7 +216,7 @@ function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
 
           {toolEvents.map((evt, i) => (
             <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: i * 0.03 }}
-              className="flex gap-3 relative" style={{ padding: "7px 0" }}>
+              className="flex gap-3 relative" style={{ padding: "8px 0" }}>
               {/* Node dot with icon */}
               <div style={{
                 width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
@@ -249,7 +251,7 @@ function ProcessPanel({ toolEvents, subPhase, decisions, onDecision }: {
                 {evt.event === "thinking" && (
                   <>
                     <div style={{ fontSize: 13, color: "var(--text-1)" }}>{t("process.analyzing")}</div>
-                    {evt.content && <div className="truncate" style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", marginTop: 2 }}>{evt.content.slice(0, 80)}</div>}
+                    {evt.content && <div className="truncate" style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", marginTop: 3 }}>&ldquo;{evt.content.slice(0, 80)}&rdquo;</div>}
                   </>
                 )}
                 {(evt.event === "write_file" || evt.event === "write_file_result") && (
@@ -406,9 +408,9 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
               </div>
             ) : (
               lines.map((line, i) => (
-                <div key={i} className="flex hover:bg-[var(--surface-1)] transition-colors" style={{ padding: "0 16px" }}>
-                  <span style={{ width: 36, flexShrink: 0, textAlign: "right", paddingRight: 14, color: "var(--text-3)", fontSize: 11, userSelect: "none", fontFamily: "'Geist Mono', monospace", lineHeight: "1.7" }}>{i + 1}</span>
-                  <span style={{ flex: 1, whiteSpace: "pre", fontFamily: "'Geist Mono', monospace", fontSize: 12.5, lineHeight: "1.7", color: "var(--text-1)" }}
+                <div key={i} className="flex hover:bg-[var(--surface-1)] transition-colors duration-100" style={{ padding: "0 16px" }}>
+                  <span style={{ width: 40, flexShrink: 0, textAlign: "right", paddingRight: 16, color: "var(--text-3)", fontSize: 11, userSelect: "none", fontFamily: "'Geist Mono', monospace", lineHeight: "1.7", borderRight: "1px solid var(--border-0)" }}>{i + 1}</span>
+                  <span style={{ flex: 1, whiteSpace: "pre", fontFamily: "'Geist Mono', monospace", fontSize: 12.5, lineHeight: "1.7", color: "var(--text-1)", paddingLeft: 14 }}
                     dangerouslySetInnerHTML={{ __html: highlightLine(line) + (i === lines.length - 1 ? '<span style="display:inline-block;width:7px;height:16px;background:var(--amber);vertical-align:text-bottom;margin-left:1px;border-radius:1px;animation:e-blink .8s step-end infinite"></span>' : "") }} />
                 </div>
               ))
