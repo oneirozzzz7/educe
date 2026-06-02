@@ -549,11 +549,18 @@ export default function Page() {
 
   // ── Auto switch to preview on complete ──
   useEffect(() => {
-    if (phase === "complete" && html) {
-      const t = setTimeout(() => setRightPanel("preview"), 500);
-      return () => clearTimeout(t);
+    if (phase === "complete") {
+      let finalHtml = html;
+      if (!finalHtml && streamingCode && streamingCode.includes("</html>")) {
+        finalHtml = extractHtml(streamingCode) || streamingCode;
+        setHtml(finalHtml);
+      }
+      if (finalHtml) {
+        const t = setTimeout(() => setRightPanel("preview"), 500);
+        return () => clearTimeout(t);
+      }
     }
-  }, [phase, html]);
+  }, [phase, html, streamingCode]);
 
   // ── WebSocket ──
   useEffect(() => {
