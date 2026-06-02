@@ -769,8 +769,10 @@ export default function Page() {
           setThinking(false);
           if (thTimerRef.current) { clearInterval(thTimerRef.current); thTimerRef.current = null; }
           if (subRef.current === "building") return;
+          // New build starting — reset old build state
           setSubPhase("building"); setHasArtifact(true);
-          if (phaseRef.current === "idle") {
+          setHtml(null); setStreamingCode(""); setRightPanel("code"); setFileName(""); setFileSize(0);
+          if (phaseRef.current === "idle" || phaseRef.current === "complete") {
             setPhase("active");
             startRef.current = Date.now(); setElapsed(0);
             timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
@@ -888,7 +890,7 @@ export default function Page() {
 
     setBrief(v || files.map(f => f.name).join(", "));
     setPhase("active"); setSubPhase("thinking");
-    setHtml(null); setStreamingCode(""); setToolEvents([]); setRightPanel("code"); setDecisions(null); setFileName(""); setFileSize(0);
+    setStreamingCode(""); setToolEvents([]); setDecisions(null);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
