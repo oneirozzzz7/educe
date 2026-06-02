@@ -88,11 +88,9 @@ function Sigil({ size = 96 }: { size?: number }) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   EmptyState
+   EmptyState (no input — input is global now)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function EmptyState({ onSend }: { onSend: (t: string) => void }) {
-  const [input, setInput] = useState("");
-  const compRef = useRef(false);
   const { t } = useLocale();
 
   const starters: { key: Parameters<typeof t>[0]; prompt: string }[] = [
@@ -102,10 +100,10 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
     { key: "starter.dashboard", prompt: "做一个数据看板" },
   ];
 
-  function submit() { const v = input.trim(); if (v) { onSend(v); setInput(""); } }
+  function submit() { onSend(starters[0].prompt); }
 
   return (
-    <div className="flex-1 flex flex-col items-center relative overflow-hidden" style={{ justifyContent: "center", paddingBottom: "8%" }}>
+    <div className="flex-1 flex flex-col items-center relative overflow-hidden" style={{ justifyContent: "center", paddingBottom: "12%" }}>
       {/* Atmospheric glow — layered for depth */}
       <div className="absolute pointer-events-none" style={{ top: "25%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, background: "radial-gradient(ellipse at center, rgba(212,148,76,0.08) 0%, rgba(212,148,76,0.03) 35%, transparent 65%)" }} />
       <div className="absolute pointer-events-none" style={{ top: "27%", left: "50%", transform: "translate(-50%,-50%)", width: 300, height: 300, background: "radial-gradient(circle, rgba(212,148,76,0.05) 0%, transparent 60%)", filter: "blur(40px)" }} />
@@ -123,29 +121,13 @@ function EmptyState({ onSend }: { onSend: (t: string) => void }) {
 
       {/* Subtitle */}
       <motion.p initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
-        className="mb-14 text-center z-10" style={{ fontSize: 15, color: "var(--text-3)", lineHeight: 1.6, maxWidth: 420 }}>
+        className="mb-10 text-center z-10" style={{ fontSize: 15, color: "var(--text-3)", lineHeight: 1.6, maxWidth: 420 }}>
         {t("empty.sub")}
       </motion.p>
 
-      {/* Input */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4, ease: EASE }}
-        className="w-full max-w-[540px] relative z-10 px-6">
-        <div className="relative">
-          <textarea value={input} onChange={e => setInput(e.target.value)}
-            onCompositionStart={() => { compRef.current = true; }} onCompositionEnd={e => { compRef.current = false; setInput((e.target as HTMLTextAreaElement).value); }}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !compRef.current) { e.preventDefault(); submit(); } }}
-            placeholder={t("empty.placeholder")} rows={1}
-            className="educe-input" />
-          <button onClick={submit} disabled={!input.trim()} className="absolute right-[8px] bottom-[9px] transition-all duration-200"
-            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: input.trim() ? "var(--amber)" : "var(--surface-2)", color: input.trim() ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: input.trim() ? "pointer" : "default", opacity: input.trim() ? 1 : 0.5, transform: `scale(${input.trim() ? 1 : 0.93})` }}>
-            <Send size={15} />
-          </button>
-        </div>
-      </motion.div>
-
       {/* Starters */}
-      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.55, ease: EASE }}
-        className="flex flex-wrap gap-2 justify-center mt-6 px-6 max-w-[540px] z-10">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.4, ease: EASE }}
+        className="flex flex-wrap gap-2 justify-center px-6 max-w-[540px] z-10">
         {starters.map(s => (
           <button key={s.key} onClick={() => onSend(s.prompt)} className="starter-pill">
             {t(s.key)}
@@ -432,25 +414,46 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   FollowUpInput
+   GlobalInput — always visible at bottom of canvas
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function FollowUpInput({ onSend, placeholder }: { onSend: (t: string) => void; placeholder: string }) {
+function GlobalInput({ onSend, phase, onStop }: { onSend: (t: string) => void; phase: AppPhase; onStop?: () => void }) {
   const [text, setText] = useState("");
   const compRef = useRef(false);
+  const { t } = useLocale();
+  const isGenerating = phase === "active";
+  const canSend = text.trim() && !isGenerating;
+
+  function submit() {
+    if (!text.trim() || isGenerating) return;
+    onSend(text.trim());
+    setText("");
+  }
+
   return (
-    <div style={{ padding: "10px 20px 14px", borderTop: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
-      <div className="relative">
-        <input type="text" value={text} onChange={e => setText(e.target.value)}
-          onCompositionStart={() => { compRef.current = true; }} onCompositionEnd={e => { compRef.current = false; setText((e.target as HTMLInputElement).value); }}
-          onKeyDown={e => { if (e.key === "Enter" && !compRef.current && text.trim()) { e.preventDefault(); onSend(text.trim()); setText(""); } }}
-          placeholder={placeholder}
-          className="w-full outline-none transition-all duration-200 focus:border-[var(--amber)]"
-          style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", borderRadius: 10, padding: "10px 42px 10px 14px", fontSize: 13, fontFamily: "inherit", color: "var(--text-0)" }} />
-        <button onClick={() => { if (text.trim()) { onSend(text.trim()); setText(""); } }}
-          className="absolute right-[5px] top-1/2 -translate-y-1/2 transition-all"
-          style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: text.trim() ? "var(--amber)" : "var(--surface-2)", color: text.trim() ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: text.trim() ? "pointer" : "default" }}>
-          <Send size={12} />
-        </button>
+    <div className="shrink-0" style={{ padding: "12px 20px 16px", background: "linear-gradient(transparent, var(--void) 8px)", backdropFilter: "blur(8px)" }}>
+      <div className="max-w-[680px] mx-auto relative">
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          onCompositionStart={() => { compRef.current = true; }}
+          onCompositionEnd={e => { compRef.current = false; setText((e.target as HTMLTextAreaElement).value); }}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !compRef.current) { e.preventDefault(); submit(); } }}
+          placeholder={isGenerating ? (t("building") + "...") : t("empty.placeholder")}
+          rows={1}
+          className="educe-input"
+          style={{ opacity: isGenerating ? 0.7 : 1 }}
+        />
+        {/* Send / Stop button */}
+        {isGenerating ? (
+          <button onClick={onStop} className="absolute right-[8px] bottom-[9px] transition-all duration-200 hover:opacity-80"
+            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: "var(--fail)", color: "var(--void)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            title="Stop">
+            <div style={{ width: 12, height: 12, borderRadius: 2, background: "var(--void)" }} />
+          </button>
+        ) : (
+          <button onClick={submit} disabled={!canSend} className="absolute right-[8px] bottom-[9px] transition-all duration-200"
+            style={{ width: 38, height: 38, borderRadius: 10, border: "none", background: canSend ? "var(--amber)" : "var(--surface-2)", color: canSend ? "var(--void)" : "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: canSend ? "pointer" : "default", opacity: canSend ? 1 : 0.5, transform: `scale(${canSend ? 1 : 0.93})` }}>
+            <Send size={15} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -544,7 +547,6 @@ function ConversationView({ msgs, thinking, thinkingElapsed, expertName, onSend,
           <div ref={endRef} />
         </div>
       </div>
-      <FollowUpInput onSend={onSend} placeholder={t("convo.placeholder")} />
     </div>
   );
 }
@@ -810,10 +812,16 @@ export default function Page() {
                 <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(streamingCode.length / 1024).toFixed(1)} KB`}
                   rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
               )}
-              {phase === "complete" && <FollowUpInput onSend={send} placeholder={t("followup.placeholder")} />}
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Global input — always visible */}
+        <GlobalInput onSend={send} phase={phase} onStop={() => {
+          wsRef.current?.close();
+          setPhase("idle");
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        }} />
       </div>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} model={model} onModelChange={setModel} />
