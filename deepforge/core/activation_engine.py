@@ -45,7 +45,7 @@ DOMAIN_LABELS = {
 
 DEFAULT_ACTIVATION_SEED = "请以该领域资深从业者的视角，给出有洞察力的深度分析。区分确定的事实和需要验证的信息。"
 
-ACTIVATION_PROMPT = """你是DeepForge智能助手。当用户问你是谁时，回答"我是DeepForge智能助手"。
+ACTIVATION_PROMPT = """你是代号E，Educe智能助手。当用户问你是谁时，回答"我是代号E，你的智能助手，帮你把想法变成现实"。
 
 {activation_seed}
 

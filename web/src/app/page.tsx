@@ -645,7 +645,7 @@ export default function Page() {
   // ── State machine ──
   const [phase, setPhase] = useState<AppPhase>("idle");
   const [subPhase, setSubPhase] = useState<SubPhase>("thinking");
-  const [mode, setMode] = useState<"build" | "conversation">("build");
+  const [hasArtifact, setHasArtifact] = useState(false);
 
   // ── Build state ──
   const [brief, setBrief] = useState("");
@@ -728,9 +728,9 @@ export default function Page() {
           setThinking(false);
           if (thTimerRef.current) { clearInterval(thTimerRef.current); thTimerRef.current = null; }
           if (subRef.current === "building") return;
-          setSubPhase("building");
+          setSubPhase("building"); setHasArtifact(true);
           if (phaseRef.current === "idle") {
-            setPhase("active"); setMode("build");
+            setPhase("active");
             startRef.current = Date.now(); setElapsed(0);
             timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
           }
@@ -752,7 +752,6 @@ export default function Page() {
           if (h) setHtml(h);
           if ((msg as any).files?.length) setFileName((msg as any).files[0]);
         } else {
-          setMode("conversation");
           setMsgs(p => {
             const last = p[p.length - 1];
             if (last?.role === "assistant" && last.text) return [...p.slice(0, -1), { ...last, text: msg.content }];
@@ -766,7 +765,6 @@ export default function Page() {
           // All chunks go to streamingCode; we split text/code in render via derived state
           setStreamingCode(prev => prev + msg.content);
         } else {
-          setMode("conversation");
           setMsgs(p => {
             const last = p[p.length - 1];
             if (last?.role === "assistant") return [...p.slice(0, -1), { ...last, text: last.text + msg.content }];
@@ -786,7 +784,7 @@ export default function Page() {
         if (thTimerRef.current) { clearInterval(thTimerRef.current); thTimerRef.current = null; }
         setDecisions((msg as any).decisions);
         setSubPhase("deciding");
-        if (phaseRef.current === "idle") { setPhase("active"); setMode("build"); }
+        if (phaseRef.current === "idle") { setPhase("active"); setHasArtifact(true); }
       }
       // ── expert ──
       else if ((msg as any).type === "expert") { setExpertName((msg as any).content || ""); }
@@ -807,7 +805,7 @@ export default function Page() {
     if (!w || w.readyState !== 1) { toast(t("error.disconnected"), "error"); return; }
 
     setBrief(v);
-    setPhase("active"); setSubPhase("thinking"); setMode("build");
+    setPhase("active"); setSubPhase("thinking");
     setHtml(null); setStreamingCode(""); setToolEvents([]); setRightPanel("code"); setDecisions(null); setFileName(""); setFileSize(0);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v, timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
@@ -822,7 +820,7 @@ export default function Page() {
   }
 
   function reset() {
-    setPhase("idle"); setSubPhase("thinking"); setMode("build"); setBrief(""); setMsgs([]);
+    setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
     setHtml(null); setStreamingCode(""); setToolEvents([]); setElapsed(0);
     setDecisions(null); setRightPanel("code"); setFileName(""); setFileSize(0);
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -830,8 +828,8 @@ export default function Page() {
 
   function fmtTime(ts: number) { return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }); }
 
-  const isConvo = mode === "conversation" && msgs.some(m => m.role === "assistant");
-  const isBuild = mode === "build" && (phase === "active" || phase === "complete");
+  const hasConversation = msgs.some(m => m.role === "assistant");
+  const showArtifact = hasArtifact && (phase === "active" || phase === "complete");
 
   // Derived: split streamingCode into explanation text (before code marker) and actual code (after)
   const codeMarkerIdx = streamingCode.indexOf("```action:write_file");
@@ -849,20 +847,20 @@ export default function Page() {
               newMsgs.push({ id: `${turn.timestamp}-q`, role: "user", text: turn.question, timestamp: (turn.timestamp || 0) * 1000 });
               if (turn.response) {
                 const h = extractHtml(turn.response);
-                if (h) { setHtml(h); setMode("build"); setPhase("complete"); setSubPhase("done"); setBrief(turn.question); setRightPanel("preview"); }
-                else { newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: (turn.timestamp || 0) * 1000 + 1 }); setMode("conversation"); }
+                if (h) { setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done"); setBrief(turn.question); setRightPanel("preview"); }
+                else { newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: (turn.timestamp || 0) * 1000 + 1 }); }
               }
             }
             setMsgs(newMsgs);
           } else {
             const h = task.response ? extractHtml(task.response) : null;
-            if (h) { setHtml(h); setMode("build"); setPhase("complete"); setSubPhase("done"); setBrief(task.request || task.title || ""); setRightPanel("preview"); }
+            if (h) { setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done"); setBrief(task.request || task.title || ""); setRightPanel("preview"); }
             else if (task.response) {
               setMsgs([
                 { id: task.id + "-q", role: "user", text: task.request || task.title || "", timestamp: task.created_at * 1000 },
                 { id: task.id + "-a", role: "assistant", text: task.response, timestamp: task.created_at * 1000 + 1 },
               ]);
-              setMode("conversation"); setPhase("idle");
+              setPhase("idle");
             }
           }
         }} />
@@ -877,48 +875,108 @@ export default function Page() {
         </div>
 
         <AnimatePresence mode="wait">
-          {/* IDLE */}
-          {phase === "idle" && !isConvo && (
+          {/* IDLE — no messages */}
+          {phase === "idle" && !hasConversation && (
             <motion.div key="empty" exit={{ opacity: 0, y: -30 }} transition={{ duration: 0.35 }} className="flex-1 flex flex-col">
               <EmptyState onSend={send} />
             </motion.div>
           )}
 
-          {/* CONVERSATION */}
-          {isConvo && (
-            <motion.div key="convo" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex flex-col">
-              <ConversationView msgs={msgs} thinking={thinking} thinkingElapsed={thinkingElapsed} expertName={expertName}
-                onSend={send} onFeedback={(s, id) => { wsRef.current?.sendRaw({ type: "feedback", signal: s, message_id: id }); }} fmtTime={fmtTime} />
-            </motion.div>
-          )}
-
-          {/* BUILD (active / complete) */}
-          {isBuild && !isConvo && (
-            <motion.div key="build" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
-              <BriefBar text={brief} elapsed={elapsed} />
+          {/* ACTIVE — unified chat + optional artifact */}
+          {(phase !== "idle" || hasConversation) && (
+            <motion.div key="active" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
+              {showArtifact && <BriefBar text={brief} elapsed={elapsed} />}
               <div className="flex flex-1 min-h-0">
-                <BuildChatPanel brief={brief} explanation={buildExplanation} toolEvents={toolEvents} subPhase={subPhase}
-                  decisions={decisions} onDecision={handleDecision} onSend={send} onStop={() => {
-                    wsRef.current?.close(); setPhase("idle");
-                    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-                  }} phase={phase} />
-                <div className="flex-1 flex flex-col min-h-0">
-                  <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
-                  {phase === "complete" && html && (
-                    <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
-                      rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
+                {/* Chat panel — always present, adapts width */}
+                <div className={`flex flex-col min-h-0 transition-all duration-300 ${showArtifact ? "" : "max-w-[680px] mx-auto w-full"}`}
+                  style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)" } : { background: "var(--void)" }}>
+                  {/* Scrollable chat content */}
+                  <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px" : "32px 24px 120px" }}>
+                    {/* User messages + AI replies */}
+                    {msgs.map(msg => (
+                      <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
+                        {msg.role === "user" ? (
+                          <div style={{ maxWidth: "85%", padding: "9px 16px", borderRadius: "16px 16px 4px 16px", background: "var(--amber)", color: "var(--void)", fontSize: 13, lineHeight: 1.5 }}>{msg.text}</div>
+                        ) : (
+                          <MessageBubble text={msg.text} timestamp={msg.timestamp} fmtTime={fmtTime} onFeedback={s => { wsRef.current?.sendRaw({ type: "feedback", signal: s, message_id: msg.id }); }} />
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Build explanation (streaming text before code) */}
+                    {showArtifact && buildExplanation && (
+                      <div className="mb-4" style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7 }}>
+                        {buildExplanation}
+                        {subPhase === "building" && <span style={{ display: "inline-block", width: 5, height: 14, background: "var(--amber)", borderRadius: 1, marginLeft: 2, verticalAlign: "text-bottom", animation: "e-blink .8s step-end infinite" }} />}
+                      </div>
+                    )}
+
+                    {/* Tool events */}
+                    {toolEvents.map((evt, i) => (
+                      <div key={i} className="flex items-center gap-2 mb-1.5" style={{ fontSize: 12 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                          background: evt.event === "write_file" || evt.event === "write_file_result" ? "var(--amber)"
+                            : evt.event === "run" ? "var(--sage)"
+                            : evt.event === "run_result" ? (evt.success ? "var(--pass)" : "var(--fail)")
+                            : evt.event === "done" ? "var(--pass)" : "var(--text-3)" }} />
+                        <span style={{ color: "var(--text-2)" }}>
+                          {evt.event === "write_file" && <>{t("log.write")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code></>}
+                          {evt.event === "run" && <>{t("log.run")} <code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.command?.slice(0, 40)}</code></>}
+                          {evt.event === "run_result" && <span style={{ color: evt.success ? "var(--pass)" : "var(--fail)" }}>{evt.success ? `✓ ${t("log.passed")}` : `✗ ${evt.output?.slice(0, 50)}`}</span>}
+                          {evt.event === "done" && <span style={{ color: "var(--pass)", fontWeight: 600 }}>✓ {t("log.done")}</span>}
+                          {evt.event === "thinking" && <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>{evt.content?.slice(0, 60)}</span>}
+                        </span>
+                      </div>
+                    ))}
+
+                    {/* Thinking indicator */}
+                    {thinking && (
+                      <div className="flex items-center gap-2 py-2" style={{ fontSize: 13, color: "var(--text-2)" }}>
+                        <div className="flex gap-1">{[0, 1, 2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--amber)", animation: `e-dot 1.4s ease-in-out ${i * 0.2}s infinite` }} />)}</div>
+                        {expertName || t("thinking")}{thinkingElapsed > 0 ? ` · ${thinkingElapsed}s` : ""}
+                        <style>{`@keyframes e-dot{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
+                      </div>
+                    )}
+
+                    {/* Inline decision */}
+                    <AnimatePresence>
+                      {subPhase === "deciding" && decisions && (
+                        <InlineDecision decisions={decisions} onSubmit={handleDecision} />
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Input — inside chat panel when artifact visible, at bottom otherwise */}
+                  {showArtifact && (
+                    <GlobalInput onSend={send} phase={phase} onStop={() => {
+                      wsRef.current?.close(); setPhase("idle");
+                      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+                    }} />
                   )}
                 </div>
+
+                {/* Artifact panel — slides in when hasArtifact */}
+                <AnimatePresence>
+                  {showArtifact && (
+                    <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={fileName} toolEvents={toolEvents} subPhase={subPhase} />
+                      {phase === "complete" && html && (
+                        <CompleteBar fileName={fileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
+                          rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Global input — visible in idle and conversation mode (build mode has it inside ChatPanel) */}
-        {!isBuild && (
+        {/* Global input — visible when no artifact (full-width chat or idle) */}
+        {!showArtifact && (phase !== "idle" || hasConversation) && (
           <GlobalInput onSend={send} phase={phase} onStop={() => {
-            wsRef.current?.close();
-            setPhase("idle");
+            wsRef.current?.close(); setPhase("idle");
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
           }} />
         )}
