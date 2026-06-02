@@ -29,9 +29,10 @@ export function ToastContainer() {
       {toasts.map(t => (
         <div key={t.id} className="px-4 py-2.5 rounded-xl text-sm shadow-lg animate-in fade-in slide-in-from-top-2"
           style={{
-            background: t.type === "error" ? "var(--error)" : t.type === "success" ? "var(--success)" : "var(--bg-elevated)",
-            color: t.type === "info" ? "var(--text)" : "white",
-            border: t.type === "info" ? "1px solid var(--border)" : "none",
+            background: t.type === "error" ? "var(--fail)" : t.type === "success" ? "var(--pass)" : "var(--surface-1)",
+            color: t.type === "info" ? "var(--text-0)" : "var(--void)",
+            border: t.type === "info" ? "1px solid var(--border-1)" : "none",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
           }}>
           {t.message}
         </div>

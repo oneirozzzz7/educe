@@ -60,7 +60,6 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
     }
   }
 
-  // ESC关闭
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -68,32 +67,32 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  const inputStyle = { background: "var(--bg-sunken)", border: "1px solid var(--border)", color: "var(--text)" };
-
   return (
     <AnimatePresence>
       {open && (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.2)", backdropFilter: "blur(4px)" }}
+        className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(10,10,12,0.82)", backdropFilter: "blur(8px)" }}
         onClick={onClose}>
-        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-          className="w-[440px] max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-md)" }}
+        <motion.div initial={{ scale: 0.97, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.97, opacity: 0 }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="w-[440px] max-h-[90vh] overflow-y-auto rounded-2xl p-6"
+          style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}
           onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-[15px]" style={{ color: "var(--text)" }}>设置</h3>
-            <button onClick={onClose} style={{ color: "var(--text-3)" }}><X size={16} /></button>
+            <h3 className="font-semibold text-[15px]" style={{ color: "var(--text-0)" }}>设置</h3>
+            <button onClick={onClose} className="transition-colors hover:text-[var(--text-1)]" style={{ color: "var(--text-3)" }}><X size={16} /></button>
           </div>
 
-          {/* 服务商快选 */}
+          {/* Provider */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>服务商</label>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {Object.keys(PROVIDER_PRESETS).map(name => (
               <button key={name} onClick={() => selectProvider(name)}
                 className="px-2.5 py-1 text-[12px] rounded-lg transition-all"
                 style={{
-                  background: provider === name ? "var(--brand)" : "var(--bg-sunken)",
-                  color: provider === name ? "white" : "var(--text-2)",
-                  border: `1px solid ${provider === name ? "var(--brand)" : "var(--border)"}`,
+                  background: provider === name ? "var(--amber)" : "var(--surface-0)",
+                  color: provider === name ? "var(--void)" : "var(--text-2)",
+                  border: `1px solid ${provider === name ? "var(--amber)" : "var(--border-1)"}`,
                 }}>
                 {name}
               </button>
@@ -102,59 +101,49 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
 
           {/* API Key */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>
-            API Key {hasKey && !apiKey && <span className="text-[10px] normal-case" style={{ color: "var(--success)" }}>(已配置)</span>}
+            API Key {hasKey && !apiKey && <span className="text-[10px] normal-case" style={{ color: "var(--pass)" }}>(已配置)</span>}
           </label>
           <div className="relative mb-4">
-            <input
-              type={showKey ? "text" : "password"}
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
+            <input type={showKey ? "text" : "password"} value={apiKey} onChange={e => setApiKey(e.target.value)}
               placeholder={hasKey ? "已配置，留空保持不变" : "sk-..."}
-              className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm outline-none font-mono"
-              style={inputStyle}
-            />
-            <button onClick={() => setShowKey(!showKey)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--text-3)" }}>
+              className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm outline-none font-mono transition-colors focus:border-[var(--amber)]"
+              style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }} />
+            <button onClick={() => setShowKey(!showKey)} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors hover:text-[var(--text-1)]" style={{ color: "var(--text-3)" }}>
               {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
 
           {/* Base URL */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>Base URL</label>
-          <input
-            type="text"
-            value={baseUrl}
-            onChange={e => setBaseUrl(e.target.value)}
-            placeholder="https://api.deepseek.com/v1"
-            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 font-mono"
-            style={inputStyle}
-          />
+          <input type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1"
+            className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 font-mono transition-colors focus:border-[var(--amber)]"
+            style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }} />
 
-          {/* 模型选择 */}
+          {/* Model */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>模型</label>
           <select value={selected} onChange={e => setSelected(e.target.value)}
             className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 cursor-pointer"
-            style={inputStyle}>
+            style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }}>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
 
-          {/* 自进化开关 */}
-          <div className="flex items-center justify-between mb-5 pt-1" style={{ borderTop: "1px solid var(--border-light)", paddingTop: "12px" }}>
+          {/* Evolution toggle */}
+          <div className="flex items-center justify-between mb-5 pt-3" style={{ borderTop: "1px solid var(--border-0)" }}>
             <div>
               <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-3)" }}>自进化</label>
-              <span className="text-[12px]" style={{ color: "var(--text-4)" }}>使用过程中自动积累经验</span>
+              <span className="text-[12px]" style={{ color: "var(--text-3)" }}>使用过程中自动积累经验</span>
             </div>
             <button onClick={() => setEvolution(!evolution)}
               className="relative w-10 h-[22px] rounded-full transition-colors"
-              style={{ background: evolution ? "var(--brand)" : "var(--bg-sunken)", border: "1px solid var(--border)" }}>
+              style={{ background: evolution ? "var(--amber)" : "var(--surface-0)", border: "1px solid var(--border-1)" }}>
               <span className="absolute top-[2px] w-4 h-4 rounded-full transition-transform shadow-sm"
-                style={{ background: "white", left: evolution ? "20px" : "2px" }} />
+                style={{ background: evolution ? "var(--void)" : "var(--text-3)", left: evolution ? "20px" : "2px" }} />
             </button>
           </div>
 
           <div className="flex gap-2 justify-end">
-            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg" style={{ background: "var(--bg-sunken)", color: "var(--text-2)" }}>取消</button>
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg transition-colors hover:bg-[var(--surface-2)]"
+              style={{ background: "var(--surface-0)", color: "var(--text-2)", border: "1px solid var(--border-1)" }}>取消</button>
             <button disabled={saving} onClick={async () => {
               setSaving(true);
               try {
@@ -164,9 +153,10 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
                 const r = await fetch(`http://${API_HOST}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
                 const d = await r.json();
                 if (d.status === "ok") { onModelChange(d.model); onClose(); }
-              } catch { alert("保存失败") }
+              } catch { alert("保存失败"); }
               setSaving(false);
-            }} className="px-4 py-2 text-sm text-white rounded-lg transition-opacity" style={{ background: "var(--brand)", opacity: saving ? 0.6 : 1 }}>
+            }} className="px-4 py-2 text-sm rounded-lg transition-opacity"
+              style={{ background: "var(--amber)", color: "var(--void)", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
               {saving ? "保存中..." : "保存"}
             </button>
           </div>

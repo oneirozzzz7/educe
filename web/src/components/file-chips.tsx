@@ -37,9 +37,9 @@ export function FileChips({ files, onRemove }: {
       {files.map(f => (
         <div key={f.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] max-w-[200px]"
           style={{
-            background: f.error ? "var(--error-light)" : "var(--brand-light)",
-            color: f.error ? "var(--error)" : "var(--brand)",
-            border: `1px solid ${f.error ? "var(--error)" : "transparent"}`,
+            background: f.error ? "var(--fail-dim)" : "var(--amber-dim)",
+            color: f.error ? "var(--fail)" : "var(--amber)",
+            border: `1px solid ${f.error ? "rgba(212,100,92,0.3)" : "rgba(212,148,76,0.2)"}`,
           }}>
           {getIcon(f.name, f.is_image)}
           <span className="truncate flex-1">{f.name}</span>

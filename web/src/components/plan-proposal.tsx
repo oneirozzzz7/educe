@@ -26,10 +26,10 @@ export function PlanProposal({ plans, onSelect, originalRequest }: {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl p-4" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+      className="rounded-2xl p-4" style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)" }}>
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} style={{ color: "var(--brand)" }} />
-        <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
+        <Sparkles size={16} style={{ color: "var(--amber)" }} />
+        <span className="text-sm font-medium" style={{ color: "var(--text-0)" }}>
           这是一个复杂项目，建议先选择方案
         </span>
       </div>
@@ -40,17 +40,17 @@ export function PlanProposal({ plans, onSelect, originalRequest }: {
             disabled={selected !== null}
             className="text-left p-3 rounded-xl transition-all border"
             style={{
-              background: selected === plan.id ? "var(--brand-subtle)" : "var(--bg)",
-              borderColor: selected === plan.id ? "var(--brand)" : "var(--border-light)",
+              background: selected === plan.id ? "var(--amber-dim)" : "var(--surface-0)",
+              borderColor: selected === plan.id ? "var(--amber)" : "var(--border-0)",
               opacity: selected !== null && selected !== plan.id ? 0.5 : 1,
             }}>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
+              <span className="text-sm font-medium" style={{ color: "var(--text-0)" }}>
                 {plan.title}
               </span>
               {plan.est && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full"
-                  style={{ background: "var(--bg-sunken)", color: "var(--text-3)" }}>
+                  style={{ background: "var(--surface-2)", color: "var(--text-3)" }}>
                   {plan.est}
                 </span>
               )}
@@ -59,7 +59,7 @@ export function PlanProposal({ plans, onSelect, originalRequest }: {
               {plan.desc}
             </p>
             {selected === plan.id && (
-              <div className="flex items-center gap-1 mt-2 text-[11px]" style={{ color: "var(--brand)" }}>
+              <div className="flex items-center gap-1 mt-2 text-[11px]" style={{ color: "var(--amber)" }}>
                 <ChevronRight size={12} /> 正在构建...
               </div>
             )}
@@ -71,8 +71,8 @@ export function PlanProposal({ plans, onSelect, originalRequest }: {
         <div className="mt-3">
           <input type="text" value={userNote} onChange={e => setUserNote(e.target.value)}
             placeholder="补充你的想法（可选）"
-            className="w-full text-[12px] px-3 py-2 rounded-lg outline-none"
-            style={{ background: "var(--bg-sunken)", border: "1px solid var(--border-light)", color: "var(--text-2)" }}
+            className="w-full text-[12px] px-3 py-2 rounded-lg outline-none transition-colors focus:border-[var(--amber)]"
+            style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-1)" }}
             onKeyDown={e => { if (e.key === "Enter" && plans.length > 0) handleSelect(plans[0].id); }} />
         </div>
       )}

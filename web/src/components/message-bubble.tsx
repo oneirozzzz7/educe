@@ -5,10 +5,7 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Copy, Check, Eye, EyeOff, ThumbsUp, ThumbsDown } from "lucide-react";
 
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-});
+marked.setOptions({ breaks: true, gfm: true });
 
 function hasHtmlContent(text: string): boolean {
   return /<!DOCTYPE|<html[\s>]/i.test(text) || /```(?:filepath:[^\n]+\.html|html)\n[\s\S]*?<\/html>/i.test(text);
@@ -54,12 +51,9 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
       });
       let html = marked.parse(t) as string;
       html = DOMPurify.sanitize(html, { ADD_TAGS: ["iframe"], ADD_ATTR: ["target", "class"] });
-      html = html.replace(/([✅⚠️]\s*\d+%)/g,
-        '<span class="df-confidence">$1</span>');
-      html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|⚠️?\s*需要验证)/g,
-        '<span class="df-confidence">$1</span>');
-      html = html.replace(/(\(置信度[：:]\s*\d+%\))/g,
-        '<span class="df-confidence">$1</span>');
+      html = html.replace(/([✅⚠️]\s*\d+%)/g, '<span class="df-confidence">$1</span>');
+      html = html.replace(/(✅\s*确定|⚠️?\s*大概率准确|⚠️?\s*需要验证)/g, '<span class="df-confidence">$1</span>');
+      html = html.replace(/(\(置信度[：:]\s*\d+%\))/g, '<span class="df-confidence">$1</span>');
       return html;
     } catch {
       return `<pre style="white-space:pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
@@ -98,35 +92,35 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
 
   return (
     <div className="flex flex-col gap-1 group relative">
-      <div className={`relative rounded-2xl px-4 py-3 ${isLong && !expanded ? "max-h-[400px] overflow-hidden" : ""}`}
-        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-light)" }}>
+      <div className={`relative rounded-[14px] px-4 py-3 ${isLong && !expanded ? "max-h-[400px] overflow-hidden" : ""}`}
+        style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
 
         {/* TOC */}
         {showToc && (
-          <div className="mb-3 pb-2" style={{ borderBottom: "1px solid var(--border-light)" }}>
-            <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "var(--text-4)" }}>目录</div>
+          <div className="mb-3 pb-2" style={{ borderBottom: "1px solid var(--border-0)" }}>
+            <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{ color: "var(--text-3)" }}>目录</div>
             {tocItems.map((item, i) => (
               <a key={i} href={`#${item.id}`} onClick={e => {
                   e.preventDefault();
                   document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
                 className="block text-[12px] py-0.5 hover:underline truncate"
-                style={{ paddingLeft: `${(item.level - 1) * 12}px`, color: "var(--brand)" }}>
+                style={{ paddingLeft: `${(item.level - 1) * 12}px`, color: "var(--amber)" }}>
                 {item.text}
               </a>
             ))}
           </div>
         )}
 
-        <div className="df-markdown text-[14px] leading-relaxed" style={{ color: "var(--text-2)" }}
+        <div className="df-markdown text-[14px] leading-relaxed" style={{ color: "var(--text-1)" }}
           dangerouslySetInnerHTML={{ __html: htmlWithIds }} />
 
         {embeddedHtml && blobUrl && (
-          <div className="mt-3 rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-            <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: "var(--bg-sunken)" }}>
+          <div className="mt-3 rounded-lg overflow-hidden" style={{ border: "1px solid var(--border-1)" }}>
+            <div className="px-3 py-1.5 flex items-center gap-2" style={{ background: "var(--surface-0)" }}>
               <button onClick={() => setShowHtmlPreview(!showHtmlPreview)}
                 className="text-[11px] font-medium flex items-center gap-1"
-                style={{ color: "var(--brand)" }}>
+                style={{ color: "var(--amber)" }}>
                 {showHtmlPreview ? <EyeOff size={11} /> : <Eye size={11} />}
                 {showHtmlPreview ? "收起预览" : "查看预览"}
               </button>
@@ -144,18 +138,18 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
         <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={handleCopy}
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: "var(--bg-sunken)", color: copied ? "var(--success)" : "var(--text-3)" }}
+            style={{ background: "var(--surface-2)", color: copied ? "var(--pass)" : "var(--text-3)" }}
             title="复制全文">
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
         </div>
 
         {isLong && !expanded && (
-          <div className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pb-2 rounded-b-2xl"
-            style={{ background: "linear-gradient(transparent, var(--bg-elevated))" }}>
+          <div className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pb-2 rounded-b-[14px]"
+            style={{ background: "linear-gradient(transparent, var(--surface-1))" }}>
             <button onClick={() => setExpanded(true)}
-              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--brand-subtle)]"
-              style={{ borderColor: "var(--border)", color: "var(--brand)", background: "var(--bg-elevated)" }}>
+              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--amber-glow)]"
+              style={{ borderColor: "var(--border-1)", color: "var(--amber)", background: "var(--surface-1)" }}>
               展开全文
             </button>
           </div>
@@ -163,26 +157,25 @@ export function MessageBubble({ text, timestamp, fmtTime, onFeedback }: {
         {isLong && expanded && (
           <div className="flex justify-center pt-2">
             <button onClick={() => setExpanded(false)}
-              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--brand-subtle)]"
-              style={{ borderColor: "var(--border)", color: "var(--text-3)" }}>
+              className="text-[12px] px-3 py-1 rounded-full border transition-colors hover:bg-[var(--surface-2)]"
+              style={{ borderColor: "var(--border-1)", color: "var(--text-3)" }}>
               收起
             </button>
           </div>
         )}
       </div>
       <div className="flex items-center gap-2 px-1">
-        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{fmtTime(timestamp)}</span>
-        <span className="text-[10px]" style={{ color: "var(--text-4)" }}>· AI生成，仅供参考</span>
+        <span className="text-[10px]" style={{ color: "var(--text-3)" }}>{fmtTime(timestamp)}</span>
         <div className="flex-1" />
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={() => { setVoted("up"); onFeedback?.("up"); }}
             className="w-5 h-5 rounded flex items-center justify-center transition-colors"
-            style={{ color: voted === "up" ? "var(--success)" : "var(--text-4)" }}>
+            style={{ color: voted === "up" ? "var(--pass)" : "var(--text-3)" }}>
             <ThumbsUp size={11} />
           </button>
           <button onClick={() => { setVoted("down"); onFeedback?.("down"); }}
             className="w-5 h-5 rounded flex items-center justify-center transition-colors"
-            style={{ color: voted === "down" ? "var(--error)" : "var(--text-4)" }}>
+            style={{ color: voted === "down" ? "var(--fail)" : "var(--text-3)" }}>
             <ThumbsDown size={11} />
           </button>
         </div>
