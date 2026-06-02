@@ -944,6 +944,13 @@ export default function Page() {
       <Sidebar ref={sidebarRef} collapsed={sidebarCollapsed} onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         activeSessionId={sidRef.current} onNewTask={reset} onOpenSettings={() => setShowSettings(true)}
         onTaskSelect={(task: any) => {
+          // Reset all state before loading new task
+          setMsgs([]); setHtml(null); setStreamingCode(""); setToolEvents([]);
+          setHasArtifact(false); setPhase("idle"); setSubPhase("thinking");
+          setBrief(""); setFileName(""); setFileSize(0); setRightPanel("code");
+          setDecisions(null); setElapsed(0);
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
           if (task.turns && Array.isArray(task.turns)) {
             const newMsgs: ChatMsg[] = [];
             for (const turn of task.turns) {
