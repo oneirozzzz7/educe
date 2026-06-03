@@ -944,7 +944,7 @@ export default function Page() {
 
   function handlePlanSelect(planId: number, userNote: string) {
     wsRef.current?.sendRaw({ type: "plan_select", plan_id: planId, user_note: userNote });
-    setPlans(null); setSubPhase("thinking");
+    setPlans(null); setSubPhase("thinking"); setThinking(true);
   }
 
   function reset() {

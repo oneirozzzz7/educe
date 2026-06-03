@@ -765,6 +765,9 @@ class Orchestrator:
             plan_desc += "\n用户补充：{}".format(user_note)
         build_input = "{}（方案：{}）".format(user_input, plan_desc)
         self.context.metadata["_plan_confirmed"] = True
+        # Plan-based build is a fresh start, not an iteration on old code
+        self.context.artifacts.pop("code_files", None)
+        self.context.artifacts.pop("engineer_output", None)
         self.context.user_request = build_input
         return await self._run_build(build_input)
 
