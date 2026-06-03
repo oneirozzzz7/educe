@@ -38,9 +38,9 @@ const ACCEPT = ".txt,.py,.js,.ts,.tsx,.jsx,.css,.html,.json,.md,.yaml,.yml,.xml,
    Helpers
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function extractHtml(c: string) {
-  const m = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?<\/html>)/i)
-    || c.match(/```html\n([\s\S]*?<\/html>)/i)
-    || c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
+  const m = c.match(/```filepath:[^\n]+\.html\n([\s\S]*<\/html>)/i)
+    || c.match(/```html\n([\s\S]*<\/html>)/i)
+    || c.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
   return m ? m[1] : null;
 }
 
@@ -977,7 +977,7 @@ export default function Page() {
                   setBrief(turn.question); setRightPanel("preview");
                   setFileSize(new Blob([h]).size);
                 }
-                else if (turn.response && turn.response !== "agentic build") {
+                else if (turn.type !== "code") {
                   newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 });
                 }
               }

@@ -160,15 +160,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         turns = store.get_session(task_id)
         if turns:
             for turn in turns:
-                resp = turn.get("response", "")
-                if turn.get("type") == "code" and len(resp) < 100:
+                if turn.get("type") == "code":
+                    # Always read from disk — session store only has a reference
                     try:
                         work_dir = Path(".deepforge/output") / task_id[:16]
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
-                            if html_files:
-                                content = html_files[0].read_text(encoding="utf-8", errors="ignore")[:50000]
-                                turn["response"] = f"```filepath:{html_files[0].name}\n{content}\n```"
+                            # Skip index.html copies, prefer the actual file
+                            main_html = next((f for f in html_files if f.name != "index.html"), None) or (html_files[0] if html_files else None)
+                            if main_html:
+                                content = main_html.read_text(encoding="utf-8", errors="ignore")
+                                turn["response"] = f"```filepath:{main_html.name}\n{content}\n```"
                     except Exception:
                         pass
             return {"session_id": task_id, "turns": turns}

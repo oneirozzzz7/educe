@@ -393,24 +393,11 @@ class Orchestrator:
         # Session级保存
         session_id = self.context.metadata.get("session_id", "")
         if session_id:
-            code_output = self.context.artifacts.get("engineer_output", "")[:5000]
-            # If engineer_output is just a marker (agentic mode), read actual file content
-            if len(code_output) < 100 and self.context.artifacts.get("code_files"):
-                try:
-                    from pathlib import Path
-                    code_files = self.context.artifacts.get("code_files", [])
-                    file_contents = []
-                    for fp in code_files[:3]:
-                        p = Path(fp)
-                        if p.exists():
-                            content = p.read_text(encoding="utf-8", errors="ignore")[:10000]
-                            file_contents.append(f"```filepath:{p.name}\n{content}\n```")
-                    if file_contents:
-                        code_output = "\n\n".join(file_contents)
-                except Exception:
-                    pass
+            # Session store only saves a reference — actual files live on disk
+            code_files = self.context.artifacts.get("code_files", [])
+            file_names = [f.split("/")[-1] for f in code_files]
             self.session_store.append_turn(
-                session_id, user_input, code_output,
+                session_id, user_input, ",".join(file_names),
                 turn_type="code",
                 domain="tech",
             )
