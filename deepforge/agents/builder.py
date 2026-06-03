@@ -184,7 +184,7 @@ class BuilderAgent(BaseAgent):
             def on_step_progress(msg: str):
                 on_tool_event({"event": "thinking", "content": msg})
 
-            sb = StepBuilder(max_steps=5, max_fix_per_step=3)
+            sb = StepBuilder(max_fix_per_step=3)
             # Plan with thinking (deep reasoning), build without (fast generation)
             steps = await sb.plan_steps(user_request, call_model_thinking)
             on_tool_event({"event": "thinking", "content": "分{}步构建: {}".format(len(steps), "; ".join(s[:20] for s in steps))})

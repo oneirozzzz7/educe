@@ -13,7 +13,7 @@ from deepforge.core.execution_loop import ExecutionLoop
 
 
 class StepBuilder:
-    def __init__(self, max_steps: int = 5, max_fix_per_step: int = 3):
+    def __init__(self, max_steps: int = 8, max_fix_per_step: int = 3):
         self.max_steps = max_steps
         self.loop = ExecutionLoop(max_rounds=max_fix_per_step)
 
@@ -23,8 +23,9 @@ class StepBuilder:
         call_model_fn: Callable[[str], Awaitable[str]],
     ) -> list[str]:
         prompt = (
-            "将以下编程任务分解为3-5个实现步骤。\n\n"
+            "将以下编程任务分解为实现步骤。\n\n"
             "关键要求：\n"
+            "- 根据任务复杂度自行决定步骤数量（简单任务2-3步，复杂任务4-6步）\n"
             "- 每步必须是一个用户可感知的功能点，不是技术架构步骤\n"
             "- 每步完成后程序都能运行，用户能看到新增功能\n"
             "- 步骤按功能优先级排列：先核心交互，再视觉效果，最后附加功能\n"
