@@ -153,7 +153,7 @@ class BuilderAgent(BaseAgent):
 
             build_system = (
                 "你是一个编程助手。输出完整、可直接运行的代码。\n"
-                "优先输出单个HTML文件（内嵌CSS和JS），除非任务明确需要其他格式。\n"
+                "优先输出单个HTML文件，可通过CDN引入外部库（如marked.js、Chart.js等）。\n"
                 "代码不截断、不省略、不用TODO占位。用```filepath:文件名 格式包裹输出。"
             )
 
