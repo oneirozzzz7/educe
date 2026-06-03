@@ -462,6 +462,8 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     plans = orchestrator.context.metadata.get("_pending_plans", [])
                     original = orchestrator.context.metadata.get("_pending_request", "")
                     selected = next((p for p in plans if p["id"] == plan_id), plans[0] if plans else {})
+                    orchestrator.context.metadata.pop("_pending_plans", None)
+                    orchestrator.context.metadata.pop("_pending_request", None)
                     await websocket.send_json({"type": "status", "content": "thinking"})
                     orchestrator.context.metadata["session_id"] = session_id
                     try:
