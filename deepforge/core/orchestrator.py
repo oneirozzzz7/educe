@@ -398,9 +398,9 @@ class Orchestrator:
         if self.context.metadata.get("_pending_decisions"):
             return self.context
 
-        # ═══ C. Checklist 验收 ═══
+        # ═══ C. Checklist 验收（StepBuilder 已有内置验证，跳过）═══
         has_output = bool(self.context.artifacts.get("code_files"))
-        if has_output and checklist:
+        if has_output and checklist and complexity != "complex":
             try:
                 from deepforge.core.checklist_judge import verify_checklist
                 code_output = self.context.artifacts.get("engineer_output", "")
@@ -738,7 +738,8 @@ class Orchestrator:
                     {"role": "system", "content": (
                         "为用户的编程需求生成2-3个实现方案。每个方案一行，格式：\n"
                         "方案N: [名称] | [一句话描述核心思路和功能] | 约XXX行\n"
-                        "从简单到复杂排列。不要其他内容。")},
+                        "从简单到复杂排列。所有方案都必须在单个HTML文件内实现（内嵌CSS和JS）。\n"
+                        "不要其他内容。")},
                     {"role": "user", "content": user_input},
                 ],
                 model=self.config.default_model.model,
