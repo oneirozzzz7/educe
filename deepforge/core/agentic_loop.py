@@ -253,6 +253,22 @@ class AgenticLoop:
         if not cmd:
             return ToolResult(tool="run", success=False, output="命令为空")
 
+        # Adaptive timeout: data-heavy scripts get more time
+        timeout = self.exec_timeout
+        if "python" in cmd:
+            # Read the script to detect heavy imports
+            parts = cmd.split()
+            script_name = parts[1] if len(parts) > 1 else ""
+            if script_name:
+                script_path = self.output_dir / script_name
+                if script_path.exists():
+                    try:
+                        src = script_path.read_text(encoding="utf-8", errors="ignore")[:2000]
+                        if any(lib in src for lib in ("pandas", "matplotlib", "numpy", "scipy", "sklearn", "plotly", "seaborn", "requests")):
+                            timeout = max(timeout, 60)
+                    except Exception:
+                        pass
+
         try:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -261,7 +277,7 @@ class AgenticLoop:
                 cwd=str(self.output_dir),
             )
             stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(), timeout=self.exec_timeout
+                proc.communicate(), timeout=timeout
             )
             stdout = stdout_b.decode(errors="replace")[:1500]
             stderr = stderr_b.decode(errors="replace")[:1500]
