@@ -166,7 +166,7 @@ class BuilderAgent(BaseAgent):
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
                     max_tokens=self.model_config.max_tokens,
-                    enable_thinking=False,
+                    enable_thinking=use_thinking,
                 )
 
             async def call_model_thinking(prompt: str) -> str:

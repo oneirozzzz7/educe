@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 
 class ModelClient:
     def __init__(self, api_key: str, base_url: str):
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120)
 
     async def chat(
         self,
@@ -22,13 +22,22 @@ class ModelClient:
         extra = {}
         if "397" in model or "qwen" in model.lower():
             extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
-        response = await self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **extra,
-        )
+
+        for attempt in range(3):
+            try:
+                response = await self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    **extra,
+                )
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(2)
+
         msg = response.choices[0].message
         content = msg.content or ""
         # Thinking mode: some APIs return reasoning in model_extra, content may be None
@@ -51,14 +60,21 @@ class ModelClient:
         extra = {}
         if "397" in model or "qwen" in model.lower():
             extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
-        stream = await self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=True,
-            **extra,
-        )
+        for attempt in range(3):
+            try:
+                stream = await self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True,
+                    **extra,
+                )
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(2)
         async for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
