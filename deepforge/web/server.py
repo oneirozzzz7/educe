@@ -143,15 +143,15 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         }
 
     @app.get("/api/tasks")
-    async def list_tasks():
+    async def list_tasks(limit: int = 20, offset: int = 0):
         from deepforge.core.session_store import SessionStore
         store = SessionStore()
-        sessions = store.list_sessions()
-        if sessions:
-            return {"tasks": sessions}
+        sessions, total = store.list_sessions(limit=limit, offset=offset)
+        if sessions or offset > 0:
+            return {"tasks": sessions, "total": total, "offset": offset, "limit": limit}
         from deepforge.core.task_store import TaskStore
         old_store = TaskStore()
-        return {"tasks": old_store.list_tasks()}
+        return {"tasks": old_store.list_tasks(), "total": 0, "offset": 0, "limit": limit}
 
     @app.get("/api/tasks/{task_id}")
     async def get_task(task_id: str):

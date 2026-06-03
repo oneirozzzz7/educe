@@ -46,15 +46,15 @@ class SessionStore:
                     pass
         return turns
 
-    def list_sessions(self, limit: int = 20) -> list:
+    def list_sessions(self, limit: int = 20, offset: int = 0) -> list:
         sessions = []
         paths = sorted(SESSION_DIR.glob("*.jsonl"),
                        key=lambda p: p.stat().st_mtime, reverse=True)
-        for path in paths[:limit]:
+        for path in paths[offset:offset + limit]:
             try:
                 first_line = ""
                 turn_count = 0
-                last_time = 0
+                last_type = "text"
                 with open(path) as f:
                     for line in f:
                         turn_count += 1
@@ -64,13 +64,18 @@ class SessionStore:
                 if first_line:
                     first = json.loads(first_line)
                     last = json.loads(last_line)
+                    if last.get("type") == "code":
+                        last_type = "code"
+                    elif first.get("type") == "code":
+                        last_type = "code"
                     sessions.append({
                         "id": path.stem,
                         "title": first.get("question", "")[:60],
                         "turns": turn_count,
+                        "type": last_type,
                         "created_at": first.get("timestamp", 0),
                         "updated_at": last.get("timestamp", 0),
                     })
             except Exception:
                 pass
-        return sessions
+        return sessions, len(paths)

@@ -29,16 +29,27 @@ export const Sidebar = forwardRef<SidebarRef, {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [showCount, setShowCount] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   const loadTasks = useCallback(() => {
     setLoading(true);
-    fetch(`http://${API_HOST}/api/tasks`)
+    fetch(`http://${API_HOST}/api/tasks?limit=20&offset=0`)
       .then(r => r.json())
-      .then(d => setTasks(d.tasks || []))
+      .then(d => { setTasks(d.tasks || []); setTotal(d.total || 0); setHasMore((d.tasks?.length || 0) < (d.total || 0)); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (loading) return;
+    setLoading(true);
+    fetch(`http://${API_HOST}/api/tasks?limit=20&offset=${tasks.length}`)
+      .then(r => r.json())
+      .then(d => { const more = d.tasks || []; setTasks(prev => [...prev, ...more]); setHasMore(tasks.length + more.length < (d.total || 0)); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [tasks.length, loading]);
 
   useImperativeHandle(ref, () => ({ refresh: loadTasks }));
   useEffect(() => { loadTasks(); }, [loadTasks]);
@@ -116,7 +127,10 @@ export const Sidebar = forwardRef<SidebarRef, {
       )}
 
       {/* ─── Task list ─── */}
-      <div className="flex-1 overflow-y-auto px-2">
+      <div className="flex-1 overflow-y-auto px-2" onScroll={e => {
+        const el = e.currentTarget;
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 80 && hasMore && !loading) loadMore();
+      }}>
         {tasks.length === 0 ? (
           <div className="px-3 py-10 text-[12px] text-center" style={{ color: "var(--text-3)" }}>
             {loading ? "..." : (locale === "zh" ? "暂无任务" : "No tasks yet")}
@@ -125,7 +139,7 @@ export const Sidebar = forwardRef<SidebarRef, {
           tasks.filter(t => {
             const text = t.title || t.request || "";
             return !search || text.toLowerCase().includes(search.toLowerCase());
-          }).slice(0, showCount).map(task => {
+          }).map(task => {
             const isActive = activeSessionId && task.id === activeSessionId;
             return (
               <button key={task.id} onClick={() => handleTaskClick(task)}
@@ -142,8 +156,13 @@ export const Sidebar = forwardRef<SidebarRef, {
                 <span className="truncate block leading-[1.4]">{task.title || task.request || (locale === "zh" ? "未命名" : "Untitled")}</span>
                 <span className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--text-3)" }}>
                   {formatRelativeTime(task.updated_at || task.created_at, locale)}
-                  {task.turns && task.turns > 1 && (
+                  {(task as any).type === "code" && (
                     <span className="px-1 rounded text-[9px]" style={{ background: "var(--amber-dim)", color: "var(--amber)" }}>
+                      code
+                    </span>
+                  )}
+                  {task.turns && task.turns > 1 && (
+                    <span className="px-1 rounded text-[9px]" style={{ background: "var(--surface-3)", color: "var(--text-3)" }}>
                       {task.turns}{locale === "zh" ? "轮" : "r"}
                     </span>
                   )}
@@ -152,12 +171,8 @@ export const Sidebar = forwardRef<SidebarRef, {
             );
           })
         )}
-        {tasks.length > showCount && (
-          <button onClick={() => setShowCount(prev => prev + 20)}
-            className="w-full py-2.5 text-[11px] text-center transition-colors rounded-lg hover:bg-[var(--surface-1)]"
-            style={{ color: "var(--text-3)" }}>
-            {locale === "zh" ? "加载更多" : "Load more"}
-          </button>
+        {loading && tasks.length > 0 && (
+          <div className="py-3 text-center text-[11px]" style={{ color: "var(--text-3)" }}>...</div>
         )}
       </div>
 
