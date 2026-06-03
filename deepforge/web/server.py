@@ -164,8 +164,6 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if turn.get("type") == "code" and len(resp) < 100:
                     try:
                         work_dir = Path(".deepforge/output") / task_id[:16]
-                        if not work_dir.exists():
-                            work_dir = Path(".deepforge/output")
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
                             if html_files:
