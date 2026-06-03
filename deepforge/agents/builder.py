@@ -74,9 +74,13 @@ class BuilderAgent(BaseAgent):
         output_dir = Path(".deepforge/output") / session_id[:16]
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 模型自主工具循环——真正的Claude Code机制
+        # 根据复杂度动态调整迭代深度
+        complexity = context.metadata.get("_task_complexity", "simple")
+        max_turns = 12 if complexity == "complex" else 6
+        exec_timeout = 60 if complexity == "complex" else 15
+
         from deepforge.core.agentic_loop import AgenticLoop
-        agentic = AgenticLoop(output_dir=output_dir, max_turns=6)
+        agentic = AgenticLoop(output_dir=output_dir, max_turns=max_turns, exec_timeout=exec_timeout)
 
         user_request = message.content
         if user_decisions:
@@ -120,13 +124,41 @@ class BuilderAgent(BaseAgent):
         yield self.emit("user", "__BUILD_PROGRESS__开始构建...",
                        msg_type=MessageType.SYSTEM)
 
-        final_files = await agentic.run(
-            user_request=user_request,
-            call_model_fn=call_model_fn,
-            on_chunk=on_chunk,
-            stream_model_fn=stream_model_fn,
-            on_tool_event=on_tool_event,
-        )
+        # 复杂任务走分步构建：拆解→逐步生成→每步验证
+        if complexity == "complex":
+            from deepforge.core.step_builder import StepBuilder
+
+            async def call_model_simple(prompt: str) -> str:
+                return await self.model_client.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=self.model_config.model,
+                    temperature=self.model_config.temperature,
+                    max_tokens=self.model_config.max_tokens,
+                )
+
+            def on_step_progress(msg: str):
+                on_tool_event({"event": "thinking", "content": msg})
+
+            sb = StepBuilder(max_steps=5, max_fix_per_step=3)
+            steps = await sb.plan_steps(user_request, call_model_simple)
+            on_tool_event({"event": "thinking", "content": "分{}步构建: {}".format(len(steps), "; ".join(s[:20] for s in steps))})
+
+            final_files = await sb.build_incremental(
+                steps=steps,
+                call_model_fn=call_model_simple,
+                output_dir=output_dir,
+                original_request=user_request,
+                on_progress=on_step_progress,
+            )
+        else:
+            # 简单任务走 AgenticLoop（快速单文件生成）
+            final_files = await agentic.run(
+                user_request=user_request,
+                call_model_fn=call_model_fn,
+                on_chunk=on_chunk,
+                stream_model_fn=stream_model_fn,
+                on_tool_event=on_tool_event,
+            )
 
         # Smoke test: headless browser check for HTML files
         if final_files:

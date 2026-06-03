@@ -322,6 +322,10 @@ class Orchestrator:
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
+        # ═══ 0. 评估复杂度，驱动后续构建策略 ═══
+        complexity = await self._assess_complexity(user_input)
+        self.context.metadata["_task_complexity"] = complexity
+
         # ═══ A. 生成需求清单（核心功能 checklist）═══
         checklist = []
         try:

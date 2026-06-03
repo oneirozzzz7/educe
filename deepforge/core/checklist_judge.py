@@ -84,7 +84,7 @@ async def verify_checklist(client, model: str, checklist: list,
             messages=[
                 {"role": "system", "content": CHECKLIST_VERIFY_SYSTEM},
                 {"role": "user", "content": "要点：\n{}\n\n回答：\n{}".format(
-                    checklist_text, response[:500])},
+                    checklist_text, response[:3000])},
             ],
             model=model, max_tokens=50, temperature=0.0)
 
