@@ -741,6 +741,7 @@ export default function Page() {
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const sidRef = useRef("");
   const sidebarRef = useRef<SidebarRef>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
@@ -749,6 +750,7 @@ export default function Page() {
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { subRef.current = subPhase; }, [subPhase]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, decisions, plans, thinking]);
   useEffect(() => { if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarCollapsed(true); }, []);
 
   // ── Auto switch to preview on complete ──
@@ -1053,7 +1055,7 @@ export default function Page() {
                 <div className="flex flex-col min-h-0 transition-all duration-300 flex-1"
                   style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
                   {/* Scrollable chat content */}
-                  <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px" : "24px 28px 120px" }}>
+                  <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px 120px" : "24px 28px 120px" }}>
                     {/* Constrain message width for readability */}
                     <div style={{ maxWidth: showArtifact ? "100%" : "760px", margin: showArtifact ? undefined : "0 auto" }}>
                     {/* User messages + AI replies */}
@@ -1134,6 +1136,7 @@ export default function Page() {
                         <PlanProposal plans={plans} onSelect={handlePlanSelect} originalRequest={planRequest} />
                       )}
                     </AnimatePresence>
+                    <div ref={chatEndRef} />
                     </div>{/* close maxWidth container */}
                   </div>
 
