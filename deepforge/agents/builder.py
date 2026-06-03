@@ -112,12 +112,22 @@ class BuilderAgent(BaseAgent):
                                msg_type=MessageType.SYSTEM)
                 notify_fn(msg)
 
+        # Thinking mode: auto (complex=on, simple=off), or manual override
+        thinking_override = context.metadata.get("_thinking_mode")  # "on" | "off" | None(auto)
+        if thinking_override == "on":
+            use_thinking = True
+        elif thinking_override == "off":
+            use_thinking = False
+        else:
+            use_thinking = complexity == "complex"
+
         async def call_model_fn(msgs: list[dict]) -> str:
             return await self.model_client.chat(
                 messages=msgs,
                 model=self.model_config.model,
                 temperature=self.model_config.temperature,
                 max_tokens=self.model_config.max_tokens,
+                enable_thinking=use_thinking,
             )
 
         async def stream_model_fn(msgs: list[dict]):
@@ -126,6 +136,7 @@ class BuilderAgent(BaseAgent):
                 model=self.model_config.model,
                 temperature=self.model_config.temperature,
                 max_tokens=self.model_config.max_tokens,
+                enable_thinking=use_thinking,
             ):
                 yield chunk
 

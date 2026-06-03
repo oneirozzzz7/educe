@@ -17,14 +17,28 @@ class ModelClient:
         model: str = "deepseek-chat",
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        enable_thinking: bool = False,
     ) -> str:
+        extra = {}
+        if "397" in model or "qwen" in model.lower():
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
         response = await self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
+            **extra,
         )
-        return response.choices[0].message.content or ""
+        msg = response.choices[0].message
+        content = msg.content or ""
+        # Thinking mode: some APIs return reasoning in model_extra, content may be None
+        if not content and hasattr(msg, "model_extra") and msg.model_extra:
+            reasoning = msg.model_extra.get("reasoning", "")
+            if reasoning:
+                content = reasoning
+        if "</think>" in content:
+            content = content.split("</think>", 1)[-1].strip()
+        return content
 
     async def chat_stream(
         self,
@@ -32,13 +46,18 @@ class ModelClient:
         model: str = "deepseek-chat",
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        enable_thinking: bool = False,
     ) -> AsyncIterator[str]:
+        extra = {}
+        if "397" in model or "qwen" in model.lower():
+            extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
         stream = await self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
+            **extra,
         )
         async for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:
