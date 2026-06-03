@@ -335,14 +335,14 @@ class ExecutionLoop:
     def _extract_files(content: str) -> dict[str, str]:
         files = {}
         # Format 1: ```filepath:filename
-        for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)```', content):
+        for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)\n```', content):
             files[match.group(1).strip()] = match.group(2)
         if files:
             return files
 
         # Format 2: ```html / ```python / ```js etc
         lang_to_ext = {"html": ".html", "python": ".py", "javascript": ".js", "js": ".js", "css": ".css"}
-        for match in re.finditer(r'```(\w+)\n([\s\S]*?)```', content):
+        for match in re.finditer(r'```(\w+)\n([\s\S]*?)\n```', content):
             lang = match.group(1).lower()
             code = match.group(2)
             if lang in lang_to_ext and len(code.strip()) > 50:
