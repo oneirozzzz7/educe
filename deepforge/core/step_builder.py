@@ -36,7 +36,7 @@ class StepBuilder:
         steps = []
         for line in response.strip().split("\n"):
             line = re.sub(r'^\d+[\.\)]\s*', '', line.strip())
-            if line and len(line) > 5:
+            if line and len(line) > 5 and not line.startswith("```"):
                 steps.append(line)
         return steps[:self.max_steps] if steps else [user_request]
 
