@@ -70,7 +70,8 @@ class BuilderAgent(BaseAgent):
         else:
             messages = [{"role": "user", "content": self._build_prompt(message, context)}]
 
-        output_dir = Path(".deepforge/output")
+        session_id = context.metadata.get("session_id", "default")
+        output_dir = Path(".deepforge/output") / session_id[:16]
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 模型自主工具循环——真正的Claude Code机制
@@ -127,7 +128,40 @@ class BuilderAgent(BaseAgent):
             on_tool_event=on_tool_event,
         )
 
+        # Smoke test: headless browser check for HTML files
         if final_files:
+            html_files = [f for f in final_files if f.endswith(".html")]
+            if html_files:
+                from deepforge.core.execution_loop import ExecutionLoop
+                loop = ExecutionLoop()
+                html_path = output_dir / html_files[0]
+                if html_path.exists():
+                    smoke_errors = await loop._smoke_test_html(html_path)
+                    if smoke_errors and notify_fn:
+                        err_desc = "; ".join(e.message for e in smoke_errors[:2])
+                        yield self.emit("user", f"__BUILD_PROGRESS__冒烟测试发现问题: {err_desc[:100]}，修复中...",
+                                       msg_type=MessageType.SYSTEM)
+                        fix_prompt = "代码运行时有问题：\n" + "\n".join(
+                            f"- {e.message}" for e in smoke_errors
+                        ) + "\n\n请修复代码中的运行时错误。确保页面能正常加载且不产生JS报错。"
+                        fix_files = await agentic.run(
+                            user_request=fix_prompt,
+                            call_model_fn=call_model_fn,
+                            on_tool_event=on_tool_event,
+                        )
+                        if fix_files:
+                            final_files.update(fix_files)
+
+        if final_files:
+            # Ensure index.html exists for preview server
+            html_files = [f for f in final_files if f.endswith(".html")]
+            if html_files and "index.html" not in final_files:
+                import shutil
+                src = output_dir / html_files[0]
+                dst = output_dir / "index.html"
+                if src.exists() and not dst.exists():
+                    shutil.copy2(str(src), str(dst))
+
             for filepath, code in final_files.items():
                 full_path = output_dir / filepath
                 prev_files = context.artifacts.get("code_files", [])

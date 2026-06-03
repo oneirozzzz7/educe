@@ -48,6 +48,11 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+    # Preview output — each session writes to .deepforge/output/{session_id}/
+    preview_root = Path(".deepforge/output")
+    preview_root.mkdir(parents=True, exist_ok=True)
+    app.mount("/preview", StaticFiles(directory=str(preview_root), html=True), name="preview")
+
     sessions: dict[str, Orchestrator] = {}
     session_files: dict[str, dict[str, Any]] = {}  # session_id -> {file_id: FileAttachment}
 
@@ -154,12 +159,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         store = SessionStore()
         turns = store.get_session(task_id)
         if turns:
-            # Enrich: if turn response is a short marker, try to load actual file content
             for turn in turns:
                 resp = turn.get("response", "")
                 if turn.get("type") == "code" and len(resp) < 100:
                     try:
-                        work_dir = Path(".deepforge/output")
+                        work_dir = Path(".deepforge/output") / task_id[:16]
+                        if not work_dir.exists():
+                            work_dir = Path(".deepforge/output")
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
                             if html_files:

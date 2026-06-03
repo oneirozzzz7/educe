@@ -140,18 +140,23 @@ class AgenticLoop:
                 result = await self._execute(action)
                 results.append(result)
 
+                if result.file_written:
+                    content = (
+                        self.output_dir / result.file_written
+                    ).read_text(encoding="utf-8")
+                    self.files_written[result.file_written] = content
+
                 # 动作结果事件
                 if on_tool_event:
-                    on_tool_event({
+                    evt = {
                         "event": "{}_result".format(action["type"]),
                         "success": result.success,
                         "output": result.output[:300],
-                    })
-
-                if result.file_written:
-                    self.files_written[result.file_written] = (
-                        self.output_dir / result.file_written
-                    ).read_text(encoding="utf-8")
+                    }
+                    if result.file_written:
+                        evt["file"] = result.file_written
+                        evt["size"] = len(content.encode("utf-8"))
+                    on_tool_event(evt)
 
             result_text = "\n\n".join(
                 "工具 {} 执行结果:\n{}".format(r.tool, r.output) for r in results

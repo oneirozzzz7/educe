@@ -160,6 +160,80 @@ class ExecutionLoop:
             finally:
                 Path(tmp).unlink(missing_ok=True)
 
+        # Headless smoke test — catch runtime errors, crash, blank page
+        if not errors and "</html>" in content:
+            runtime_errors = await self._smoke_test_html(full_path)
+            errors.extend(runtime_errors)
+
+        return errors
+
+    async def _smoke_test_html(self, html_path: Path) -> list[StructuredError]:
+        """Open HTML in headless browser, collect console errors and check for blank page."""
+        errors: list[StructuredError] = []
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            return errors
+
+        server_proc = None
+        port = 18921
+        serve_dir = str(html_path.parent)
+        try:
+            server_proc = await asyncio.create_subprocess_exec(
+                "python", "-m", "http.server", str(port), "--directory", serve_dir,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.sleep(0.3)
+
+            url = f"http://localhost:{port}/{html_path.name}"
+            console_errors: list[str] = []
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+                page.on("pageerror", lambda err: console_errors.append(str(err)))
+
+                try:
+                    resp = await page.goto(url, wait_until="domcontentloaded", timeout=8000)
+                    if resp and resp.status >= 400:
+                        errors.append(StructuredError(
+                            file=html_path.name, line=None, error_type="runtime",
+                            message=f"页面加载失败 HTTP {resp.status}"))
+                except Exception as e:
+                    errors.append(StructuredError(
+                        file=html_path.name, line=None, error_type="runtime",
+                        message=f"页面打开超时或崩溃: {str(e)[:150]}"))
+                    await browser.close()
+                    return errors
+
+                await asyncio.sleep(0.5)
+
+                # Check for visible content (not blank)
+                body_text = await page.evaluate("document.body?.innerText?.trim()?.length || 0")
+                has_canvas = await page.evaluate("document.querySelectorAll('canvas').length > 0")
+                has_svg = await page.evaluate("document.querySelectorAll('svg').length > 0")
+                if body_text == 0 and not has_canvas and not has_svg:
+                    errors.append(StructuredError(
+                        file=html_path.name, line=None, error_type="runtime",
+                        message="页面空白——没有可见文本、canvas或SVG元素"))
+
+                if console_errors:
+                    # Filter noise (e.g. favicon 404)
+                    real_errors = [e for e in console_errors if "favicon" not in e.lower()]
+                    if real_errors:
+                        errors.append(StructuredError(
+                            file=html_path.name, line=None, error_type="runtime",
+                            message="JS运行时错误: " + "; ".join(real_errors[:3])[:300]))
+
+                await browser.close()
+        except Exception:
+            pass
+        finally:
+            if server_proc:
+                server_proc.terminate()
+                await server_proc.wait()
         return errors
 
     async def _verify_python(self, filepath: str, content: str, full_path: Path) -> tuple[list[StructuredError], str, str]:

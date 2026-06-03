@@ -395,17 +395,19 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase }: {
+function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId }: {
   streamingCode: string; html: string | null;
   rightPanel: "code" | "preview"; setRightPanel: (v: "code" | "preview") => void;
   fileName: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
+  previewSessionId: string;
 }) {
   const { t } = useLocale();
   const codeEndRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const lines = streamingCode ? streamingCode.split("\n") : [];
+  const displayCode = streamingCode || (subPhase === "done" && html ? html : "");
+  const lines = displayCode ? displayCode.split("\n") : [];
 
   useEffect(() => {
     if (!userScrolledRef.current && rightPanel === "code") {
@@ -415,16 +417,17 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 
   useEffect(() => {
     if (rightPanel === "preview" && html && iframeRef.current) {
-      // Try preview server first (supports multi-file projects + CDN)
-      // Fall back to srcdoc for simple single-file HTML
-      const previewUrl = `http://${window.location.hostname}:8080/`;
-      fetch(previewUrl, { method: "HEAD", mode: "no-cors" }).then(() => {
-        if (iframeRef.current) iframeRef.current.src = previewUrl;
+      const sid = previewSessionId.slice(0, 16);
+      if (!sid) { iframeRef.current.srcdoc = html; return; }
+      const previewUrl = `/preview/${sid}/`;
+      fetch(previewUrl, { method: "HEAD" }).then(r => {
+        if (r.ok && iframeRef.current) iframeRef.current.src = previewUrl;
+        else if (iframeRef.current) iframeRef.current.srcdoc = html;
       }).catch(() => {
         if (iframeRef.current) iframeRef.current.srcdoc = html;
       });
     }
-  }, [rightPanel, html]);
+  }, [rightPanel, html, previewSessionId]);
 
   const hasPreview = !!html;
   const showTabs = hasPreview;
@@ -707,6 +710,7 @@ export default function Page() {
   const [expandedLog, setExpandedLog] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
+  const [previewSessionId, setPreviewSessionId] = useState("");
 
   // ── Conversation state ──
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -749,6 +753,7 @@ export default function Page() {
         setHtml(finalHtml);
       }
       if (finalHtml) {
+        if (!fileSize) setFileSize(new Blob([finalHtml]).size);
         const t = setTimeout(() => setRightPanel("preview"), 500);
         return () => clearTimeout(t);
       }
@@ -789,6 +794,7 @@ export default function Page() {
           if (thTimerRef.current) { clearInterval(thTimerRef.current); thTimerRef.current = null; }
           if (phaseRef.current === "active") {
             setPhase("complete"); setSubPhase("done");
+            if (startRef.current) setElapsed(prev => prev || Math.max(1, Math.floor((Date.now() - startRef.current) / 1000)));
           }
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
           sidebarRef.current?.refresh();
@@ -826,7 +832,10 @@ export default function Page() {
       else if ((msg as any).type === "tool_event") {
         const evt = msg as unknown as ToolEvent;
         setToolEvents(prev => [...prev, evt]);
-        if (evt.event === "write_file") { if (evt.file) setFileName(evt.file); if (evt.size) setFileSize(evt.size); }
+        if (evt.event === "write_file" || evt.event === "write_file_result") {
+          if (evt.file) setFileName(evt.file);
+          if (evt.size) setFileSize(evt.size);
+        }
       }
       // ── decision_request ──
       else if ((msg as any).type === "decision_request") {
@@ -897,6 +906,7 @@ export default function Page() {
 
     setBrief(v || files.map(f => f.name).join(", "));
     setPhase("active"); setSubPhase("thinking");
+    setPreviewSessionId(sidRef.current);
     setStreamingCode(""); setToolEvents([]); setDecisions(null);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
@@ -916,6 +926,7 @@ export default function Page() {
     setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
     setHtml(null); setStreamingCode(""); setToolEvents([]); setElapsed(0);
     setDecisions(null); setRightPanel("code"); setFileName(""); setFileSize(0);
+    setPreviewSessionId("");
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   }
 
@@ -948,23 +959,37 @@ export default function Page() {
           setMsgs([]); setHtml(null); setStreamingCode(""); setToolEvents([]);
           setHasArtifact(false); setPhase("idle"); setSubPhase("thinking");
           setBrief(""); setFileName(""); setFileSize(0); setRightPanel("code");
-          setDecisions(null); setElapsed(0);
+          setDecisions(null); setElapsed(0); setPreviewSessionId(task.id || "");
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
 
           if (task.turns && Array.isArray(task.turns)) {
             const newMsgs: ChatMsg[] = [];
+            let firstTs = 0, lastTs = 0;
             for (const turn of task.turns) {
-              newMsgs.push({ id: `${turn.timestamp}-q`, role: "user", text: turn.question, timestamp: (turn.timestamp || 0) * 1000 });
+              const ts = turn.timestamp || 0;
+              if (!firstTs) firstTs = ts;
+              lastTs = ts;
+              newMsgs.push({ id: `${turn.timestamp}-q`, role: "user", text: turn.question, timestamp: ts * 1000 });
               if (turn.response) {
                 const h = extractHtml(turn.response);
-                if (h) { setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done"); setBrief(turn.question); setRightPanel("preview"); }
-                else { newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: (turn.timestamp || 0) * 1000 + 1 }); }
+                if (h) {
+                  setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done");
+                  setBrief(turn.question); setRightPanel("preview");
+                  setFileSize(new Blob([h]).size);
+                }
+                else { newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 }); }
               }
             }
+            if (lastTs && firstTs) setElapsed(Math.max(1, Math.round(lastTs - firstTs)));
             setMsgs(newMsgs);
           } else {
             const h = task.response ? extractHtml(task.response) : null;
-            if (h) { setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done"); setBrief(task.request || task.title || ""); setRightPanel("preview"); }
+            if (h) {
+              setHtml(h); setHasArtifact(true); setPhase("complete"); setSubPhase("done");
+              setBrief(task.request || task.title || ""); setRightPanel("preview");
+              setFileSize(new Blob([h]).size);
+              if (task.elapsed) setElapsed(task.elapsed);
+            }
             else if (task.response) {
               setMsgs([
                 { id: task.id + "-q", role: "user", text: task.request || task.title || "", timestamp: task.created_at * 1000 },
@@ -1096,7 +1121,7 @@ export default function Page() {
                   {showArtifact && (
                     <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
-                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} />
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} />
                       {phase === "complete" && html && (
                         <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
                           rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
