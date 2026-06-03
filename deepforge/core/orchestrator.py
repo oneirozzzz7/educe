@@ -322,8 +322,25 @@ class Orchestrator:
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
-        # ═══ 0. 评估复杂度，驱动后续构建策略 ═══
-        complexity = await self._assess_complexity(user_input)
+        # ═══ 0. 检测是否是追问迭代（已有代码，用户要求修改）═══
+        has_prev_code = bool(self.context.artifacts.get("code_files"))
+        prev_code_context = ""
+        if has_prev_code:
+            from pathlib import Path
+            code_files = self.context.artifacts.get("code_files", [])
+            parts = []
+            for fp in code_files[:3]:
+                p = Path(fp)
+                if p.exists():
+                    parts.append("```filepath:{}\n{}\n```".format(p.name, p.read_text(encoding="utf-8", errors="ignore")[:8000]))
+            if parts:
+                prev_code_context = "\n\n".join(parts)
+
+        # ═══ 0b. 评估复杂度（迭代修改视为 simple）═══
+        if prev_code_context:
+            complexity = "simple"
+        else:
+            complexity = await self._assess_complexity(user_input)
         self.context.metadata["_task_complexity"] = complexity
 
         # ═══ A. 生成需求清单（核心功能 checklist）═══
@@ -339,7 +356,13 @@ class Orchestrator:
 
         # ═══ B. 把 checklist 注入 builder prompt ═══
         build_input = user_input
-        if checklist:
+        if prev_code_context:
+            build_input = (
+                f"用户要求修改已有代码：{user_input}\n\n"
+                f"【当前代码】\n{prev_code_context}\n\n"
+                f"请在现有代码基础上进行修改，输出修改后的完整文件。"
+            )
+        elif checklist:
             checklist_text = "\n".join(f"  {i+1}. {item}" for i, item in enumerate(checklist))
             build_input = (
                 f"{user_input}\n\n"
