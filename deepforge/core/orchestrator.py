@@ -364,16 +364,17 @@ class Orchestrator:
             complexity = await self._assess_complexity(user_input)
         self.context.metadata["_task_complexity"] = complexity
 
-        # ═══ A. 生成需求清单（核心功能 checklist）═══
+        # ═══ A. 生成需求清单（修改场景跳过，只对新构建有用）═══
         checklist = []
-        try:
-            from deepforge.core.checklist_judge import generate_checklist
-            from deepforge.models.router import ModelClient
-            client = ModelClient(api_key=self.config.default_model.api_key,
-                                base_url=self.config.default_model.base_url)
-            checklist = await generate_checklist(client, self.config.default_model.model, user_input)
-        except Exception:
-            pass
+        if not prev_code_context:
+            try:
+                from deepforge.core.checklist_judge import generate_checklist
+                from deepforge.models.router import ModelClient
+                client = ModelClient(api_key=self.config.default_model.api_key,
+                                    base_url=self.config.default_model.base_url)
+                checklist = await generate_checklist(client, self.config.default_model.model, user_input)
+            except Exception:
+                pass
 
         # ═══ B. 把 checklist 注入 builder prompt ═══
         build_input = user_input

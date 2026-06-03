@@ -76,8 +76,16 @@ class BuilderAgent(BaseAgent):
 
         # 根据复杂度动态调整迭代深度
         complexity = context.metadata.get("_task_complexity", "simple")
-        max_turns = 12 if complexity == "complex" else 6
-        exec_timeout = 60 if complexity == "complex" else 15
+        has_prev = bool(context.artifacts.get("code_files"))
+        if has_prev:
+            max_turns = 4
+            exec_timeout = 15
+        elif complexity == "complex":
+            max_turns = 12
+            exec_timeout = 60
+        else:
+            max_turns = 6
+            exec_timeout = 15
 
         from deepforge.core.agentic_loop import AgenticLoop
         agentic = AgenticLoop(output_dir=output_dir, max_turns=max_turns, exec_timeout=exec_timeout)
