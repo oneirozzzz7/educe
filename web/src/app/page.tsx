@@ -11,6 +11,7 @@ import { SettingsModal } from "@/components/settings-modal";
 import { MessageBubble } from "@/components/message-bubble";
 import { FileChips } from "@/components/file-chips";
 import { ToastContainer, toast } from "@/components/toast";
+import { PlanProposal } from "@/components/plan-proposal";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Types
@@ -158,9 +159,10 @@ function BriefBar({ text, elapsed }: { text: string; elapsed: number }) {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BuildChatPanel (left side — conversation + process + input)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, onDecision, onSend, onStop, phase }: {
+function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, onDecision, plans, planRequest, onPlanSelect, onSend, onStop, phase }: {
   brief: string; explanation: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
   decisions: Decision[] | null; onDecision: (c: { question: string; choice: string }[]) => void;
+  plans: any[] | null; planRequest: string; onPlanSelect: (id: number, note: string) => void;
   onSend: (t: string) => void; onStop: () => void; phase: AppPhase;
 }) {
   const { t } = useLocale();
@@ -218,6 +220,9 @@ function BuildChatPanel({ brief, explanation, toolEvents, subPhase, decisions, o
         <AnimatePresence>
           {subPhase === "deciding" && decisions && (
             <InlineDecision decisions={decisions} onSubmit={onDecision} />
+          )}
+          {subPhase === "deciding" && plans && plans.length > 0 && (
+            <PlanProposal plans={plans} onSelect={onPlanSelect} originalRequest={planRequest} />
           )}
         </AnimatePresence>
 
@@ -706,6 +711,8 @@ export default function Page() {
   const [html, setHtml] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
+  const [plans, setPlans] = useState<any[] | null>(null);
+  const [planRequest, setPlanRequest] = useState("");
   const [rightPanel, setRightPanel] = useState<"code" | "preview">("code");
   const [expandedLog, setExpandedLog] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -845,6 +852,15 @@ export default function Page() {
         setSubPhase("deciding");
         if (phaseRef.current === "idle") { setPhase("active"); setHasArtifact(true); }
       }
+      // ── plan_proposal ──
+      else if ((msg as any).type === "plan_proposal") {
+        setThinking(false);
+        if (thTimerRef.current) { clearInterval(thTimerRef.current); thTimerRef.current = null; }
+        setPlans((msg as any).plans || []);
+        setPlanRequest((msg as any).original_request || "");
+        setSubPhase("deciding");
+        if (phaseRef.current === "idle") { setPhase("active"); }
+      }
       // ── expert ──
       else if ((msg as any).type === "expert") { setExpertName((msg as any).content || ""); }
       // ── error ──
@@ -922,10 +938,15 @@ export default function Page() {
     setDecisions(null); setSubPhase("thinking");
   }
 
+  function handlePlanSelect(planId: number, userNote: string) {
+    wsRef.current?.sendRaw({ type: "plan_select", plan_id: planId, user_note: userNote });
+    setPlans(null); setSubPhase("thinking");
+  }
+
   function reset() {
     setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
     setHtml(null); setStreamingCode(""); setToolEvents([]); setElapsed(0);
-    setDecisions(null); setRightPanel("code"); setFileName(""); setFileSize(0);
+    setDecisions(null); setPlans(null); setPlanRequest(""); setRightPanel("code"); setFileName(""); setFileSize(0);
     setPreviewSessionId("");
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   }
@@ -1104,6 +1125,9 @@ export default function Page() {
                     <AnimatePresence>
                       {subPhase === "deciding" && decisions && (
                         <InlineDecision decisions={decisions} onSubmit={handleDecision} />
+                      )}
+                      {subPhase === "deciding" && plans && plans.length > 0 && (
+                        <PlanProposal plans={plans} onSelect={handlePlanSelect} originalRequest={planRequest} />
                       )}
                     </AnimatePresence>
                     </div>{/* close maxWidth container */}

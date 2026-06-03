@@ -288,6 +288,24 @@ class Orchestrator:
 
         if decision["action"] in ("code", "build_direct"):
             self.context.metadata["expert_name"] = "编程专家"
+
+            # 复杂任务 + 首次构建 → 先提议方案让用户选
+            has_prev_code = bool(self.context.artifacts.get("code_files"))
+            if not has_prev_code:
+                complexity = await self._assess_complexity(user_input)
+                if complexity == "complex":
+                    plans = await self._generate_plans(user_input)
+                    if plans and len(plans) >= 2:
+                        plan_msg = Message(
+                            type=MessageType.SYSTEM, sender="planner", receiver="user",
+                            content="__PLAN_PROPOSAL__",
+                            data={"plans": plans, "original_request": user_input})
+                        self._notify(plan_msg)
+                        self.context.metadata["_pending_plans"] = plans
+                        self.context.metadata["_pending_request"] = user_input
+                        self.cognitive_state.phase = "planning"
+                        return self.context
+
             self.cognitive_state.phase = "building"
             return await self._run_build(user_input)
         else:
