@@ -977,7 +977,9 @@ export default function Page() {
                   setBrief(turn.question); setRightPanel("preview");
                   setFileSize(new Blob([h]).size);
                 }
-                else { newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 }); }
+                else if (turn.response && turn.response !== "agentic build") {
+                  newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 });
+                }
               }
             }
             if (lastTs && firstTs) setElapsed(Math.max(1, Math.round(lastTs - firstTs)));

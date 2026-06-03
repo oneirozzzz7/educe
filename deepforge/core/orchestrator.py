@@ -358,11 +358,10 @@ class Orchestrator:
                 if len(code_output) < 100:
                     # Read actual files for verification
                     from pathlib import Path
-                    output_dir = self.context.artifacts.get("output_dir", "")
                     code_files = self.context.artifacts.get("code_files", [])
                     parts = []
                     for fp in code_files[:3]:
-                        p = Path(fp) if Path(fp).is_absolute() else Path(output_dir) / fp
+                        p = Path(fp)
                         if p.exists():
                             parts.append(p.read_text(encoding="utf-8", errors="ignore")[:5000])
                     code_output = "\n".join(parts)
@@ -399,11 +398,10 @@ class Orchestrator:
             if len(code_output) < 100 and self.context.artifacts.get("code_files"):
                 try:
                     from pathlib import Path
-                    output_dir = self.context.artifacts.get("output_dir", "")
                     code_files = self.context.artifacts.get("code_files", [])
                     file_contents = []
                     for fp in code_files[:3]:
-                        p = Path(fp) if Path(fp).is_absolute() else Path(output_dir) / fp
+                        p = Path(fp)
                         if p.exists():
                             content = p.read_text(encoding="utf-8", errors="ignore")[:10000]
                             file_contents.append(f"```filepath:{p.name}\n{content}\n```")
