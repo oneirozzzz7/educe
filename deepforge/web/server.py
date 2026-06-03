@@ -486,6 +486,11 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     if attached:
                         file_content = format_for_prompt(attached)
 
+                # User sent a new message — clear any pending plan/decision state
+                orchestrator.context.metadata.pop("_pending_plans", None)
+                orchestrator.context.metadata.pop("_pending_request", None)
+                orchestrator.context.metadata.pop("_pending_decisions", None)
+
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 orchestrator.context.metadata["session_id"] = session_id
                 try:
