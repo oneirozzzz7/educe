@@ -55,6 +55,8 @@ class StepBuilder:
                 on_progress("步骤{}/{}: {}".format(i + 1, len(steps), step[:30]))
 
             if accumulated_files:
+                # Use the existing filename for consistency
+                main_file = list(accumulated_files.keys())[0]
                 code_section = "\n\n".join(
                     "```filepath:{}\n{}\n```".format(fp, code)
                     for fp, code in accumulated_files.items()
@@ -64,8 +66,8 @@ class StepBuilder:
                     "原始需求: {}\n\n"
                     "当前已有代码:\n{}\n\n"
                     "在此基础上完成这一步。输出修改后的完整文件，格式如下：\n"
-                    "```filepath:文件名.html\n完整代码\n```"
-                ).format(i + 1, len(steps), step, original_request, code_section)
+                    "```filepath:{}\n完整代码\n```"
+                ).format(i + 1, len(steps), step, original_request, code_section, main_file)
             else:
                 prompt = (
                     "实现步骤{}/{}: {}\n\n"
@@ -93,6 +95,13 @@ class StepBuilder:
                 if on_progress:
                     on_progress("步骤{} 未产出代码，跳过".format(i + 1))
                 continue
+
+            # Unify filename: if accumulated already has a main file, map new output to same name
+            if accumulated_files and len(new_files) == 1:
+                existing_main = list(accumulated_files.keys())[0]
+                new_name = list(new_files.keys())[0]
+                if new_name != existing_main:
+                    new_files = {existing_main: list(new_files.values())[0]}
 
             accumulated_files.update(new_files)
 
