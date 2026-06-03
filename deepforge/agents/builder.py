@@ -128,9 +128,18 @@ class BuilderAgent(BaseAgent):
         if complexity == "complex":
             from deepforge.core.step_builder import StepBuilder
 
+            build_system = (
+                "你是一个编程助手。输出完整、可直接运行的代码。\n"
+                "优先输出单个HTML文件（内嵌CSS和JS），除非任务明确需要其他格式。\n"
+                "代码不截断、不省略、不用TODO占位。用```filepath:文件名 格式包裹输出。"
+            )
+
             async def call_model_simple(prompt: str) -> str:
                 return await self.model_client.chat(
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[
+                        {"role": "system", "content": build_system},
+                        {"role": "user", "content": prompt},
+                    ],
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
                     max_tokens=self.model_config.max_tokens,

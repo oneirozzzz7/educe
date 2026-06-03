@@ -64,7 +64,7 @@ class StepBuilder:
                 prompt = (
                     "实现步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
-                    "输出完整代码文件，用```filepath:文件名格式包裹。"
+                    "输出完整代码文件，用```filepath:文件名格式包裹。不要解释，直接输出代码。"
                 ).format(i + 1, len(steps), step, original_request)
 
             response = await call_model_fn(prompt)
