@@ -96,13 +96,13 @@ class DeepForgeConfig(BaseModel):
 
     def _load_env_overrides(self) -> None:
         env_mappings = {
-            "DEEPFORGE_API_KEY": "default_model.api_key",
-            "DEEPFORGE_MODEL": "default_model.model",
-            "DEEPFORGE_BASE_URL": "default_model.base_url",
             "DEEPSEEK_API_KEY": "default_model.api_key",
             "QWEN_API_KEY": "default_model.api_key",
             "GLM_API_KEY": "default_model.api_key",
             "KIMI_API_KEY": "default_model.api_key",
+            "DEEPFORGE_API_KEY": "default_model.api_key",
+            "DEEPFORGE_MODEL": "default_model.model",
+            "DEEPFORGE_BASE_URL": "default_model.base_url",
             "DEEPFORGE_EVOLUTION": "evolution.enabled",
         }
         for env_key, config_path in env_mappings.items():
