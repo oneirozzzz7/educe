@@ -810,11 +810,11 @@ export default function Page() {
       // ── agent_message ──
       else if (msg.type === "agent_message" && (msg as any).msg_type !== "handoff") {
         setThinking(false);
-        if (phaseRef.current === "active" || phaseRef.current === "complete") {
-          const h = extractHtml(msg.content);
-          if (h) setHtml(h);
+        const h = extractHtml(msg.content);
+        if (h) {
+          setHtml(h);
           if ((msg as any).files?.length) setFileName((msg as any).files[0]);
-        } else {
+        } else if (msg.content && msg.content !== "agentic build") {
           setMsgs(p => {
             const last = p[p.length - 1];
             if (last?.role === "assistant" && last.text) return [...p.slice(0, -1), { ...last, text: msg.content }];
