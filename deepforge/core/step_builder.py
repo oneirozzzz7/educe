@@ -63,17 +63,31 @@ class StepBuilder:
                     "实现步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
                     "当前已有代码:\n{}\n\n"
-                    "在此基础上完成这一步。输出修改后的完整文件，用```filepath:格式。"
+                    "在此基础上完成这一步。输出修改后的完整文件，格式如下：\n"
+                    "```filepath:文件名.html\n完整代码\n```"
                 ).format(i + 1, len(steps), step, original_request, code_section)
             else:
                 prompt = (
                     "实现步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
-                    "输出完整代码文件，用```filepath:文件名格式包裹。不要解释，直接输出代码。"
+                    "直接输出完整代码文件，格式必须如下：\n"
+                    "```filepath:文件名.html\n完整代码\n```\n\n"
+                    "不要解释，直接输出代码。"
                 ).format(i + 1, len(steps), step, original_request)
 
             response = await call_model_fn(prompt)
             new_files = self._extract_files(response)
+
+            # Retry once with explicit format reminder if extraction failed
+            if not new_files:
+                retry_prompt = (
+                    "你的输出格式不正确，我无法提取代码。请重新输出，"
+                    "严格使用以下格式（注意是filepath:不是html）：\n\n"
+                    "```filepath:game.html\n你的完整HTML代码\n```\n\n"
+                    "原始要求：{}\n步骤：{}"
+                ).format(original_request, step)
+                response = await call_model_fn(retry_prompt)
+                new_files = self._extract_files(response)
 
             if not new_files:
                 if on_progress:
@@ -99,6 +113,27 @@ class StepBuilder:
     @staticmethod
     def _extract_files(content: str) -> dict[str, str]:
         files = {}
+        # Format 1: ```filepath:filename\n...\n```
         for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)```', content):
             files[match.group(1).strip()] = match.group(2)
+        if files:
+            return files
+
+        # Format 2: ```html\n...\n``` or ```python\n...\n``` etc
+        lang_to_ext = {"html": ".html", "python": ".py", "javascript": ".js", "js": ".js", "css": ".css"}
+        for match in re.finditer(r'```(\w+)\n([\s\S]*?)```', content):
+            lang = match.group(1).lower()
+            code = match.group(2)
+            if lang in lang_to_ext and len(code.strip()) > 50:
+                name = "index" + lang_to_ext[lang] if lang == "html" else "main" + lang_to_ext.get(lang, ".txt")
+                files[name] = code
+        if files:
+            return files
+
+        # Format 3: raw HTML without code fence
+        if "<!DOCTYPE" in content or "<html" in content:
+            html_match = re.search(r'(<!DOCTYPE[\s\S]*</html>)', content, re.IGNORECASE)
+            if html_match:
+                files["index.html"] = html_match.group(1)
+
         return files

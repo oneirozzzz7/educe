@@ -166,6 +166,7 @@ class BuilderAgent(BaseAgent):
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
                     max_tokens=self.model_config.max_tokens,
+                    enable_thinking=use_thinking,
                 )
 
             def on_step_progress(msg: str):
