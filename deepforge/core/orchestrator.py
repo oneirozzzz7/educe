@@ -293,6 +293,7 @@ class Orchestrator:
             has_prev_code = bool(self.context.artifacts.get("code_files"))
             if not has_prev_code:
                 complexity = await self._assess_complexity(user_input)
+                self.context.metadata["_task_complexity"] = complexity
                 if complexity == "complex":
                     plans = await self._generate_plans(user_input)
                     if plans and len(plans) >= 2:
@@ -357,6 +358,8 @@ class Orchestrator:
         # ═══ 0b. 评估复杂度（迭代修改视为 simple）═══
         if prev_code_context:
             complexity = "simple"
+        elif self.context.metadata.get("_task_complexity"):
+            complexity = self.context.metadata["_task_complexity"]
         else:
             complexity = await self._assess_complexity(user_input)
         self.context.metadata["_task_complexity"] = complexity

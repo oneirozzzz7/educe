@@ -835,6 +835,10 @@ export default function Page() {
           });
         }
       }
+      // ── build_progress ──
+      else if ((msg as any).type === "build_progress") {
+        setToolEvents(prev => [...prev, { event: "thinking", content: (msg as any).step || "" }]);
+      }
       // ── tool_event ──
       else if ((msg as any).type === "tool_event") {
         const evt = msg as unknown as ToolEvent;
