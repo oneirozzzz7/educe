@@ -334,6 +334,27 @@ class ExecutionLoop:
     @staticmethod
     def _extract_files(content: str) -> dict[str, str]:
         files = {}
+        # Format 1: ```filepath:filename
         for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)```', content):
             files[match.group(1).strip()] = match.group(2)
+        if files:
+            return files
+
+        # Format 2: ```html / ```python / ```js etc
+        lang_to_ext = {"html": ".html", "python": ".py", "javascript": ".js", "js": ".js", "css": ".css"}
+        for match in re.finditer(r'```(\w+)\n([\s\S]*?)```', content):
+            lang = match.group(1).lower()
+            code = match.group(2)
+            if lang in lang_to_ext and len(code.strip()) > 50:
+                name = "index" + lang_to_ext[lang] if lang == "html" else "main" + lang_to_ext.get(lang, ".txt")
+                files[name] = code
+        if files:
+            return files
+
+        # Format 3: raw HTML
+        if "<!DOCTYPE" in content or "<html" in content:
+            html_match = re.search(r'(<!DOCTYPE[\s\S]*</html>)', content, re.IGNORECASE)
+            if html_match:
+                files["index.html"] = html_match.group(1)
+
         return files

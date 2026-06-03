@@ -166,6 +166,18 @@ class BuilderAgent(BaseAgent):
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
                     max_tokens=self.model_config.max_tokens,
+                    enable_thinking=False,
+                )
+
+            async def call_model_thinking(prompt: str) -> str:
+                return await self.model_client.chat(
+                    messages=[
+                        {"role": "system", "content": build_system},
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=self.model_config.model,
+                    temperature=self.model_config.temperature,
+                    max_tokens=self.model_config.max_tokens,
                     enable_thinking=use_thinking,
                 )
 
@@ -173,7 +185,8 @@ class BuilderAgent(BaseAgent):
                 on_tool_event({"event": "thinking", "content": msg})
 
             sb = StepBuilder(max_steps=5, max_fix_per_step=3)
-            steps = await sb.plan_steps(user_request, call_model_simple)
+            # Plan with thinking (deep reasoning), build without (fast generation)
+            steps = await sb.plan_steps(user_request, call_model_thinking)
             on_tool_event({"event": "thinking", "content": "分{}步构建: {}".format(len(steps), "; ".join(s[:20] for s in steps))})
 
             final_files = await sb.build_incremental(
