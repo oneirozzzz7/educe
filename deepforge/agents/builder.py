@@ -187,7 +187,7 @@ class BuilderAgent(BaseAgent):
             sb = StepBuilder(max_fix_per_step=3)
             # Plan with thinking (deep reasoning), build without (fast generation)
             steps = await sb.plan_steps(user_request, call_model_thinking)
-            on_tool_event({"event": "thinking", "content": "分{}步构建: {}".format(len(steps), "; ".join(s[:20] for s in steps))})
+            on_tool_event({"event": "step_plan", "steps": [s[:50] for s in steps], "total": len(steps)})
 
             final_files = await sb.build_incremental(
                 steps=steps,
@@ -195,6 +195,7 @@ class BuilderAgent(BaseAgent):
                 output_dir=output_dir,
                 original_request=user_request,
                 on_progress=on_step_progress,
+                on_event=on_tool_event,
             )
         else:
             # 简单任务走 AgenticLoop（快速单文件生成）

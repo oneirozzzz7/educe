@@ -48,11 +48,18 @@ class StepBuilder:
         output_dir: Path,
         original_request: str,
         on_progress: Callable[[str], None] | None = None,
+        on_event: Callable[[dict], None] | None = None,
     ) -> dict[str, str]:
         accumulated_files: dict[str, str] = {}
+        prev_lines = 0
 
         for i, step in enumerate(steps):
-            if on_progress:
+            import time as _time
+            step_start = _time.time()
+
+            if on_event:
+                on_event({"event": "step_start", "step": i + 1, "total": len(steps), "description": step})
+            elif on_progress:
                 on_progress("步骤{}/{}: {}".format(i + 1, len(steps), step[:30]))
 
             if accumulated_files:
@@ -93,7 +100,9 @@ class StepBuilder:
                 new_files = self._extract_files(response)
 
             if not new_files:
-                if on_progress:
+                if on_event:
+                    on_event({"event": "step_done", "step": i + 1, "passed": False, "time": _time.time() - step_start, "reason": "未产出代码"})
+                elif on_progress:
                     on_progress("步骤{} 未产出代码，跳过".format(i + 1))
                 continue
 
@@ -106,6 +115,13 @@ class StepBuilder:
 
             accumulated_files.update(new_files)
 
+            # Emit code produced event
+            main_file = list(new_files.keys())[0]
+            new_lines = sum(c.count("\n") for c in new_files.values())
+            if on_event:
+                on_event({"event": "step_code", "step": i + 1, "file": main_file, "size": sum(len(c) for c in new_files.values()), "lines": new_lines, "lines_added": new_lines - prev_lines})
+            prev_lines = new_lines
+
             final_files, result = await self.loop.run(
                 dict(accumulated_files),
                 output_dir,
@@ -114,7 +130,15 @@ class StepBuilder:
             )
             accumulated_files.update(final_files)
 
-            if on_progress:
+            # Emit verification result
+            elapsed = _time.time() - step_start
+            if on_event:
+                if result.passed:
+                    on_event({"event": "step_done", "step": i + 1, "passed": True, "time": round(elapsed, 1)})
+                else:
+                    errors_brief = [{"line": e.line, "type": e.error_type, "message": e.message[:80]} for e in result.errors[:3]]
+                    on_event({"event": "step_done", "step": i + 1, "passed": False, "time": round(elapsed, 1), "errors": errors_brief})
+            elif on_progress:
                 status = "✓" if result.passed else "⚠ {}个错误未解决".format(len(result.errors))
                 on_progress("步骤{} {}".format(i + 1, status))
 

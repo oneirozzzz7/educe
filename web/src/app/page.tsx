@@ -22,6 +22,10 @@ type SubPhase = "thinking" | "deciding" | "building" | "done";
 interface ToolEvent {
   event: string; content?: string; file?: string; size?: number;
   command?: string; success?: boolean; output?: string; files?: string[]; turns?: number;
+  step?: number; total?: number; description?: string; steps?: string[];
+  lines?: number; lines_added?: number; passed?: boolean; time?: number;
+  errors?: { line?: number; type?: string; message?: string }[];
+  reason?: string;
 }
 interface ChatMsg {
   id: string; role: "user" | "assistant" | "system";
@@ -1084,14 +1088,49 @@ export default function Page() {
                       </div>
                     )}
 
-                    {/* Tool events — inside a subtle bordered box, part of AI response */}
-                    {toolEvents.filter(evt =>
-                      // Skip thinking events (already shown in buildExplanation)
+                    {/* Step timeline — structured build process */}
+                    {toolEvents.some(e => e.event === "step_start" || e.event === "step_plan") && (
+                      <div className="mb-4" style={{ padding: "12px 16px", borderRadius: 12, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                        {/* Plan overview */}
+                        {toolEvents.filter(e => e.event === "step_plan").map((evt, i) => (
+                          <div key={`plan-${i}`} className="mb-3 pb-3" style={{ borderBottom: "1px solid var(--border-0)", fontSize: 12, color: "var(--text-2)" }}>
+                            <span style={{ color: "var(--amber)", fontWeight: 600 }}>{evt.total} 步构建计划</span>
+                          </div>
+                        ))}
+                        {/* Step entries */}
+                        {toolEvents.filter(e => e.event === "step_start" || e.event === "step_code" || e.event === "step_done").map((evt, i) => (
+                          <div key={`step-${i}`} className="flex items-start gap-2 py-1.5" style={{ fontSize: 12 }}>
+                            {evt.event === "step_start" && (
+                              <>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite" }} />
+                                <span style={{ color: "var(--text-1)", fontWeight: 500 }}>步骤 {evt.step}/{evt.total}: <span style={{ fontWeight: 400, color: "var(--text-2)" }}>{evt.description?.slice(0, 40)}</span></span>
+                              </>
+                            )}
+                            {evt.event === "step_code" && (
+                              <>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: "var(--amber)" }} />
+                                <span style={{ color: "var(--text-2)" }}><code style={{ fontFamily: "'Geist Mono'", fontSize: 11, background: "var(--surface-3)", padding: "0 4px", borderRadius: 3 }}>{evt.file}</code> <span style={{ color: "var(--text-3)" }}>+{evt.lines_added}行 ({((evt.size || 0)/1024).toFixed(1)}KB)</span></span>
+                              </>
+                            )}
+                            {evt.event === "step_done" && (
+                              <>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: evt.passed ? "var(--pass)" : "var(--fail)" }} />
+                                <span style={{ color: evt.passed ? "var(--pass)" : "var(--fail)" }}>
+                                  {evt.passed ? "✓" : "⚠"} {evt.time}s
+                                  {!evt.passed && evt.errors && evt.errors[0] && <span style={{ color: "var(--text-3)", marginLeft: 4 }}>{evt.errors[0].message?.slice(0, 50)}</span>}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tool events — for simple tasks (AgenticLoop path) */}
+                    {!toolEvents.some(e => e.event === "step_start") && toolEvents.filter(evt =>
                       evt.event !== "thinking" &&
-                      // Skip events with no meaningful content
                       !(evt.event === "write_file_result" && !evt.file) &&
                       !(evt.event === "read_file_result") &&
-                      // Skip empty write_file events
                       !(evt.event === "write_file" && !evt.file)
                     ).length > 0 && (
                       <div className="mb-4" style={{ padding: "10px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
