@@ -378,7 +378,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator = get_orchestrator(session_id)
 
+        ws_closed = {"value": False}
+
         async def send_message(msg: Message):
+            if ws_closed["value"]:
+                return
+            try:
+                await _send_message_inner(msg)
+            except Exception:
+                ws_closed["value"] = True
+
+        async def _send_message_inner(msg: Message):
             if msg.content == "__PIPELINE_START__":
                 await websocket.send_json({"type": "status", "content": "pipeline_start"})
                 return
