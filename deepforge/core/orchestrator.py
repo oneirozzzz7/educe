@@ -276,8 +276,6 @@ class Orchestrator:
         self.context.metadata["_transcript"] = transcript
 
         decision = await self._decide(user_input)
-        transcript.add("analyze", "system", "任务类型: {}".format(decision["action"].upper()),
-            elapsed=0)
 
         if decision["action"] == "clarify":
             clarify_msg = Message(
@@ -295,6 +293,7 @@ class Orchestrator:
 
         if decision["action"] == "propose_plans":
             self.context.metadata["expert_name"] = "编程专家"
+            transcript.add("analyze", "system", "任务类型: BUILD")
             transcript.current_phase = "plan"
             plans = await self._generate_plans(user_input)
             if plans:
@@ -311,6 +310,7 @@ class Orchestrator:
 
         if decision["action"] in ("code", "build_direct"):
             self.context.metadata["expert_name"] = "编程专家"
+            transcript.add("analyze", "system", "任务类型: BUILD")
 
             # 复杂任务 + 首次构建 → 先提议方案让用户选
             has_prev_code = bool(self.context.artifacts.get("code_files"))
