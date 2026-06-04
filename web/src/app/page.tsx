@@ -406,11 +406,12 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId }: {
+function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand }: {
   streamingCode: string; html: string | null;
   rightPanel: "code" | "preview"; setRightPanel: (v: "code" | "preview") => void;
   fileName: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
   previewSessionId: string;
+  expanded?: boolean; onToggleExpand?: () => void;
 }) {
   const { t } = useLocale();
   const codeEndRef = useRef<HTMLDivElement>(null);
@@ -466,7 +467,14 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
           <>
             {streamingCode && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--amber)", marginRight: 10, animation: "e-pulse 2s ease-in-out infinite", boxShadow: "0 0 6px var(--amber-dim)" }} />}
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>{fileName || "..."}</span>
-            {streamingCode && <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", marginLeft: "auto", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4 }}>{(streamingCode.length / 1024).toFixed(1)} KB</span>}
+            <span style={{ flex: 1 }} />
+            {streamingCode && <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4 }}>{(streamingCode.length / 1024).toFixed(1)} KB</span>}
+            {onToggleExpand && (
+              <button onClick={onToggleExpand} title={expanded ? "缩小" : "放大"}
+                style={{ marginLeft: 8, padding: "4px 6px", border: "none", background: "var(--surface-2)", borderRadius: 4, cursor: "pointer", color: "var(--text-2)", fontSize: 12, display: "flex", alignItems: "center" }}>
+                {expanded ? "◁" : "▷"}
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -479,6 +487,12 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
             ))}
             <span style={{ flex: 1 }} />
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", background: "var(--surface-2)", padding: "2px 8px", borderRadius: 4 }}>{fileName}</span>
+            {onToggleExpand && (
+              <button onClick={onToggleExpand} title={expanded ? "缩小" : "放大"}
+                style={{ marginLeft: 8, padding: "4px 6px", border: "none", background: "var(--surface-2)", borderRadius: 4, cursor: "pointer", color: "var(--text-2)", fontSize: 12, display: "flex", alignItems: "center" }}>
+                {expanded ? "◁" : "▷"}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -734,6 +748,7 @@ export default function Page() {
   const [plans, setPlans] = useState<any[] | null>(null);
   const [planRequest, setPlanRequest] = useState("");
   const [rightPanel, setRightPanel] = useState<"code" | "preview">("code");
+  const [artifactExpanded, setArtifactExpanded] = useState(false);
   const [expandedLog, setExpandedLog] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
@@ -1104,7 +1119,8 @@ export default function Page() {
             <motion.div key="active" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col min-h-0">
               {showArtifact && <BriefBar text={brief} elapsed={elapsed} />}
               <div className="flex flex-1 min-h-0">
-                {/* Chat panel — always present, adapts width */}
+                {/* Chat panel — hidden when artifact expanded */}
+                {!(showArtifact && artifactExpanded) && (
                 <div className="flex flex-col min-h-0 transition-all duration-300 flex-1"
                   style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
                   {/* Scrollable chat content */}
@@ -1297,13 +1313,14 @@ export default function Page() {
                     }} />
                   )}
                 </div>
+                )}
 
                 {/* Artifact panel — slides in when hasArtifact */}
                 <AnimatePresence>
                   {showArtifact && (
-                    <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                    <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: artifactExpanded ? "100%" : "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
-                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} />
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} />
                       {phase === "complete" && (html || buildCode) && (
                         <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
                           rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} code={html || buildCode} isHtml={!!html} sessionId={previewSessionId} />
