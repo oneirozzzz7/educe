@@ -51,6 +51,30 @@ function extractHtml(c: string) {
   return m ? m[1] : null;
 }
 
+/* LCS-based line diff: returns the set of line indices (0-based) in `next`
+   that are new relative to `prev`. Used to highlight step-to-step additions. */
+function diffAddedLines(prev: string, next: string): Set<number> {
+  const added = new Set<number>();
+  if (!prev) return added;  // first snapshot: no highlight (whole file is "new" but that's noise)
+  const a = prev.split("\n");
+  const b = next.split("\n");
+  const n = a.length, m = b.length;
+  // LCS DP table (line-level). Capped to avoid pathological cost on huge files.
+  if (n * m > 4_000_000) return added;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+    else { added.add(j); j++; }
+  }
+  while (j < m) { added.add(j); j++; }
+  return added;
+}
+
 function highlightLine(raw: string): string {
   return raw
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -406,12 +430,13 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand }: {
+function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand, addedLines }: {
   streamingCode: string; html: string | null;
   rightPanel: "code" | "preview"; setRightPanel: (v: "code" | "preview") => void;
   fileName: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
   previewSessionId: string;
   expanded?: boolean; onToggleExpand?: () => void;
+  addedLines?: Set<number>;
 }) {
   const { t } = useLocale();
   const codeEndRef = useRef<HTMLDivElement>(null);
@@ -521,8 +546,8 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
               </div>
             ) : (
               lines.map((line, i) => (
-                <div key={i} className="flex hover:bg-[var(--surface-1)] transition-colors duration-100" style={{ padding: "0 16px" }}>
-                  <span style={{ width: 40, flexShrink: 0, textAlign: "right", paddingRight: 16, color: "var(--text-3)", fontSize: 11, userSelect: "none", fontFamily: "'Geist Mono', monospace", lineHeight: "1.7", borderRight: "1px solid var(--border-0)" }}>{i + 1}</span>
+                <div key={i} className="flex hover:bg-[var(--surface-1)] transition-colors duration-100" style={{ padding: "0 16px", background: addedLines?.has(i) ? "rgba(74, 222, 128, 0.08)" : undefined }}>
+                  <span style={{ width: 40, flexShrink: 0, textAlign: "right", paddingRight: 16, color: addedLines?.has(i) ? "rgba(74, 222, 128, 0.7)" : "var(--text-3)", fontSize: 11, userSelect: "none", fontFamily: "'Geist Mono', monospace", lineHeight: "1.7", borderRight: addedLines?.has(i) ? "2px solid rgba(74, 222, 128, 0.5)" : "1px solid var(--border-0)" }}>{i + 1}</span>
                   <span style={{ flex: 1, whiteSpace: "pre", fontFamily: "'Geist Mono', monospace", fontSize: 12.5, lineHeight: "1.7", color: "var(--text-1)", paddingLeft: 14 }}
                     dangerouslySetInnerHTML={{ __html: highlightLine(line) + (i === lines.length - 1 ? '<span style="display:inline-block;width:7px;height:16px;background:var(--amber);vertical-align:text-bottom;margin-left:1px;border-radius:1px;animation:e-blink .8s step-end infinite"></span>' : "") }} />
                 </div>
@@ -742,6 +767,8 @@ export default function Page() {
   const [elapsed, setElapsed] = useState(0);
   const [aiText, setAiText] = useState("");
   const [streamingCode, setStreamingCode] = useState("");
+  const [addedLines, setAddedLines] = useState<Set<number>>(new Set());
+  const prevStepCodeRef = useRef<string>("");
   const [html, setHtml] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
@@ -832,7 +859,8 @@ export default function Page() {
           if (subRef.current === "building") return;
           // New build starting — reset old build state
           setSubPhase("building"); setHasArtifact(true);
-          setHtml(null); setStreamingCode(""); setRightPanel("code"); setFileName(""); setFileSize(0);
+          setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+          setRightPanel("code"); setFileName(""); setFileSize(0);
           if (phaseRef.current === "idle" || phaseRef.current === "complete") {
             setPhase("active");
             startRef.current = Date.now(); setElapsed(0);
@@ -902,6 +930,8 @@ export default function Page() {
         const evt = msg as unknown as ToolEvent;
         // step_code_content: real-time code update for Code panel during step builds
         if (evt.event === "step_code_content" && evt.code) {
+          setAddedLines(diffAddedLines(prevStepCodeRef.current, evt.code));
+          prevStepCodeRef.current = evt.code;
           setStreamingCode(evt.code);
         }
         setToolEvents(prev => [...prev, evt]);
@@ -989,7 +1019,8 @@ export default function Page() {
     setBrief(v || files.map(f => f.name).join(", "));
     setPhase("active"); setSubPhase("thinking");
     setPreviewSessionId(sidRef.current);
-    setStreamingCode(""); setToolEvents([]); setDecisions(null); setPlans(null);
+    setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+    setToolEvents([]); setDecisions(null); setPlans(null);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
@@ -1011,7 +1042,8 @@ export default function Page() {
 
   function reset() {
     setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
-    setHtml(null); setStreamingCode(""); setToolEvents([]); setElapsed(0);
+    setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+    setToolEvents([]); setElapsed(0);
     setDecisions(null); setPlans(null); setPlanRequest(""); setRightPanel("code"); setFileName(""); setFileSize(0);
     setPreviewSessionId("");
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -1044,10 +1076,11 @@ export default function Page() {
         activeSessionId={sidRef.current} onNewTask={reset} onOpenSettings={() => setShowSettings(true)}
         onTaskSelect={(task: any) => {
           // Reset all state before loading new task
-          setMsgs([]); setHtml(null); setStreamingCode(""); setToolEvents([]);
+          setMsgs([]); setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+          setToolEvents([]);
           setHasArtifact(false); setPhase("idle"); setSubPhase("thinking");
           setBrief(""); setFileName(""); setFileSize(0); setRightPanel("code");
-          setDecisions(null); setElapsed(0); setPreviewSessionId(task.id || "");
+          setDecisions(null); setPlans(null); setPlanRequest(""); setElapsed(0); setPreviewSessionId(task.id || "");
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
 
           if (task.turns && Array.isArray(task.turns)) {
@@ -1346,7 +1379,7 @@ export default function Page() {
                   {showArtifact && (
                     <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: artifactExpanded ? "100%" : `${100 - splitPercent}%`, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
-                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} />
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} addedLines={addedLines} />
                       {phase === "complete" && (html || buildCode) && (
                         <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
                           rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} code={html || buildCode} isHtml={!!html} sessionId={previewSessionId} />
