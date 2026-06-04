@@ -349,6 +349,29 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         except Exception as e:
             return {"error": str(e)[:200]}
 
+    @app.get("/api/download/{session_id}")
+    async def download_zip(session_id: str):
+        """Download all output files for a session as a zip archive."""
+        import zipfile
+        import io
+        from fastapi.responses import StreamingResponse
+
+        output_dir = Path(".deepforge/output") / session_id[:16]
+        if not output_dir.exists():
+            return {"error": "Session output not found"}
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in output_dir.rglob("*"):
+                if f.is_file():
+                    zf.write(f, f.relative_to(output_dir))
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename=educe-{session_id[:8]}.zip"},
+        )
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()

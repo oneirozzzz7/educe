@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Copy, Download, ArrowUpRight, ChevronRight, Paperclip } from "lucide-react";
+import { Send, Copy, Download, ArrowUpRight, ChevronRight, Paperclip, Archive } from "lucide-react";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/lib/i18n";
@@ -418,6 +418,12 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
   const displayCode = streamingCode || (subPhase === "done" && html ? html : "");
   const lines = displayCode ? displayCode.split("\n") : [];
 
+  const isMarkdown = fileName.endsWith(".md") || fileName.endsWith(".markdown");
+  const markdownHtml = isMarkdown && displayCode ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1a1a1a}h1,h2,h3{margin-top:1.5em}code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:0.9em}pre{background:#f4f4f4;padding:16px;border-radius:8px;overflow-x:auto}pre code{background:none;padding:0}blockquote{border-left:3px solid #ddd;margin-left:0;padding-left:16px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}th{background:#f4f4f4}</style></head><body><div id="content"></div><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script><script>document.getElementById("content").innerHTML=marked.parse(${JSON.stringify(displayCode)});<\/script></body></html>` : null;
+
+  const hasPreview = !!html || !!markdownHtml;
+  const previewContent = html || markdownHtml;
+
   useEffect(() => {
     if (!userScrolledRef.current && rightPanel === "code") {
       codeEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -425,9 +431,13 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
   }, [streamingCode, rightPanel]);
 
   useEffect(() => {
-    if (rightPanel === "preview" && html && iframeRef.current) {
+    if (rightPanel === "preview" && previewContent && iframeRef.current) {
+      if (markdownHtml || !html) {
+        iframeRef.current.srcdoc = previewContent;
+        return;
+      }
       const sid = previewSessionId.slice(0, 16);
-      if (!sid) { iframeRef.current.srcdoc = html; return; }
+      if (!sid) { iframeRef.current.srcdoc = html!; return; }
       const previewUrl = `/preview/${sid}/`;
       fetch(previewUrl, { method: "HEAD" }).then(r => {
         if (r.ok && iframeRef.current) iframeRef.current.src = previewUrl;
@@ -436,9 +446,8 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
         if (iframeRef.current) iframeRef.current.srcdoc = html;
       });
     }
-  }, [rightPanel, html, previewSessionId]);
+  }, [rightPanel, html, previewSessionId, previewContent, markdownHtml]);
 
-  const hasPreview = !!html;
   const showTabs = hasPreview;
 
   function onCodeScroll(e: React.UIEvent) {
@@ -509,7 +518,7 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
         )}
 
         {/* Preview */}
-        {rightPanel === "preview" && html && (
+        {rightPanel === "preview" && previewContent && (
           <motion.iframe ref={iframeRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
             className="absolute inset-0 w-full h-full border-none" style={{ background: "#fff" }} />
         )}
@@ -600,13 +609,17 @@ function GlobalInput({ onSend, phase, onStop, files, onFileSelect, onRemoveFile,
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CompleteBar
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CompleteBar({ fileName, size, rounds, elapsed, html }: {
-  fileName: string; size: string; rounds: number; elapsed: number; html: string;
+function CompleteBar({ fileName, size, rounds, elapsed, code, isHtml, sessionId }: {
+  fileName: string; size: string; rounds: number; elapsed: number; code: string; isHtml: boolean; sessionId: string;
 }) {
   const { t } = useLocale();
-  function copy() { navigator.clipboard.writeText(html); }
-  function download() { const b = new Blob([html], { type: "text/html" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fileName; a.click(); URL.revokeObjectURL(u); }
-  function open() { const b = new Blob([html], { type: "text/html" }); window.open(URL.createObjectURL(b), "_blank"); }
+  const mimeMap: Record<string, string> = { html: "text/html", py: "text/x-python", js: "application/javascript", css: "text/css", json: "application/json" };
+  const ext = fileName.split(".").pop()?.toLowerCase() || "html";
+  const mime = mimeMap[ext] || "text/plain";
+  function copy() { navigator.clipboard.writeText(code); }
+  function download() { const b = new Blob([code], { type: mime }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fileName; a.click(); URL.revokeObjectURL(u); }
+  function open() { const b = new Blob([code], { type: "text/html" }); window.open(URL.createObjectURL(b), "_blank"); }
+  function downloadZip() { window.open(`http://${API_HOST}/api/download/${sessionId}`, "_blank"); }
 
   return (
     <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4, ease: EASE }}
@@ -625,7 +638,8 @@ function CompleteBar({ fileName, size, rounds, elapsed, html }: {
         {[
           { fn: copy, icon: <Copy size={12} />, label: t("action.copy"), primary: false },
           { fn: download, icon: <Download size={12} />, label: t("action.download"), primary: false },
-          { fn: open, icon: <ArrowUpRight size={12} />, label: t("action.open"), primary: true },
+          { fn: downloadZip, icon: <Archive size={12} />, label: "Zip", primary: false },
+          ...(isHtml ? [{ fn: open, icon: <ArrowUpRight size={12} />, label: t("action.open"), primary: true }] : []),
         ].map(b => (
           <button key={b.label} onClick={b.fn}
             className="complete-bar-btn"
@@ -769,6 +783,10 @@ export default function Page() {
         if (!fileSize) setFileSize(new Blob([finalHtml]).size);
         const t = setTimeout(() => setRightPanel("preview"), 500);
         return () => clearTimeout(t);
+      }
+      // Non-HTML output: compute fileSize from buildCode, stay on code panel
+      if (!finalHtml && streamingCode && !fileSize) {
+        setFileSize(new Blob([streamingCode]).size);
       }
     }
   }, [phase, html, streamingCode]);
@@ -1212,9 +1230,9 @@ export default function Page() {
                     <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
                       <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} />
-                      {phase === "complete" && html && (
+                      {phase === "complete" && (html || buildCode) && (
                         <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
-                          rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} html={html} />
+                          rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} code={html || buildCode} isHtml={!!html} sessionId={previewSessionId} />
                       )}
                     </motion.div>
                   )}
