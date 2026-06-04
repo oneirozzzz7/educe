@@ -1205,11 +1205,12 @@ export default function Page() {
                       </div>
                     )}
 
-                    {/* Tool events — for simple tasks (AgenticLoop path) */}
-                    {!toolEvents.some(e => e.event === "step_start") && toolEvents.filter(evt =>
+                    {/* Tool events — for simple tasks (AgenticLoop path), hidden when transcript is active */}
+                    {!toolEvents.some(e => e.event === "step_start") && !toolEvents.some(e => e.event === "transcript") && toolEvents.filter(evt =>
                       evt.event !== "thinking" &&
                       evt.event !== "step_reasoning" &&
                       evt.event !== "step_code_content" &&
+                      evt.event !== "transcript" &&
                       !(evt.event === "write_file_result" && !evt.file) &&
                       !(evt.event === "read_file_result") &&
                       !(evt.event === "write_file" && !evt.file)
@@ -1219,6 +1220,7 @@ export default function Page() {
                           evt.event !== "thinking" &&
                           evt.event !== "step_reasoning" &&
                           evt.event !== "step_code_content" &&
+                          evt.event !== "transcript" &&
                           !(evt.event === "write_file_result" && !evt.file) &&
                           !(evt.event === "read_file_result") &&
                           !(evt.event === "write_file" && !evt.file)
