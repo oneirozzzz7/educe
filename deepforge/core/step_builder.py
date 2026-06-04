@@ -49,6 +49,7 @@ class StepBuilder:
         original_request: str,
         on_progress: Callable[[str], None] | None = None,
         on_event: Callable[[dict], None] | None = None,
+        transcript=None,
     ) -> dict[str, str]:
         accumulated_files: dict[str, str] = {}
         prev_lines = 0
@@ -57,36 +58,50 @@ class StepBuilder:
             import time as _time
             step_start = _time.time()
 
+            if transcript:
+                transcript.current_step = i + 1
+
             if on_event:
                 on_event({"event": "step_start", "step": i + 1, "total": len(steps), "description": step})
             elif on_progress:
                 on_progress("步骤{}/{}: {}".format(i + 1, len(steps), step[:30]))
 
+            # Build step plan context — model sees full plan with progress markers
+            plan_ctx = "═══ 步骤计划 ═══\n"
+            for j, s in enumerate(steps):
+                if j < i:
+                    plan_ctx += "✓ {}. {}\n".format(j + 1, s[:50])
+                elif j == i:
+                    plan_ctx += "→ {}. {}\n".format(j + 1, s[:50])
+                else:
+                    plan_ctx += "○ {}. {}\n".format(j + 1, s[:50])
+            plan_ctx += "═══════════════\n\n"
+
             if accumulated_files:
-                # Use the existing filename for consistency
                 main_file = list(accumulated_files.keys())[0]
                 code_section = "\n\n".join(
                     "```filepath:{}\n{}\n```".format(fp, code)
                     for fp, code in accumulated_files.items()
                 )
-                # Safety valve: truncate very large code sections to fit context window
                 if len(code_section) > 40000:
                     code_section = code_section[:2000] + "\n\n... (中间代码已省略) ...\n\n" + code_section[-38000:]
                 prompt = (
-                    "实现步骤{}/{}: {}\n\n"
+                    "{}"
+                    "当前执行步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
                     "当前已有代码:\n{}\n\n"
                     "在此基础上完成这一步。输出修改后的完整文件，格式如下：\n"
                     "```filepath:{}\n完整代码\n```"
-                ).format(i + 1, len(steps), step, original_request, code_section, main_file)
+                ).format(plan_ctx, i + 1, len(steps), step, original_request, code_section, main_file)
             else:
                 prompt = (
-                    "实现步骤{}/{}: {}\n\n"
+                    "{}"
+                    "当前执行步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
                     "直接输出完整代码文件，格式必须如下：\n"
                     "```filepath:文件名.html\n完整代码\n```\n\n"
                     "不要解释，直接输出代码。"
-                ).format(i + 1, len(steps), step, original_request)
+                ).format(plan_ctx, i + 1, len(steps), step, original_request)
 
             response = await call_model_fn(prompt)
             new_files = self._extract_files(response)
@@ -147,6 +162,14 @@ class StepBuilder:
             elif on_progress:
                 status = "✓" if result.passed else "⚠ {}个错误未解决".format(len(result.errors))
                 on_progress("步骤{} {}".format(i + 1, status))
+
+            if transcript:
+                main_file = list(accumulated_files.keys())[0] if accumulated_files else "?"
+                lines_count = sum(c.count("\n") for c in accumulated_files.values())
+                status = "验证通过" if result.passed else "{}个错误".format(len(result.errors))
+                transcript.add("build", "model",
+                    "步骤{}完成: {} {}行, {}".format(i + 1, main_file, lines_count, status),
+                    elapsed=round(elapsed, 1))
 
         return accumulated_files
 

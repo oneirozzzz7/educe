@@ -26,6 +26,8 @@ interface ToolEvent {
   lines?: number; lines_added?: number; passed?: boolean; time?: number;
   errors?: { line?: number; type?: string; message?: string }[];
   reason?: string; code?: string;
+  phase?: string; role?: string; elapsed?: number;
+  total_steps?: number; step_plan?: string[];
 }
 interface ChatMsg {
   id: string; role: "user" | "assistant" | "system";
@@ -1101,6 +1103,51 @@ export default function Page() {
                         )}
                       </div>
                     ))}
+
+                    {/* Transcript Timeline — full process visibility */}
+                    {toolEvents.some(e => e.event === "transcript") && (
+                      <div className="mb-4" style={{ padding: "12px 16px", borderRadius: 12, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+                        {toolEvents.filter(e => e.event === "transcript").map((evt, i) => {
+                          const phaseLabels: Record<string, string> = { analyze: "分析", plan: "规划", build: "构建", verify: "验证" };
+                          const phaseColors: Record<string, string> = { analyze: "var(--sage)", plan: "var(--amber)", build: "var(--amber)", verify: "var(--pass)" };
+                          const label = phaseLabels[evt.phase || ""] || evt.phase;
+                          const dotColor = phaseColors[evt.phase || ""] || "var(--text-3)";
+                          const isLatest = i === toolEvents.filter(e => e.event === "transcript").length - 1 && subPhase !== "done";
+                          return (
+                            <div key={`tr-${i}`} className="flex items-start gap-2 py-1" style={{ fontSize: 12 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: dotColor, ...(isLatest ? { animation: "e-pulse 2s ease-in-out infinite" } : {}) }} />
+                              <span style={{ color: "var(--text-3)", fontSize: 11, minWidth: 32 }}>[{label}]</span>
+                              <span style={{ color: "var(--text-2)", flex: 1 }}>
+                                {evt.content}
+                                {evt.elapsed ? <span style={{ color: "var(--text-3)", marginLeft: 4 }}>({evt.elapsed}s)</span> : null}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {/* Step plan inline */}
+                        {(() => {
+                          const lastTr = toolEvents.filter(e => e.event === "transcript").slice(-1)[0];
+                          if (lastTr?.step_plan && lastTr.step_plan.length > 0 && lastTr.total_steps) {
+                            return (
+                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border-0)" }}>
+                                {lastTr.step_plan.map((s: string, j: number) => {
+                                  const step = (lastTr.step || 0);
+                                  const icon = j < step - 1 ? "✓" : j === step - 1 ? "→" : "○";
+                                  const color = j < step - 1 ? "var(--pass)" : j === step - 1 ? "var(--amber)" : "var(--text-3)";
+                                  return (
+                                    <div key={j} className="flex items-center gap-2 py-0.5" style={{ fontSize: 11, color, paddingLeft: 8 }}>
+                                      <span style={{ width: 12, textAlign: "center" }}>{icon}</span>
+                                      <span>{j + 1}. {s}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
 
                     {/* Build explanation (streaming text before code) */}
                     {showArtifact && buildExplanation && (

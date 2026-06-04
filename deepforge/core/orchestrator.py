@@ -250,13 +250,34 @@ class Orchestrator:
         if self.context.metadata.get("_user_decisions"):
             self.context.metadata["expert_name"] = "编程专家"
             self.cognitive_state.phase = "building"
+            # Restore transcript from pending state
+            transcript = self.context.metadata.get("_transcript")
+            if transcript:
+                decisions = self.context.metadata["_user_decisions"]
+                choices = ", ".join(d.get("choice", "") for d in decisions)
+                transcript.add("plan", "user", "确认选择: {}".format(choices[:100]))
             result = await self._run_build(user_input)
             self.context.metadata.pop("_user_decisions", None)
             self.context.metadata.pop("_skip_analysis", None)
             self.context.metadata.pop("_pending_request", None)
             return result
 
+        # Create TaskTranscript for this turn
+        from deepforge.core.transcript import TaskTranscript
+        transcript = TaskTranscript(user_input)
+
+        # Wire transcript to WebSocket via _notify
+        def push_transcript_event(evt: dict):
+            import json as _json
+            evt_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                content="__TOOL_EVENT__" + _json.dumps(evt, ensure_ascii=False))
+            self._notify(evt_msg)
+        transcript.on_update = push_transcript_event
+        self.context.metadata["_transcript"] = transcript
+
         decision = await self._decide(user_input)
+        transcript.add("analyze", "system", "任务类型: {}".format(decision["action"].upper()),
+            elapsed=0)
 
         if decision["action"] == "clarify":
             clarify_msg = Message(
@@ -274,8 +295,10 @@ class Orchestrator:
 
         if decision["action"] == "propose_plans":
             self.context.metadata["expert_name"] = "编程专家"
+            transcript.current_phase = "plan"
             plans = await self._generate_plans(user_input)
             if plans:
+                transcript.add("plan", "model", "生成了{}个方案".format(len(plans)))
                 plan_msg = Message(
                     type=MessageType.SYSTEM, sender="planner", receiver="user",
                     content="__PLAN_PROPOSAL__",
@@ -294,9 +317,13 @@ class Orchestrator:
             if not has_prev_code:
                 complexity = await self._assess_complexity(user_input)
                 self.context.metadata["_task_complexity"] = complexity
+                transcript.add("analyze", "system", "复杂度: {}".format(complexity.upper()))
+
                 if complexity == "complex":
+                    transcript.current_phase = "plan"
                     plans = await self._generate_plans(user_input)
                     if plans and len(plans) >= 2:
+                        transcript.add("plan", "model", "生成了{}个方案".format(len(plans)))
                         plan_msg = Message(
                             type=MessageType.SYSTEM, sender="planner", receiver="user",
                             content="__PLAN_PROPOSAL__",
@@ -308,6 +335,7 @@ class Orchestrator:
                         return self.context
 
             self.cognitive_state.phase = "building"
+            transcript.current_phase = "build"
             return await self._run_build(user_input)
         else:
             content = decision["content"]
@@ -771,6 +799,14 @@ class Orchestrator:
         self.context.artifacts.pop("code_files", None)
         self.context.artifacts.pop("engineer_output", None)
         self.context.user_request = build_input
+
+        # Update transcript with plan selection
+        transcript = self.context.metadata.get("_transcript")
+        if transcript:
+            transcript.add("plan", "user", "选择了: {}".format(plan.get("title", "")))
+            transcript.plan_summary = plan_desc[:100]
+            transcript.current_phase = "build"
+
         return await self._run_build(build_input)
 
     async def _evolve_one_step(self, current_question: str):

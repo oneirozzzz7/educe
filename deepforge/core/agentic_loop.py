@@ -90,15 +90,21 @@ class AgenticLoop:
         on_chunk: Callable[[str], None] | None = None,
         stream_model_fn: Callable | None = None,
         on_tool_event: Callable[[dict], None] | None = None,
+        transcript=None,
     ) -> dict[str, str]:
         """
         主循环。模型自主决定写什么/运行什么/修什么。
         on_tool_event: 结构化事件推送，让前端展示每一步动作和结果。
+        transcript: TaskTranscript — 注入系统提示让模型有阶段感知。
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        system_content = AGENTIC_SYSTEM_PROMPT
+        if transcript:
+            system_content = transcript.render_for_model() + "\n\n" + AGENTIC_SYSTEM_PROMPT
+
         messages: list[dict] = [
-            {"role": "system", "content": AGENTIC_SYSTEM_PROMPT},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": user_request},
         ]
 
@@ -170,6 +176,16 @@ class AgenticLoop:
 
             messages.append({"role": "assistant", "content": response})
             messages.append({"role": "user", "content": result_text})
+
+            # Update transcript with tool results
+            if transcript:
+                for r in results:
+                    if r.file_written:
+                        transcript.add("build", "model",
+                            "写入 {} ({}字符)".format(r.file_written, len(self.files_written.get(r.file_written, ""))))
+                    elif r.tool == "run":
+                        status = "通过" if r.success else "失败"
+                        transcript.add("build", "model", "验证{}".format(status))
 
         return self.files_written
 

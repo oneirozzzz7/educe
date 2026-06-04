@@ -150,6 +150,9 @@ class BuilderAgent(BaseAgent):
         yield self.emit("user", "__BUILD_PROGRESS__开始构建...",
                        msg_type=MessageType.SYSTEM)
 
+        # Get transcript from orchestrator (if available)
+        transcript = context.metadata.get("_transcript")
+
         # 复杂任务走分步构建：拆解→逐步生成→每步验证
         if complexity == "complex":
             from deepforge.core.step_builder import StepBuilder
@@ -201,6 +204,10 @@ class BuilderAgent(BaseAgent):
             steps = await sb.plan_steps(user_request, call_model_thinking)
             on_tool_event({"event": "step_plan", "steps": [s[:50] for s in steps], "total": len(steps)})
 
+            if transcript:
+                transcript.step_plan = steps
+                transcript.add("build", "system", "步骤计划: {}步".format(len(steps)))
+
             final_files = await sb.build_incremental(
                 steps=steps,
                 call_model_fn=call_model_simple,
@@ -208,6 +215,7 @@ class BuilderAgent(BaseAgent):
                 original_request=user_request,
                 on_progress=on_step_progress,
                 on_event=on_tool_event,
+                transcript=transcript,
             )
         else:
             # 简单任务走 AgenticLoop（快速单文件生成）
@@ -217,6 +225,7 @@ class BuilderAgent(BaseAgent):
                 on_chunk=on_chunk,
                 stream_model_fn=stream_model_fn,
                 on_tool_event=on_tool_event,
+                transcript=transcript,
             )
 
         # Smoke test: headless browser check for HTML files
