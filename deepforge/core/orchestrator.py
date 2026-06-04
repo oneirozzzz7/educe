@@ -565,10 +565,25 @@ class Orchestrator:
 
         has_prev_code = bool(self.context.artifacts.get("engineer_output"))
         if has_prev_code:
-            router_system += "\n注意：之前生成过代码。修改/调整/优化等=BUILD。"
+            router_system += "\n注意：之前生成过代码。修改/调整/优化/改进/太差/不满意等=BUILD。"
 
         context_signals = self._build_confidence_context(user_input, cs)
         user_msg = user_input + file_hint
+
+        # Inject recent build context so router understands "修改" refers to existing artifact
+        if has_prev_code:
+            code_files = self.context.artifacts.get("code_files", [])
+            file_names = [f.split("/")[-1] for f in code_files[:3]]
+            # Get original build request from conversation history (current user_request is this turn's input)
+            prev_request = ""
+            for t in reversed(self.conversation.turns):
+                if t.role == "user" and t.content != user_input:
+                    prev_request = t.content
+                    break
+            user_msg += "\n\n[当前产物] 已生成: {} | 原始需求: {}".format(
+                ", ".join(file_names) if file_names else "代码文件",
+                prev_request[:80])
+
         if context_signals:
             user_msg += "\n\n[上下文]\n" + context_signals
 
