@@ -45,9 +45,9 @@ const ACCEPT = ".txt,.py,.js,.ts,.tsx,.jsx,.css,.html,.json,.md,.yaml,.yml,.xml,
    Helpers
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function extractHtml(c: string) {
-  const m = c.match(/```filepath:[^\n]+\.html\n([\s\S]*<\/html>)/i)
-    || c.match(/```html\n([\s\S]*<\/html>)/i)
-    || c.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
+  const m = c.match(/```filepath:[^\n]+\.html\n([\s\S]*?<\/html>)/i)
+    || c.match(/```html\n([\s\S]*?<\/html>)/i)
+    || c.match(/(<!DOCTYPE[\s\S]*?<\/html>)/i);
   return m ? m[1] : null;
 }
 
@@ -837,9 +837,18 @@ export default function Page() {
       else if (msg.type === "agent_message" && (msg as any).msg_type !== "handoff") {
         setThinking(false);
         const h = extractHtml(msg.content);
+        const hasCode = msg.content.includes("```filepath:") || msg.content.includes("<!DOCTYPE");
         if (h) {
           setHtml(h);
           if ((msg as any).files?.length) setFileName((msg as any).files[0]);
+        } else if (hasCode) {
+          // Code output from builder — extract and set as streamingCode, don't show in chat
+          const codeMatch = msg.content.match(/```filepath:([^\n]+)\n([\s\S]*?)```/);
+          if (codeMatch) {
+            setStreamingCode(codeMatch[2]);
+            setFileName(codeMatch[1].trim());
+            setFileSize(new Blob([codeMatch[2]]).size);
+          }
         } else if (msg.content && msg.content !== "agentic build") {
           setMsgs(p => {
             const last = p[p.length - 1];
