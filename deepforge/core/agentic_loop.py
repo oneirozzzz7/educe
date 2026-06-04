@@ -36,6 +36,18 @@ class ToolResult:
     file_written: str | None = None
 
 
+@dataclass
+class BuildResult:
+    reason: str  # "complete" | "max_turns" | "empty_response" | "error"
+    files: dict[str, str]
+    turns: int
+    errors: list[str]
+
+    @property
+    def success(self) -> bool:
+        return bool(self.files) and self.reason in ("complete", "max_turns")
+
+
 AGENTIC_SYSTEM_PROMPT = """你是一个编程助手。你可以写代码、运行验证、读取文件。
 
 可用工具:
@@ -91,13 +103,13 @@ class AgenticLoop:
         stream_model_fn: Callable | None = None,
         on_tool_event: Callable[[dict], None] | None = None,
         transcript=None,
-    ) -> dict[str, str]:
+    ) -> BuildResult:
         """
         主循环。模型自主决定写什么/运行什么/修什么。
-        on_tool_event: 结构化事件推送，让前端展示每一步动作和结果。
-        transcript: TaskTranscript — 注入系统提示让模型有阶段感知。
+        返回 BuildResult 包含结构化终止原因。
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._errors: list[str] = []
 
         system_content = AGENTIC_SYSTEM_PROMPT
         if transcript:
@@ -108,6 +120,8 @@ class AgenticLoop:
             {"role": "user", "content": user_request},
         ]
 
+        termination_reason = "max_turns"
+
         for turn in range(self.max_turns):
             self.turns_used = turn + 1
 
@@ -115,10 +129,20 @@ class AgenticLoop:
             if turn > 0:
                 self._compact_messages(messages)
 
-            if turn == 0 and stream_model_fn and on_chunk:
-                response = await self._stream_call(messages, stream_model_fn, on_chunk)
-            else:
-                response = await call_model_fn(messages)
+            try:
+                if turn == 0 and stream_model_fn and on_chunk:
+                    response = await self._stream_call(messages, stream_model_fn, on_chunk)
+                else:
+                    response = await call_model_fn(messages)
+            except Exception as e:
+                self._errors.append("模型调用失败: {}".format(str(e)[:100]))
+                termination_reason = "error"
+                break
+
+            if not response or not response.strip():
+                self._errors.append("模型返回空响应")
+                termination_reason = "empty_response"
+                break
 
             # 提取模型的思考文本（action块之前的内容）
             thinking = self._extract_thinking(response)
@@ -128,10 +152,12 @@ class AgenticLoop:
             actions = self._parse_actions(response)
 
             if not actions:
+                termination_reason = "complete"
                 if on_tool_event:
                     on_tool_event({"event": "done",
                                   "files": list(self.files_written.keys()),
-                                  "turns": self.turns_used})
+                                  "turns": self.turns_used,
+                                  "reason": termination_reason})
                 break
 
             results = []
@@ -151,6 +177,9 @@ class AgenticLoop:
 
                 result = await self._execute(action)
                 results.append(result)
+
+                if not result.success:
+                    self._errors.append("{}: {}".format(result.tool, result.output[:100]))
 
                 if result.file_written:
                     content = (
@@ -187,7 +216,19 @@ class AgenticLoop:
                         status = "通过" if r.success else "失败"
                         transcript.add("build", "model", "验证{}".format(status))
 
-        return self.files_written
+        # Emit final done event with reason if we hit max_turns
+        if termination_reason == "max_turns" and on_tool_event:
+            on_tool_event({"event": "done",
+                          "files": list(self.files_written.keys()),
+                          "turns": self.turns_used,
+                          "reason": termination_reason})
+
+        return BuildResult(
+            reason=termination_reason,
+            files=self.files_written,
+            turns=self.turns_used,
+            errors=self._errors,
+        )
 
     @staticmethod
     def _extract_thinking(response: str) -> str:
@@ -255,8 +296,6 @@ class AgenticLoop:
             full += chunk
             on_chunk(chunk)
         return full
-
-        return self.files_written
 
     def _parse_actions(self, response: str) -> list[dict]:
         """解析代码块格式的action调用"""

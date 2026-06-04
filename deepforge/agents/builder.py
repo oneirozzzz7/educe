@@ -225,7 +225,7 @@ class BuilderAgent(BaseAgent):
             # 简单任务走 AgenticLoop（快速单文件生成）
             if transcript:
                 transcript.add("build", "system", "开始生成代码...")
-            final_files = await agentic.run(
+            build_result = await agentic.run(
                 user_request=user_request,
                 call_model_fn=call_model_fn,
                 on_chunk=on_chunk,
@@ -233,6 +233,12 @@ class BuilderAgent(BaseAgent):
                 on_tool_event=on_tool_event,
                 transcript=transcript,
             )
+            final_files = build_result.files
+            if transcript:
+                transcript.add("build", "system",
+                    "构建完成: {} ({}轮, {})".format(
+                        build_result.reason, build_result.turns,
+                        "{}个文件".format(len(build_result.files)) if build_result.files else "无产出"))
 
         # Smoke test: headless browser check for HTML files
         if final_files:
@@ -255,8 +261,8 @@ class BuilderAgent(BaseAgent):
                             call_model_fn=call_model_fn,
                             on_tool_event=on_tool_event,
                         )
-                        if fix_files:
-                            final_files.update(fix_files)
+                        if fix_files.files:
+                            final_files.update(fix_files.files)
 
         if final_files:
             # Ensure index.html exists for preview server
