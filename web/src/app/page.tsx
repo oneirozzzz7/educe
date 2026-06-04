@@ -1029,6 +1029,7 @@ export default function Page() {
           if (task.turns && Array.isArray(task.turns)) {
             const newMsgs: ChatMsg[] = [];
             let firstTs = 0, lastTs = 0;
+            const restoredEvents: ToolEvent[] = [];
             for (const turn of task.turns) {
               const ts = turn.timestamp || 0;
               if (!firstTs) firstTs = ts;
@@ -1045,7 +1046,14 @@ export default function Page() {
                   newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 });
                 }
               }
+              // Restore transcript from metadata
+              if (turn.metadata?.transcript) {
+                for (const entry of turn.metadata.transcript) {
+                  restoredEvents.push({ event: "transcript", phase: entry.phase, role: entry.role, content: entry.content, elapsed: entry.elapsed });
+                }
+              }
             }
+            if (restoredEvents.length > 0) setToolEvents(restoredEvents);
             if (lastTs && firstTs) setElapsed(Math.max(1, Math.round(lastTs - firstTs)));
             setMsgs(newMsgs);
           } else {

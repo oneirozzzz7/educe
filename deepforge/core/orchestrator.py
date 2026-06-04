@@ -473,10 +473,19 @@ class Orchestrator:
             # Session store only saves a reference — actual files live on disk
             code_files = self.context.artifacts.get("code_files", [])
             file_names = [f.split("/")[-1] for f in code_files]
+            # Persist transcript entries for history replay
+            transcript = self.context.metadata.get("_transcript")
+            transcript_data = None
+            if transcript:
+                transcript_data = [
+                    {"phase": e.phase, "role": e.role, "content": e.content, "elapsed": e.elapsed}
+                    for e in transcript.entries
+                ]
             self.session_store.append_turn(
                 session_id, user_input, ",".join(file_names),
                 turn_type="code",
                 domain="tech",
+                metadata={"transcript": transcript_data} if transcript_data else None,
             )
 
         # 给conversation加完成记录（简短摘要，不是完整代码）
