@@ -40,8 +40,8 @@ class BuilderAgent(BaseAgent):
 
     async def handle(self, message: Message, context: WorkContext) -> AsyncIterator[Message]:
         """核心循环：需求分析→构建→验证→修复"""
-        if self.model_config.max_tokens < 32768:
-            self._model_config.max_tokens = 32768
+        # Slot reservation: use 8192 default, ModelClient auto-escalates on truncation
+        build_max_tokens = 8192
 
         # 检查是否有用户选择的决策（协作式构建Phase 2）
         user_decisions = context.metadata.get("_user_decisions")
@@ -126,20 +126,23 @@ class BuilderAgent(BaseAgent):
             use_thinking = complexity == "complex"
 
         async def call_model_fn(msgs: list[dict]) -> str:
-            return await self.model_client.chat(
+            content, reasoning = await self.model_client.chat_with_reasoning(
                 messages=msgs,
                 model=self.model_config.model,
                 temperature=self.model_config.temperature,
-                max_tokens=self.model_config.max_tokens,
+                max_tokens=build_max_tokens,
                 enable_thinking=use_thinking,
             )
+            if reasoning and on_tool_event:
+                on_tool_event({"event": "step_reasoning", "content": reasoning[:500]})
+            return content
 
         async def stream_model_fn(msgs: list[dict]):
             async for chunk in self.model_client.chat_stream(
                 messages=msgs,
                 model=self.model_config.model,
                 temperature=self.model_config.temperature,
-                max_tokens=self.model_config.max_tokens,
+                max_tokens=build_max_tokens,
                 enable_thinking=use_thinking,
             ):
                 yield chunk
@@ -157,29 +160,38 @@ class BuilderAgent(BaseAgent):
                 "代码不截断、不省略、不用TODO占位。用```filepath:文件名 格式包裹输出。"
             )
 
+            _step_counter = {"n": 0}
+
             async def call_model_simple(prompt: str) -> str:
-                return await self.model_client.chat(
+                content, reasoning = await self.model_client.chat_with_reasoning(
                     messages=[
                         {"role": "system", "content": build_system},
                         {"role": "user", "content": prompt},
                     ],
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
-                    max_tokens=self.model_config.max_tokens,
+                    max_tokens=build_max_tokens,
                     enable_thinking=use_thinking,
                 )
+                if reasoning:
+                    _step_counter["n"] += 1
+                    on_tool_event({"event": "step_reasoning", "step": _step_counter["n"], "content": reasoning[:500]})
+                return content
 
             async def call_model_thinking(prompt: str) -> str:
-                return await self.model_client.chat(
+                content, reasoning = await self.model_client.chat_with_reasoning(
                     messages=[
                         {"role": "system", "content": build_system},
                         {"role": "user", "content": prompt},
                     ],
                     model=self.model_config.model,
                     temperature=self.model_config.temperature,
-                    max_tokens=self.model_config.max_tokens,
+                    max_tokens=build_max_tokens,
                     enable_thinking=use_thinking,
                 )
+                if reasoning:
+                    on_tool_event({"event": "step_reasoning", "step": 0, "content": reasoning[:500]})
+                return content
 
             def on_step_progress(msg: str):
                 on_tool_event({"event": "thinking", "content": msg})

@@ -73,10 +73,12 @@ path: 文件名
 class AgenticLoop:
     """模型自主工具循环。模型决定下一步，框架只执行。"""
 
-    def __init__(self, output_dir: Path, max_turns: int = 10, exec_timeout: int = 10):
+    def __init__(self, output_dir: Path, max_turns: int = 10, exec_timeout: int = 10,
+                 max_context_chars: int = 50000):
         self.output_dir = output_dir
         self.max_turns = max_turns
         self.exec_timeout = exec_timeout
+        self.max_context_chars = max_context_chars
         self.files_written: dict[str, str] = {}
         self.turns_used = 0
 
@@ -102,6 +104,10 @@ class AgenticLoop:
 
         for turn in range(self.max_turns):
             self.turns_used = turn + 1
+
+            # Context compression: compact old messages when total size exceeds threshold
+            if turn > 0:
+                self._compact_messages(messages)
 
             if turn == 0 and stream_model_fn and on_chunk:
                 response = await self._stream_call(messages, stream_model_fn, on_chunk)
@@ -177,6 +183,49 @@ class AgenticLoop:
         if len(text) < 5:
             return ""
         return text[:200]
+
+    def _compact_messages(self, messages: list[dict], keep_recent: int = 3) -> None:
+        """Sliding window compression. Keeps first 2 msgs (system+user) and last keep_recent turns intact.
+        Middle messages are replaced with structural summaries."""
+        total_chars = sum(len(m.get("content", "")) for m in messages)
+        if total_chars <= self.max_context_chars:
+            return
+
+        # First 2 = system prompt + original user request; each turn = 2 msgs (assistant + user)
+        protected_tail = keep_recent * 2
+        if len(messages) <= 2 + protected_tail:
+            return
+
+        compactable_start = 2
+        compactable_end = len(messages) - protected_tail
+
+        for i in range(compactable_start, compactable_end):
+            msg = messages[i]
+            content = msg.get("content", "")
+            if len(content) <= 300:
+                continue
+
+            if msg["role"] == "assistant":
+                summary_parts = []
+                for match in re.finditer(r'```action:write_file\n(.*?)```', content, re.DOTALL):
+                    body = match.group(1)
+                    path = ""
+                    line_count = body.count("\n")
+                    for line in body.split("\n")[:3]:
+                        if line.startswith("path:"):
+                            path = line.split(":", 1)[1].strip()
+                            break
+                    if path:
+                        summary_parts.append("写入 {} ({}行)".format(path, line_count))
+                for match in re.finditer(r'```action:run\n(.*?)```', content, re.DOTALL):
+                    cmd = match.group(1).strip()[:80]
+                    summary_parts.append("运行: {}".format(cmd))
+                if summary_parts:
+                    messages[i] = {"role": "assistant", "content": "[历史摘要: {}]".format("; ".join(summary_parts))}
+                else:
+                    messages[i] = {"role": "assistant", "content": content[:200] + "\n...(已压缩)"}
+            elif msg["role"] == "user":
+                messages[i] = {"role": "user", "content": content[:500] + ("\n...(已压缩)" if len(content) > 500 else "")}
 
     async def _stream_call(
         self,

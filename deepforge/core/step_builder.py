@@ -69,6 +69,9 @@ class StepBuilder:
                     "```filepath:{}\n{}\n```".format(fp, code)
                     for fp, code in accumulated_files.items()
                 )
+                # Safety valve: truncate very large code sections to fit context window
+                if len(code_section) > 40000:
+                    code_section = code_section[:2000] + "\n\n... (中间代码已省略) ...\n\n" + code_section[-38000:]
                 prompt = (
                     "实现步骤{}/{}: {}\n\n"
                     "原始需求: {}\n\n"
@@ -120,6 +123,9 @@ class StepBuilder:
             new_lines = sum(c.count("\n") for c in new_files.values())
             if on_event:
                 on_event({"event": "step_code", "step": i + 1, "file": main_file, "size": sum(len(c) for c in new_files.values()), "lines": new_lines, "lines_added": new_lines - prev_lines})
+                # Push current accumulated code for real-time Code panel update
+                main_code = accumulated_files.get(main_file, "")
+                on_event({"event": "step_code_content", "step": i + 1, "code": main_code})
             prev_lines = new_lines
 
             final_files, result = await self.loop.run(

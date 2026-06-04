@@ -11,14 +11,16 @@ class ModelClient:
     def __init__(self, api_key: str, base_url: str):
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120)
 
-    async def chat(
+    async def _chat_raw(
         self,
         messages: list[dict],
         model: str = "deepseek-chat",
         temperature: float = 0.7,
         max_tokens: int = 4096,
         enable_thinking: bool = False,
-    ) -> str:
+        _is_escalation: bool = False,
+    ) -> tuple[str, str]:
+        """Returns (content, reasoning). Extracts <think> blocks and model_extra reasoning."""
         extra = {}
         if "397" in model or "qwen" in model.lower():
             extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
@@ -38,16 +40,66 @@ class ModelClient:
                     raise
                 await asyncio.sleep(2)
 
+        # Slot reservation: if output was truncated and we haven't escalated yet, retry with 4x tokens
+        finish_reason = getattr(response.choices[0], "finish_reason", None)
+        if finish_reason == "length" and not _is_escalation:
+            escalated = min(max_tokens * 4, 32768)
+            import logging
+            logging.getLogger("deepforge").info(
+                "max_tokens escalation: %d -> %d (finish_reason=length)", max_tokens, escalated
+            )
+            return await self._chat_raw(
+                messages, model, temperature, escalated, enable_thinking, _is_escalation=True
+            )
+
         msg = response.choices[0].message
         content = msg.content or ""
-        # Thinking mode: some APIs return reasoning in model_extra, content may be None
-        if not content and hasattr(msg, "model_extra") and msg.model_extra:
-            reasoning = msg.model_extra.get("reasoning", "")
-            if reasoning:
-                content = reasoning
-        if "</think>" in content:
+        reasoning = ""
+
+        if hasattr(msg, "model_extra") and msg.model_extra:
+            reasoning = msg.model_extra.get("reasoning", "") or ""
+
+        if "<think>" in content and "</think>" in content:
+            import re
+            think_match = re.search(r"<think>([\s\S]*?)</think>", content)
+            if think_match:
+                think_text = think_match.group(1).strip()
+                if think_text:
+                    reasoning = think_text if not reasoning else reasoning + "\n" + think_text
             content = content.split("</think>", 1)[-1].strip()
+        elif "</think>" in content:
+            content = content.split("</think>", 1)[-1].strip()
+
+        if not content and reasoning:
+            content = reasoning
+
+        return content, reasoning
+
+    async def chat(
+        self,
+        messages: list[dict],
+        model: str = "deepseek-chat",
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        enable_thinking: bool = False,
+    ) -> str:
+        content, _ = await self._chat_raw(
+            messages, model, temperature, max_tokens, enable_thinking
+        )
         return content
+
+    async def chat_with_reasoning(
+        self,
+        messages: list[dict],
+        model: str = "deepseek-chat",
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        enable_thinking: bool = False,
+    ) -> tuple[str, str]:
+        """Like chat(), but also returns the model's reasoning/thinking content."""
+        return await self._chat_raw(
+            messages, model, temperature, max_tokens, enable_thinking
+        )
 
     async def chat_stream(
         self,

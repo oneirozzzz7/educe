@@ -25,7 +25,7 @@ interface ToolEvent {
   step?: number; total?: number; description?: string; steps?: string[];
   lines?: number; lines_added?: number; passed?: boolean; time?: number;
   errors?: { line?: number; type?: string; message?: string }[];
-  reason?: string;
+  reason?: string; code?: string;
 }
 interface ChatMsg {
   id: string; role: "user" | "assistant" | "system";
@@ -848,6 +848,10 @@ export default function Page() {
       // ── tool_event ──
       else if ((msg as any).type === "tool_event") {
         const evt = msg as unknown as ToolEvent;
+        // step_code_content: real-time code update for Code panel during step builds
+        if (evt.event === "step_code_content" && evt.code) {
+          setStreamingCode(evt.code);
+        }
         setToolEvents(prev => [...prev, evt]);
         if (evt.event === "write_file" || evt.event === "write_file_result") {
           if (evt.file) setFileName(evt.file);
@@ -1098,13 +1102,23 @@ export default function Page() {
                           </div>
                         ))}
                         {/* Step entries */}
-                        {toolEvents.filter(e => e.event === "step_start" || e.event === "step_code" || e.event === "step_done").map((evt, i) => (
+                        {toolEvents.filter(e => e.event === "step_start" || e.event === "step_code" || e.event === "step_done" || e.event === "step_reasoning").map((evt, i) => (
                           <div key={`step-${i}`} className="flex items-start gap-2 py-1.5" style={{ fontSize: 12 }}>
                             {evt.event === "step_start" && (
                               <>
                                 <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: "var(--amber)", animation: "e-pulse 2s ease-in-out infinite" }} />
                                 <span style={{ color: "var(--text-1)", fontWeight: 500 }}>步骤 {evt.step}/{evt.total}: <span style={{ fontWeight: 400, color: "var(--text-2)" }}>{evt.description?.slice(0, 40)}</span></span>
                               </>
+                            )}
+                            {evt.event === "step_reasoning" && evt.content && (
+                              <details style={{ marginLeft: 14, width: "100%" }}>
+                                <summary style={{ cursor: "pointer", color: "var(--text-3)", fontStyle: "italic", fontSize: 11, userSelect: "none" }}>
+                                  {evt.content.slice(0, 40)}{evt.content.length > 40 ? "..." : ""}
+                                </summary>
+                                <div style={{ color: "var(--text-3)", fontStyle: "italic", fontSize: 11, lineHeight: 1.6, marginTop: 4, whiteSpace: "pre-wrap" }}>
+                                  {evt.content.slice(0, 500)}
+                                </div>
+                              </details>
                             )}
                             {evt.event === "step_code" && (
                               <>
@@ -1129,6 +1143,8 @@ export default function Page() {
                     {/* Tool events — for simple tasks (AgenticLoop path) */}
                     {!toolEvents.some(e => e.event === "step_start") && toolEvents.filter(evt =>
                       evt.event !== "thinking" &&
+                      evt.event !== "step_reasoning" &&
+                      evt.event !== "step_code_content" &&
                       !(evt.event === "write_file_result" && !evt.file) &&
                       !(evt.event === "read_file_result") &&
                       !(evt.event === "write_file" && !evt.file)
@@ -1136,6 +1152,8 @@ export default function Page() {
                       <div className="mb-4" style={{ padding: "10px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
                         {toolEvents.filter(evt =>
                           evt.event !== "thinking" &&
+                          evt.event !== "step_reasoning" &&
+                          evt.event !== "step_code_content" &&
                           !(evt.event === "write_file_result" && !evt.file) &&
                           !(evt.event === "read_file_result") &&
                           !(evt.event === "write_file" && !evt.file)
