@@ -749,6 +749,7 @@ export default function Page() {
   const [planRequest, setPlanRequest] = useState("");
   const [rightPanel, setRightPanel] = useState<"code" | "preview">("code");
   const [artifactExpanded, setArtifactExpanded] = useState(false);
+  const [splitPercent, setSplitPercent] = useState(55);
   const [expandedLog, setExpandedLog] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
@@ -1122,7 +1123,7 @@ export default function Page() {
                 {/* Chat panel — hidden when artifact expanded */}
                 {!(showArtifact && artifactExpanded) && (
                 <div className="flex flex-col min-h-0 transition-all duration-300 flex-1"
-                  style={showArtifact ? { width: "35%", minWidth: 300, maxWidth: 400, borderRight: "1px solid var(--border-0)", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
+                  style={showArtifact ? { width: `${splitPercent}%`, minWidth: 300, borderRight: "none", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
                   {/* Scrollable chat content */}
                   <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px 120px" : "24px 28px 120px" }}>
                     {/* Constrain message width for readability */}
@@ -1315,10 +1316,35 @@ export default function Page() {
                 </div>
                 )}
 
+                {/* Draggable divider */}
+                {showArtifact && !artifactExpanded && (
+                  <div
+                    style={{ width: 5, cursor: "col-resize", background: "var(--border-0)", flexShrink: 0, position: "relative", zIndex: 10 }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startPercent = splitPercent;
+                      const container = e.currentTarget.parentElement;
+                      if (!container) return;
+                      const totalWidth = container.clientWidth;
+                      const onMove = (ev: MouseEvent) => {
+                        const delta = ev.clientX - startX;
+                        const newPercent = Math.min(75, Math.max(25, startPercent + (delta / totalWidth) * 100));
+                        setSplitPercent(Math.round(newPercent));
+                      };
+                      const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+                      document.addEventListener("mousemove", onMove);
+                      document.addEventListener("mouseup", onUp);
+                    }}
+                  >
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 3, height: 32, borderRadius: 2, background: "var(--text-3)", opacity: 0.4 }} />
+                  </div>
+                )}
+
                 {/* Artifact panel — slides in when hasArtifact */}
                 <AnimatePresence>
                   {showArtifact && (
-                    <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: artifactExpanded ? "100%" : "65%", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+                    <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: artifactExpanded ? "100%" : `${100 - splitPercent}%`, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
                       <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} />
                       {phase === "complete" && (html || buildCode) && (
