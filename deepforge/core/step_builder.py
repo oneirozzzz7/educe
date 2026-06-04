@@ -60,6 +60,7 @@ class StepBuilder:
 
             if transcript:
                 transcript.current_step = i + 1
+                transcript.add("build", "system", "开始步骤{}: {}".format(i + 1, step[:50]))
 
             if on_event:
                 on_event({"event": "step_start", "step": i + 1, "total": len(steps), "description": step})
