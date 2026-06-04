@@ -837,7 +837,7 @@ export default function Page() {
       else if (msg.type === "agent_message" && (msg as any).msg_type !== "handoff") {
         setThinking(false);
         const h = extractHtml(msg.content);
-        const hasCode = msg.content.includes("```filepath:") || msg.content.includes("<!DOCTYPE");
+        const hasCode = msg.content.includes("```filepath:") || (msg.content.includes("<!DOCTYPE") && msg.content.length > 500);
         if (h) {
           setHtml(h);
           if ((msg as any).files?.length) setFileName((msg as any).files[0]);
@@ -848,6 +848,13 @@ export default function Page() {
             setStreamingCode(codeMatch[2]);
             setFileName(codeMatch[1].trim());
             setFileSize(new Blob([codeMatch[2]]).size);
+          } else {
+            // Raw HTML without fence — use as html directly
+            const rawHtml = msg.content.match(/(<!DOCTYPE[\s\S]*<\/html>)/i);
+            if (rawHtml) {
+              setHtml(rawHtml[1]);
+              setFileSize(new Blob([rawHtml[1]]).size);
+            }
           }
         } else if (msg.content && msg.content !== "agentic build") {
           setMsgs(p => {
@@ -1002,9 +1009,10 @@ export default function Page() {
 
   // Derived: split streamingCode into explanation text (before code marker) and actual code (after)
   const codeMarkerIdx = streamingCode.indexOf("```action:write_file");
-  const buildExplanation = codeMarkerIdx > 0 ? streamingCode.slice(0, codeMarkerIdx).trim() : (codeMarkerIdx === -1 ? streamingCode : "");
+  const looksLikeCode = /^\s*<!DOCTYPE|^\s*<html|^\s*<\?|^\s*import |^\s*from |^\s*def |^\s*class /i.test(streamingCode);
+  const buildExplanation = codeMarkerIdx > 0 ? streamingCode.slice(0, codeMarkerIdx).trim() : (codeMarkerIdx === -1 && !looksLikeCode ? streamingCode : "");
   // Strip metadata header (```action:write_file\npath: xxx\n---\n) from code
-  let buildCode = codeMarkerIdx >= 0 ? streamingCode.slice(codeMarkerIdx) : "";
+  let buildCode = codeMarkerIdx >= 0 ? streamingCode.slice(codeMarkerIdx) : (looksLikeCode ? streamingCode : "");
   let derivedFileName = fileName;
   const headerEndIdx = buildCode.indexOf("---\n");
   if (headerEndIdx >= 0) {
