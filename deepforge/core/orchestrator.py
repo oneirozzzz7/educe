@@ -162,6 +162,8 @@ class Orchestrator:
                 self.context.metadata.pop("_skip_next_extraction", None)
 
         self.conversation.add_user(user_input, file_content)
+        if hasattr(self, 'state'):
+            self.state.add_turn("user", user_input)
 
         if file_content:
             self.context.metadata["uploaded_files_text"] = file_content
@@ -270,14 +272,19 @@ class Orchestrator:
         else:
             transcript = TaskTranscript(user_input)
 
-        # Wire transcript to WebSocket via _notify
+        # Wire transcript to WebSocket via _notify + persist to state
         def push_transcript_event(evt: dict):
             import json as _json
             evt_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                 content="__TOOL_EVENT__" + _json.dumps(evt, ensure_ascii=False))
             self._notify(evt_msg)
+            # Persist to SessionState
+            if hasattr(self, 'state'):
+                self.state.transcript.append(evt)
         transcript.on_update = push_transcript_event
         self.context.metadata["_transcript"] = transcript
+        if hasattr(self, 'state'):
+            self.context.metadata["_session_state"] = self.state
 
         import time as _time
         _t0 = _time.time()
@@ -506,8 +513,9 @@ class Orchestrator:
         else:
             summary = "[代码任务未能完成]"
         self.conversation.add_assistant(summary, domain="tech")
-
-        if has_output and self.config.evolution.enabled:
+        if hasattr(self, 'state'):
+            turn_type = "code" if has_output else "text"
+            self.state.add_turn("assistant", summary, turn_type)
             asyncio.create_task(self._evolve_from_result())
 
         if not has_output:
@@ -1204,6 +1212,8 @@ class Orchestrator:
 
             self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)
+            if hasattr(self, 'state'):
+                self.state.add_turn("assistant", raw)
 
             # 四信号融合可信度评估
             if self.credibility:

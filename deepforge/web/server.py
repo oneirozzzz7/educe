@@ -84,6 +84,16 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     agent.skill_registry = skill_registry
                 orchestrator.register(agent)
 
+            # Load or create SessionState — single source of truth
+            from deepforge.core.session_state import SessionState
+            state = SessionState.load_or_create(session_id)
+            orchestrator.state = state
+            # Bridge: sync state → context.artifacts for agent compatibility
+            if state.code_files:
+                orchestrator.context.artifacts["code_files"] = state.code_files
+                orchestrator.context.artifacts["engineer_output"] = "agentic build"
+                orchestrator.context.artifacts["output_dir"] = state.output_dir
+
             sessions[session_id] = orchestrator
         return sessions[session_id]
 
@@ -409,6 +419,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
         orchestrator = get_orchestrator(session_id)
 
+        # Push initial state to frontend on connect (supports refresh recovery)
+        if hasattr(orchestrator, 'state') and orchestrator.state.turns:
+            try:
+                await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
+            except Exception:
+                pass
+
         ws_closed = {"value": False}
 
         async def send_message(msg: Message):
@@ -510,6 +527,10 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     orchestrator.context.metadata.clear()
                     orchestrator.context.conversation_history.clear()
                     orchestrator.conversation.turns.clear()
+                    # Reset SessionState
+                    from deepforge.core.session_state import SessionState
+                    orchestrator.state = SessionState(session_id=session_id)
+                    orchestrator.state.save()
                     continue
 
                 # 处理决策选择（协作式构建）
@@ -623,6 +644,21 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     await orchestrator.run(user_input, file_content=file_content)
                 except Exception as e:
                     await websocket.send_json({"type": "error", "content": str(e)})
+                # Sync state after run completes
+                if hasattr(orchestrator, 'state'):
+                    # Bridge: sync artifacts → state
+                    code_files = orchestrator.context.artifacts.get("code_files", [])
+                    if code_files and code_files != orchestrator.state.code_files:
+                        orchestrator.state.code_files = code_files
+                        orchestrator.state.output_dir = orchestrator.context.artifacts.get("output_dir", "")
+                    orchestrator.state.expert_name = orchestrator.context.metadata.get("expert_name", "")
+                    orchestrator.state.complexity = orchestrator.context.metadata.get("_task_complexity", "")
+                    orchestrator.state.user_request = user_input
+                    orchestrator.state.save()
+                    try:
+                        await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
+                    except Exception:
+                        pass
                 await asyncio.sleep(0.05)
                 if not orchestrator.context.metadata.get("_pending_decisions") and not orchestrator.context.metadata.get("_pending_plans"):
                     expert_name = orchestrator.context.metadata.get("expert_name", "")
