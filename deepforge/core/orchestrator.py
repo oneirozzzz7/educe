@@ -819,15 +819,8 @@ class Orchestrator:
             plan_desc += "\n用户补充：{}".format(user_note)
         build_input = "{}（方案：{}）".format(user_input, plan_desc)
         self.context.metadata["_plan_confirmed"] = True
-        # Plan-based build is a fresh start — clear both memory and disk
         self.context.artifacts.pop("code_files", None)
         self.context.artifacts.pop("engineer_output", None)
-        from pathlib import Path
-        import shutil
-        session_id = self.context.metadata.get("session_id", "default")
-        output_dir = Path(".deepforge/output") / session_id[:16]
-        if output_dir.exists():
-            shutil.rmtree(output_dir, ignore_errors=True)
         self.context.user_request = build_input
 
         # Update transcript with plan selection
