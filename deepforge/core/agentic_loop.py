@@ -152,8 +152,12 @@ class AgenticLoop:
             actions = self._parse_actions(response)
 
             if not actions:
+                # Clean up <think> blocks before fallback extraction
+                clean_response = response
+                if "</think>" in clean_response:
+                    clean_response = clean_response.split("</think>", 1)[-1].strip()
                 # Fallback: model may have output code in ```filepath:xxx format without action prefix
-                fallback_files = self._extract_files_fallback(response)
+                fallback_files = self._extract_files_fallback(clean_response)
                 if fallback_files:
                     for fp, code in fallback_files.items():
                         full_path = self.output_dir / fp
@@ -337,9 +341,17 @@ class AgenticLoop:
                 files["index.html"] = code
                 break
         if not files:
+            # Match complete HTML
             html_match = re.search(r'(<!DOCTYPE[\s\S]*?</html>)', response, re.IGNORECASE)
             if html_match and len(html_match.group(1)) > 100:
                 files["index.html"] = html_match.group(1)
+        if not files:
+            # Last resort: match truncated HTML (model hit token limit before closing </html>)
+            html_match = re.search(r'(<!DOCTYPE[\s\S]{200,})', response, re.IGNORECASE)
+            if html_match:
+                code = html_match.group(1)
+                if len(code) > 500:
+                    files["index.html"] = code
         return files
 
     async def _execute(self, action: dict) -> ToolResult:

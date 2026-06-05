@@ -383,6 +383,20 @@ class Orchestrator:
             if parts:
                 prev_code_context = "\n\n".join(parts)
 
+        # Fallback: if code_files empty but output_dir has files from a previous build
+        if not prev_code_context:
+            from pathlib import Path
+            session_id = self.context.metadata.get("session_id", "default")
+            output_dir = Path(".deepforge/output") / session_id[:16]
+            if output_dir.exists():
+                for f in sorted(output_dir.iterdir()):
+                    if f.is_file() and f.suffix in (".html", ".py", ".js", ".css"):
+                        content = f.read_text(encoding="utf-8", errors="ignore")[:8000]
+                        if len(content) > 50:
+                            prev_code_context = "```filepath:{}\n{}\n```".format(f.name, content)
+                            has_prev_code = True
+                            break
+
         # ═══ 0b. 评估复杂度（迭代修改视为 simple）═══
         if prev_code_context:
             complexity = "simple"
