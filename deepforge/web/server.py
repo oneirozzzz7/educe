@@ -470,8 +470,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
                 # Reset context — "新任务" button clears orchestrator state
                 if data.get("type") == "reset_context":
+                    from pathlib import Path
+                    import shutil
+                    output_dir = Path(".deepforge/output") / session_id[:16]
+                    if output_dir.exists():
+                        shutil.rmtree(output_dir, ignore_errors=True)
                     orchestrator.context.artifacts.clear()
                     orchestrator.context.metadata.clear()
+                    orchestrator.context.conversation_history.clear()
                     orchestrator.conversation.turns.clear()
                     continue
 

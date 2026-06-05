@@ -274,10 +274,8 @@ class BuilderAgent(BaseAgent):
                 if src.exists() and not dst.exists():
                     shutil.copy2(str(src), str(dst))
 
-            for filepath, code in final_files.items():
-                full_path = output_dir / filepath
-                prev_files = context.artifacts.get("code_files", [])
-                context.add_artifact("code_files", prev_files + [str(full_path)])
+            built_paths = [str(output_dir / fp) for fp in final_files]
+            context.add_artifact("code_files", built_paths)
             context.add_artifact("output_dir", str(output_dir))
             context.add_artifact("engineer_output", "agentic build")
             self._record_success(context.user_request, final_files)
