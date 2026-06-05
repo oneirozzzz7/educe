@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Copy, Download, ArrowUpRight, ChevronRight, Paperclip, Archive } from "lucide-react";
+import { marked } from "marked";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/lib/i18n";
@@ -1187,15 +1188,22 @@ export default function Page() {
                           const phaseColors: Record<string, string> = { analyze: "var(--sage)", plan: "var(--amber)", build: "var(--amber)", verify: "var(--pass)" };
                           const label = phaseLabels[evt.phase || ""] || evt.phase;
                           const dotColor = phaseColors[evt.phase || ""] || "var(--text-3)";
-                          const isLatest = i === toolEvents.filter(e => e.event === "transcript").length - 1 && subPhase !== "done";
+                          const transcriptEvents = toolEvents.filter(e => e.event === "transcript");
+                          const isLatest = i === transcriptEvents.length - 1 && subPhase !== "done";
                           return (
                             <div key={`tr-${i}`} className="flex items-start gap-2 py-1" style={{ fontSize: 12 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: dotColor, ...(isLatest ? { animation: "e-pulse 2s ease-in-out infinite" } : {}) }} />
+                              {isLatest ? (
+                                <svg width="14" height="14" viewBox="0 0 14 14" style={{ marginTop: 2, flexShrink: 0, animation: "e-spin 1s linear infinite" }}>
+                                  <circle cx="7" cy="7" r="5" fill="none" stroke={dotColor} strokeWidth="1.5" strokeDasharray="20 12" strokeLinecap="round" />
+                                </svg>
+                              ) : (
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: dotColor }} />
+                              )}
                               <span style={{ color: "var(--text-3)", fontSize: 11, minWidth: 32 }}>[{label}]</span>
                               <span style={{ color: "var(--text-2)", flex: 1 }}>
                                 {evt.content}
-                                {evt.elapsed ? <span style={{ color: "var(--text-3)", marginLeft: 4 }}>({evt.elapsed}s)</span> : null}
                               </span>
+                              {evt.elapsed ? <span style={{ color: "var(--text-3)", fontSize: 10, flexShrink: 0 }}>{evt.elapsed}s</span> : null}
                             </div>
                           );
                         })}
@@ -1226,10 +1234,8 @@ export default function Page() {
 
                     {/* Build explanation (streaming text before code) */}
                     {showArtifact && buildExplanation && (
-                      <div className="mb-4" style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7 }}>
-                        {buildExplanation}
-                        {subPhase === "building" && <span style={{ display: "inline-block", width: 5, height: 14, background: "var(--amber)", borderRadius: 1, marginLeft: 2, verticalAlign: "text-bottom", animation: "e-blink .8s step-end infinite" }} />}
-                      </div>
+                      <div className="mb-4 df-markdown" style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7 }}
+                        dangerouslySetInnerHTML={{ __html: marked.parse(buildExplanation) as string }} />
                     )}
 
                     {/* Step timeline — structured build process */}
