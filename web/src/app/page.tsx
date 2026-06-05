@@ -1020,7 +1020,7 @@ export default function Page() {
     setBrief(v || files.map(f => f.name).join(", "));
     setPhase("active"); setSubPhase("thinking");
     setPreviewSessionId(sidRef.current);
-    setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+    setAddedLines(new Set()); prevStepCodeRef.current = "";
     setToolEvents([]); setDecisions(null); setPlans(null);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
