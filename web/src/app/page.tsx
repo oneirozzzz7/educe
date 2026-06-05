@@ -1102,7 +1102,18 @@ export default function Page() {
                   setBrief(turn.question); setRightPanel("preview");
                   setFileSize(new Blob([h]).size);
                 }
-                else if (turn.type !== "code") {
+                else if (turn.type === "code") {
+                  // Code turn but extractHtml failed (truncated HTML) — show raw code in Code panel
+                  const codeMatch = turn.response.match(/```filepath:([^\n]+)\n([\s\S]*)/);
+                  if (codeMatch) {
+                    const rawCode = codeMatch[2].replace(/\n```\s*$/, "");
+                    setStreamingCode(rawCode); setFileName(codeMatch[1].trim());
+                    setHasArtifact(true); setPhase("complete"); setSubPhase("done");
+                    setBrief(turn.question); setRightPanel("code");
+                    setFileSize(new Blob([rawCode]).size);
+                  }
+                }
+                else {
                   newMsgs.push({ id: `${turn.timestamp}-a`, role: "assistant", text: turn.response, timestamp: ts * 1000 + 1 });
                 }
               }
