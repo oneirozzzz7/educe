@@ -770,6 +770,7 @@ export default function Page() {
   const [streamingCode, setStreamingCode] = useState("");
   const [addedLines, setAddedLines] = useState<Set<number>>(new Set());
   const prevStepCodeRef = useRef<string>("");
+  const pendingClearRef = useRef(false);
   const [html, setHtml] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
@@ -860,8 +861,9 @@ export default function Page() {
           if (subRef.current === "building") return;
           // New build starting — reset old build state
           setSubPhase("building"); setHasArtifact(true);
-          setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+          setHtml(null); setAddedLines(new Set()); prevStepCodeRef.current = "";
           setRightPanel("code"); setFileName(""); setFileSize(0);
+          pendingClearRef.current = true;
           if (phaseRef.current === "idle" || phaseRef.current === "complete") {
             setPhase("active");
             startRef.current = Date.now(); setElapsed(0);
@@ -888,6 +890,7 @@ export default function Page() {
           if ((msg as any).files?.length) setFileName((msg as any).files[0]);
         } else if (hasCode) {
           // Code output from builder — extract and set as streamingCode, don't show in chat
+          pendingClearRef.current = false;
           const codeMatch = msg.content.match(/```filepath:([^\n]+)\n([\s\S]*?)```/);
           if (codeMatch) {
             setStreamingCode(codeMatch[2]);
@@ -912,6 +915,8 @@ export default function Page() {
       // ── chunk ──
       else if (msg.type === "chunk") {
         if (phaseRef.current === "active" && subRef.current === "building") {
+          // First chunk after pipeline_start: clear old code before appending
+          if (pendingClearRef.current) { setStreamingCode(""); pendingClearRef.current = false; }
           // All chunks go to streamingCode; we split text/code in render via derived state
           setStreamingCode(prev => prev + msg.content);
         } else {
@@ -931,6 +936,7 @@ export default function Page() {
         const evt = msg as unknown as ToolEvent;
         // step_code_content: real-time code update for Code panel during step builds
         if (evt.event === "step_code_content" && evt.code) {
+          pendingClearRef.current = false;
           setAddedLines(diffAddedLines(prevStepCodeRef.current, evt.code));
           prevStepCodeRef.current = evt.code;
           setStreamingCode(evt.code);
@@ -1044,6 +1050,7 @@ export default function Page() {
   function reset() {
     setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
     setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
+    pendingClearRef.current = false;
     setToolEvents([]); setElapsed(0);
     setDecisions(null); setPlans(null); setPlanRequest(""); setRightPanel("code"); setFileName(""); setFileSize(0);
     setPreviewSessionId("");

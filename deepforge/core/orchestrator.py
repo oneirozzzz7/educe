@@ -275,7 +275,10 @@ class Orchestrator:
         transcript.on_update = push_transcript_event
         self.context.metadata["_transcript"] = transcript
 
+        import time as _time
+        _t0 = _time.time()
         decision = await self._decide(user_input)
+        _decide_elapsed = round(_time.time() - _t0, 1)
 
         if decision["action"] == "clarify":
             clarify_msg = Message(
@@ -293,11 +296,12 @@ class Orchestrator:
 
         if decision["action"] == "propose_plans":
             self.context.metadata["expert_name"] = "编程专家"
-            transcript.add("analyze", "system", "任务类型: BUILD")
+            transcript.add("analyze", "system", "任务类型: BUILD", elapsed=_decide_elapsed)
             transcript.current_phase = "plan"
+            _t1 = _time.time()
             plans = await self._generate_plans(user_input)
             if plans:
-                transcript.add("plan", "model", "生成了{}个方案".format(len(plans)))
+                transcript.add("plan", "model", "生成了{}个方案".format(len(plans)), elapsed=round(_time.time() - _t1, 1))
                 plan_msg = Message(
                     type=MessageType.SYSTEM, sender="planner", receiver="user",
                     content="__PLAN_PROPOSAL__",
@@ -310,20 +314,22 @@ class Orchestrator:
 
         if decision["action"] in ("code", "build_direct"):
             self.context.metadata["expert_name"] = "编程专家"
-            transcript.add("analyze", "system", "任务类型: BUILD")
+            transcript.add("analyze", "system", "任务类型: BUILD", elapsed=_decide_elapsed)
 
             # 复杂任务 + 首次构建 → 先提议方案让用户选
             has_prev_code = bool(self.context.artifacts.get("code_files"))
             if not has_prev_code:
+                _t1 = _time.time()
                 complexity = await self._assess_complexity(user_input)
                 self.context.metadata["_task_complexity"] = complexity
-                transcript.add("analyze", "system", "复杂度: {}".format(complexity.upper()))
+                transcript.add("analyze", "system", "复杂度: {}".format(complexity.upper()), elapsed=round(_time.time() - _t1, 1))
 
                 if complexity == "complex":
                     transcript.current_phase = "plan"
+                    _t2 = _time.time()
                     plans = await self._generate_plans(user_input)
                     if plans and len(plans) >= 2:
-                        transcript.add("plan", "model", "生成了{}个方案".format(len(plans)))
+                        transcript.add("plan", "model", "生成了{}个方案".format(len(plans)), elapsed=round(_time.time() - _t2, 1))
                         plan_msg = Message(
                             type=MessageType.SYSTEM, sender="planner", receiver="user",
                             content="__PLAN_PROPOSAL__",
