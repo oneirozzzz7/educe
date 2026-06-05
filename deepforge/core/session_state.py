@@ -45,9 +45,15 @@ class SessionState:
     # ─── Methods ───
 
     def add_turn(self, role: str, content: str, turn_type: str = "text") -> None:
+        # Code outputs: store filename reference only (full code lives on disk)
+        store_content = content
+        if turn_type == "code" and len(content) > 500:
+            import re
+            files = re.findall(r'```filepath:([^\n]+)', content)
+            store_content = "[代码产物] " + ", ".join(files) if files else content[:200]
         self.turns.append({
             "role": role,
-            "content": content[:10000],
+            "content": store_content[:10000],
             "timestamp": time.time(),
             "type": turn_type,
         })
