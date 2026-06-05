@@ -468,6 +468,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                             session_id, data.get("message_id", ""), signal)
                     continue
 
+                # Reset context — "新任务" button clears orchestrator state
+                if data.get("type") == "reset_context":
+                    orchestrator.context.artifacts.clear()
+                    orchestrator.context.metadata.clear()
+                    orchestrator.conversation.turns.clear()
+                    continue
+
                 # 处理决策选择（协作式构建）
                 if data.get("type") == "decision_response":
                     user_decisions = data.get("decisions", [])

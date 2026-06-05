@@ -1048,6 +1048,8 @@ export default function Page() {
     setDecisions(null); setPlans(null); setPlanRequest(""); setRightPanel("code"); setFileName(""); setFileSize(0);
     setPreviewSessionId("");
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    // Tell backend to clear orchestrator context for this session
+    wsRef.current?.sendRaw({ type: "reset_context" });
   }
 
   function fmtTime(ts: number) { return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }); }
