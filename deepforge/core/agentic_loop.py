@@ -152,6 +152,19 @@ class AgenticLoop:
             actions = self._parse_actions(response)
 
             if not actions:
+                # Fallback: model may have output code in ```filepath:xxx format without action prefix
+                fallback_files = self._extract_files_fallback(response)
+                if fallback_files:
+                    for fp, code in fallback_files.items():
+                        full_path = self.output_dir / fp
+                        full_path.parent.mkdir(parents=True, exist_ok=True)
+                        full_path.write_text(code, encoding="utf-8")
+                        self.files_written[fp] = code
+                        if on_tool_event:
+                            on_tool_event({"event": "write_file_result", "success": True,
+                                          "file": fp, "size": len(code.encode("utf-8")),
+                                          "output": "已写入 {} ({}字符)".format(fp, len(code))})
+
                 termination_reason = "complete"
                 if on_tool_event:
                     on_tool_event({"event": "done",
@@ -306,6 +319,28 @@ class AgenticLoop:
             body = match.group(2).strip()
             actions.append({"type": action_type, "body": body})
         return actions
+
+    @staticmethod
+    def _extract_files_fallback(response: str) -> dict[str, str]:
+        """Fallback extraction when model outputs code without action: prefix"""
+        files = {}
+        for match in re.finditer(r'```filepath:([^\n]+)\n([\s\S]*?)\n```', response):
+            fp = match.group(1).strip()
+            code = match.group(2)
+            if code and len(code) > 20:
+                files[fp] = code
+        if files:
+            return files
+        for match in re.finditer(r'```(?:html|htm)\n([\s\S]*?)\n```', response, re.IGNORECASE):
+            code = match.group(1).strip()
+            if code and len(code) > 50 and ('<html' in code.lower() or '<!doctype' in code.lower()):
+                files["index.html"] = code
+                break
+        if not files:
+            html_match = re.search(r'(<!DOCTYPE[\s\S]*?</html>)', response, re.IGNORECASE)
+            if html_match and len(html_match.group(1)) > 100:
+                files["index.html"] = html_match.group(1)
+        return files
 
     async def _execute(self, action: dict) -> ToolResult:
         action_type = action["type"]
