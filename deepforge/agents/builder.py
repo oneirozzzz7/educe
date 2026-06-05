@@ -265,6 +265,8 @@ class BuilderAgent(BaseAgent):
                             final_files.update(fix_files.files)
 
         if final_files:
+            import logging
+            logging.getLogger("deepforge").info("builder: final_files=%s", list(final_files.keys()))
             # Ensure index.html exists for preview server
             html_files = [f for f in final_files if f.endswith(".html")]
             if html_files and "index.html" not in final_files:
@@ -300,6 +302,9 @@ class BuilderAgent(BaseAgent):
                 for fp, code in final_files.items())
             yield self.emit("user", code_content)
         else:
+            import logging
+            logging.getLogger("deepforge").warning("builder: final_files EMPTY, complexity=%s, user_request=%s",
+                context.metadata.get("_task_complexity"), user_request[:60])
             yield self.emit("user", "未能生成代码文件，请更具体描述需求。")
 
     def _extract_tool_call(self, response: str) -> dict | None:

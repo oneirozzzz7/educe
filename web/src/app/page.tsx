@@ -1069,7 +1069,7 @@ export default function Page() {
     setPhase("active"); setSubPhase("thinking");
     setPreviewSessionId(sidRef.current);
     setAddedLines(new Set()); prevStepCodeRef.current = "";
-    setToolEvents([]); setDecisions(null); setPlans(null);
+    setDecisions(null); setPlans(null);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
