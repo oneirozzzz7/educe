@@ -431,20 +431,45 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand, addedLines }: {
+function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand, addedLines, currentVersion }: {
   streamingCode: string; html: string | null;
   rightPanel: "code" | "preview"; setRightPanel: (v: "code" | "preview") => void;
   fileName: string; toolEvents: ToolEvent[]; subPhase: SubPhase;
   previewSessionId: string;
   expanded?: boolean; onToggleExpand?: () => void;
   addedLines?: Set<number>;
+  currentVersion?: number;
 }) {
   const { t } = useLocale();
   const codeEndRef = useRef<HTMLDivElement>(null);
   const userScrolledRef = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [versions, setVersions] = useState<{version: number, files: string[]}[]>([]);
+  const [viewingVersion, setViewingVersion] = useState<number | null>(null);
+  const [versionCode, setVersionCode] = useState<string>("");
 
-  const displayCode = streamingCode || (subPhase === "done" && html ? html : "");
+  // Fetch versions when session changes
+  useEffect(() => {
+    if (!previewSessionId) return;
+    fetch(`/api/versions/${previewSessionId}`)
+      .then(r => r.json())
+      .then(d => setVersions(d.versions || []))
+      .catch(() => {});
+  }, [previewSessionId, currentVersion]);
+
+  function loadVersion(v: number) {
+    if (v === currentVersion || v === 0) { setViewingVersion(null); setVersionCode(""); return; }
+    setViewingVersion(v);
+    fetch(`/api/versions/${previewSessionId}/${v}`)
+      .then(r => r.json())
+      .then(d => {
+        const files = d.files || {};
+        setVersionCode(Object.values(files).join("\n\n") as string);
+      })
+      .catch(() => {});
+  }
+
+  const displayCode = viewingVersion ? versionCode : (streamingCode || (subPhase === "done" && html ? html : ""));
   const lines = displayCode ? displayCode.split("\n") : [];
 
   const isMarkdown = fileName.endsWith(".md") || fileName.endsWith(".markdown");
@@ -493,6 +518,18 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
           <>
             {streamingCode && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--amber)", marginRight: 10, animation: "e-pulse 2s ease-in-out infinite", boxShadow: "0 0 6px var(--amber-dim)" }} />}
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>{fileName || "..."}</span>
+            {versions.length > 1 && (
+              <div className="flex items-center gap-1 ml-3">
+                {versions.map(v => (
+                  <button key={v.version} onClick={() => loadVersion(v.version)}
+                    style={{ padding: "1px 6px", fontSize: 10, borderRadius: 3, border: "1px solid var(--border-0)", cursor: "pointer", fontFamily: "'Geist Mono', monospace",
+                      background: (viewingVersion === v.version || (!viewingVersion && v.version === currentVersion)) ? "var(--amber-dim)" : "var(--surface-2)",
+                      color: (viewingVersion === v.version || (!viewingVersion && v.version === currentVersion)) ? "var(--amber)" : "var(--text-3)" }}>
+                    v{v.version}
+                  </button>
+                ))}
+              </div>
+            )}
             <span style={{ flex: 1 }} />
             {streamingCode && <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: "var(--text-3)", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4 }}>{(streamingCode.length / 1024).toFixed(1)} KB</span>}
             {onToggleExpand && (
@@ -771,6 +808,7 @@ export default function Page() {
   const [addedLines, setAddedLines] = useState<Set<number>>(new Set());
   const prevStepCodeRef = useRef<string>("");
   const pendingClearRef = useRef(false);
+  const [currentVersion, setCurrentVersion] = useState(0);
   const [html, setHtml] = useState<string | null>(null);
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
@@ -934,6 +972,10 @@ export default function Page() {
       // ── tool_event ──
       else if ((msg as any).type === "tool_event") {
         const evt = msg as unknown as ToolEvent;
+        // version_saved: update version counter
+        if (evt.event === "version_saved" && (evt as any).version) {
+          setCurrentVersion((evt as any).version);
+        }
         // step_code_content: real-time code update for Code panel during step builds
         if (evt.event === "step_code_content" && evt.code) {
           pendingClearRef.current = false;
@@ -1051,6 +1093,7 @@ export default function Page() {
     setPhase("idle"); setSubPhase("thinking"); setHasArtifact(false); setBrief(""); setMsgs([]);
     setHtml(null); setStreamingCode(""); setAddedLines(new Set()); prevStepCodeRef.current = "";
     pendingClearRef.current = false;
+    setCurrentVersion(0);
     setToolEvents([]); setElapsed(0);
     setDecisions(null); setPlans(null); setPlanRequest(""); setRightPanel("code"); setFileName(""); setFileSize(0);
     setPreviewSessionId("");
@@ -1405,7 +1448,7 @@ export default function Page() {
                   {showArtifact && (
                     <motion.div key="artifact" initial={{ width: 0, opacity: 0 }} animate={{ width: artifactExpanded ? "100%" : `${100 - splitPercent}%`, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
                       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }} className="flex flex-col min-h-0 overflow-hidden">
-                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} addedLines={addedLines} />
+                      <CodePreviewPanel streamingCode={buildCode} html={html} rightPanel={rightPanel} setRightPanel={setRightPanel} fileName={derivedFileName} toolEvents={toolEvents} subPhase={subPhase} previewSessionId={previewSessionId} expanded={artifactExpanded} onToggleExpand={() => setArtifactExpanded(e => !e)} addedLines={addedLines} currentVersion={currentVersion} />
                       {phase === "complete" && (html || buildCode) && (
                         <CompleteBar fileName={derivedFileName || "output.html"} size={fileSize ? `${(fileSize / 1024).toFixed(1)} KB` : `${(buildCode.length / 1024).toFixed(1)} KB`}
                           rounds={toolEvents.filter(e => e.event === "write_file").length || 1} elapsed={elapsed} code={html || buildCode} isHtml={!!html} sessionId={previewSessionId} />

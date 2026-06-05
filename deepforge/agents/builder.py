@@ -274,11 +274,27 @@ class BuilderAgent(BaseAgent):
                 if src.exists() and not dst.exists():
                     shutil.copy2(str(src), str(dst))
 
+            # Save version snapshot
+            versions_dir = output_dir / "versions"
+            versions_dir.mkdir(exist_ok=True)
+            existing_versions = sorted(versions_dir.glob("v*"))
+            version_num = len(existing_versions) + 1
+            for filepath, code in final_files.items():
+                ver_path = versions_dir / "v{}_{}".format(version_num, filepath)
+                ver_path.write_text(code, encoding="utf-8")
+
             built_paths = [str(output_dir / fp) for fp in final_files]
             context.add_artifact("code_files", built_paths)
             context.add_artifact("output_dir", str(output_dir))
             context.add_artifact("engineer_output", "agentic build")
+            context.add_artifact("version", version_num)
             self._record_success(context.user_request, final_files)
+
+            # Push version event to frontend
+            if on_tool_event:
+                on_tool_event({"event": "version_saved", "version": version_num,
+                              "files": list(final_files.keys())})
+
             code_content = "\n\n".join(
                 "```filepath:{}\n{}\n```".format(fp, code)
                 for fp, code in final_files.items())

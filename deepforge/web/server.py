@@ -372,6 +372,37 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             headers={"Content-Disposition": f"attachment; filename=educe-{session_id[:8]}.zip"},
         )
 
+    @app.get("/api/versions/{session_id}")
+    async def list_versions(session_id: str):
+        versions_dir = Path(".deepforge/output") / session_id[:16] / "versions"
+        if not versions_dir.exists():
+            return {"versions": []}
+        version_files: dict[int, list[str]] = {}
+        for f in sorted(versions_dir.iterdir()):
+            if f.is_file() and f.name.startswith("v"):
+                parts = f.name.split("_", 1)
+                if len(parts) == 2:
+                    try:
+                        vnum = int(parts[0][1:])
+                        fname = parts[1]
+                        version_files.setdefault(vnum, []).append(fname)
+                    except ValueError:
+                        pass
+        versions = [{"version": v, "files": fs} for v, fs in sorted(version_files.items())]
+        return {"versions": versions}
+
+    @app.get("/api/versions/{session_id}/{version}")
+    async def get_version(session_id: str, version: int):
+        versions_dir = Path(".deepforge/output") / session_id[:16] / "versions"
+        files = {}
+        for f in sorted(versions_dir.iterdir()):
+            if f.is_file() and f.name.startswith("v{}_".format(version)):
+                fname = f.name.split("_", 1)[1]
+                files[fname] = f.read_text(encoding="utf-8", errors="ignore")
+        if not files:
+            return {"error": "version not found"}
+        return {"version": version, "files": files}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
