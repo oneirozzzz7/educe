@@ -262,9 +262,13 @@ class Orchestrator:
             self.context.metadata.pop("_pending_request", None)
             return result
 
-        # Create TaskTranscript for this turn
+        # Reuse existing transcript (cross-turn continuity) or create new one
         from deepforge.core.transcript import TaskTranscript
-        transcript = TaskTranscript(user_input)
+        transcript = self.context.metadata.get("_transcript")
+        if transcript:
+            transcript.user_request = user_input
+        else:
+            transcript = TaskTranscript(user_input)
 
         # Wire transcript to WebSocket via _notify
         def push_transcript_event(evt: dict):
@@ -571,7 +575,7 @@ class Orchestrator:
 
         has_prev_code = bool(self.context.artifacts.get("engineer_output"))
         if has_prev_code:
-            router_system += "\n注意：之前生成过代码。修改/调整/优化/改进/太差/不满意等=BUILD。"
+            router_system += "\n注意：之前生成过代码。修改/调整/优化/改进/太差/不满意/不够/继续/打磨/升级/完善/加强等=BUILD。"
 
         context_signals = self._build_confidence_context(user_input, cs)
         user_msg = user_input + file_hint
