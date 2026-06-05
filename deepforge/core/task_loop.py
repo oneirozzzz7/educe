@@ -74,12 +74,18 @@ class TaskLoop:
         user_goal: 用户的高层目标（可以模糊，如"持续改进"）
         budget_minutes: 时间预算
         max_iterations: 最大迭代次数兜底
-        on_progress: 每轮回调 (iteration: LoopIteration) -> None
+        on_progress: 每轮回调 (iteration: LoopIteration) -> None (sync or async)
         """
         start_time = time.time()
         budget_seconds = budget_minutes * 60
         stale_count = 0
         result = LoopResult()
+
+        async def _notify(it):
+            if on_progress:
+                r = on_progress(it)
+                if asyncio.iscoroutine(r):
+                    await r
 
         # 第一轮：执行原始需求（如果还没有产物）
         has_artifact = bool(self.orch.context.artifacts.get("engineer_output"))
@@ -91,8 +97,7 @@ class TaskLoop:
                 index=0, action="build", instruction=user_goal,
                 elapsed=elapsed, outcome=self._get_outcome_summary())
             self.iterations.append(iteration)
-            if on_progress:
-                on_progress(iteration)
+            await _notify(iteration)
 
         # 迭代循环
         for i in range(max_iterations):
@@ -113,8 +118,7 @@ class TaskLoop:
                     index=len(self.iterations), action="stop",
                     instruction=instruction)
                 self.iterations.append(iteration)
-                if on_progress:
-                    on_progress(iteration)
+                await _notify(iteration)
                 result.stop_reason = "model_decided"
                 break
 
@@ -130,8 +134,7 @@ class TaskLoop:
                 index=len(self.iterations), action=action,
                 instruction=instruction, elapsed=elapsed, outcome=outcome)
             self.iterations.append(iteration)
-            if on_progress:
-                on_progress(iteration)
+            await _notify(iteration)
 
             # 检测停滞
             if self._is_stale(iteration):

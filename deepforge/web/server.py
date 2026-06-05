@@ -510,6 +510,55 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if not user_input:
                     continue
 
+                # Auto-improve loop: user triggers autonomous iteration
+                if data.get("type") == "auto_improve" or "持续改进" in user_input or "自动优化" in user_input:
+                    from deepforge.core.task_loop import TaskLoop
+                    budget = data.get("budget_minutes", 10)
+                    max_iter = data.get("max_iterations", 6)
+                    goal = user_input if user_input else "持续改进当前产物"
+
+                    task_loop = TaskLoop(orchestrator)
+                    orchestrator.context.metadata["session_id"] = session_id
+                    orchestrator.context.metadata["_task_loop_active"] = True
+
+                    await websocket.send_json({"type": "status", "content": "thinking"})
+                    await websocket.send_json({
+                        "type": "tool_event", "event": "transcript",
+                        "phase": "build", "role": "system",
+                        "content": "启动自主改进循环 (预算{}分钟, 最多{}轮)".format(budget, max_iter),
+                        "elapsed": 0})
+
+                    async def loop_progress(iteration):
+                        if ws_closed["value"]:
+                            return
+                        try:
+                            await websocket.send_json({
+                                "type": "tool_event", "event": "transcript",
+                                "phase": "build", "role": "model",
+                                "content": "轮{} [{}] {}".format(
+                                    iteration.index, iteration.action, iteration.instruction[:80]),
+                                "elapsed": round(iteration.elapsed, 1)})
+                        except Exception:
+                            pass
+
+                    try:
+                        result = await task_loop.run(
+                            goal, budget_minutes=budget, max_iterations=max_iter,
+                            on_progress=loop_progress)
+                        await websocket.send_json({
+                            "type": "tool_event", "event": "transcript",
+                            "phase": "build", "role": "system",
+                            "content": "循环结束: {} ({}轮, {:.0f}s)".format(
+                                result.stop_reason, len(result.iterations), result.total_elapsed),
+                            "elapsed": round(result.total_elapsed, 1)})
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "content": str(e)})
+
+                    orchestrator.context.metadata.pop("_task_loop_active", None)
+                    await asyncio.sleep(0.05)
+                    await websocket.send_json({"type": "status", "content": "idle"})
+                    continue
+
                 file_ids = data.get("file_ids", [])
                 file_content = None
                 if file_ids:
