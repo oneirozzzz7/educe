@@ -1070,6 +1070,8 @@ export default function Page() {
     setPreviewSessionId(sidRef.current);
     setAddedLines(new Set()); prevStepCodeRef.current = "";
     setDecisions(null); setPlans(null);
+    // Insert separator in transcript timeline for this new turn
+    setToolEvents(prev => [...prev, { event: "user_turn", content: v } as ToolEvent]);
     setMsgs(p => [...p, { id: Date.now().toString(), role: "user", text: v + (files.length > 0 ? `\n📎 ${files.map(f => f.name).join(", ")}` : ""), timestamp: Date.now() }]);
     startRef.current = Date.now(); setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
@@ -1226,7 +1228,11 @@ export default function Page() {
                     {/* Constrain message width for readability */}
                     <div style={{ maxWidth: showArtifact ? "100%" : "760px", margin: showArtifact ? undefined : "0 auto" }}>
                     {/* User messages + AI replies */}
-                    {msgs.map(msg => (
+                    {msgs.filter(msg => {
+                      // When transcript is active, user messages are shown inside the timeline
+                      if (msg.role === "user" && toolEvents.some(e => e.event === "transcript")) return false;
+                      return true;
+                    }).map(msg => (
                       <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
                         {msg.role === "user" ? (
                           <div className="relative group/user shrink-0 max-w-[75%]">
@@ -1246,12 +1252,20 @@ export default function Page() {
                     {/* Transcript Timeline — full process visibility */}
                     {toolEvents.some(e => e.event === "transcript") && (
                       <div className="mb-4" style={{ padding: "12px 16px", borderRadius: 12, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
-                        {toolEvents.filter(e => e.event === "transcript").map((evt, i) => {
+                        {toolEvents.filter(e => e.event === "transcript" || e.event === "user_turn").map((evt, i) => {
+                          if (evt.event === "user_turn") {
+                            return (
+                              <div key={`ut-${i}`} className="flex items-center gap-2 py-2 my-1" style={{ borderTop: i > 0 ? "1px solid var(--border-0)" : "none" }}>
+                                <span style={{ fontSize: 11, color: "var(--amber)", fontWeight: 500 }}>▸</span>
+                                <span style={{ fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>{evt.content}</span>
+                              </div>
+                            );
+                          }
                           const phaseLabels: Record<string, string> = { analyze: "分析", plan: "规划", build: "构建", verify: "验证" };
                           const phaseColors: Record<string, string> = { analyze: "var(--sage)", plan: "var(--amber)", build: "var(--amber)", verify: "var(--pass)" };
                           const label = phaseLabels[evt.phase || ""] || evt.phase;
                           const dotColor = phaseColors[evt.phase || ""] || "var(--text-3)";
-                          const transcriptEvents = toolEvents.filter(e => e.event === "transcript");
+                          const transcriptEvents = toolEvents.filter(e => e.event === "transcript" || e.event === "user_turn");
                           const isLatest = i === transcriptEvents.length - 1 && subPhase !== "done";
                           return (
                             <div key={`tr-${i}`} className="flex items-start gap-2 py-1" style={{ fontSize: 12 }}>
