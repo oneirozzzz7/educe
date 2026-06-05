@@ -1013,6 +1013,33 @@ export default function Page() {
         setPhase("idle"); if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         toast(msg.content, "error");
       }
+      // ── state_sync — restore from backend SessionState ──
+      else if ((msg as any).type === "state_sync") {
+        const s = msg as any;
+        // Restore transcript timeline
+        if (s.transcript && s.transcript.length > 0) {
+          setToolEvents(s.transcript.map((e: any) => ({ event: "transcript", ...e })));
+        }
+        // Restore turns as chat messages
+        if (s.turns && s.turns.length > 0) {
+          const restored: ChatMsg[] = s.turns
+            .filter((t: any) => t.role === "user" || (t.role === "assistant" && t.type !== "code"))
+            .map((t: any, i: number) => ({
+              id: `restored-${i}`,
+              role: t.role as "user" | "assistant",
+              text: t.content,
+              timestamp: (t.timestamp || 0) * 1000,
+            }));
+          if (restored.length > 0) setMsgs(restored);
+        }
+        // Restore phase and artifact state
+        if (s.phase === "complete" && s.code_files?.length > 0) {
+          setPhase("complete"); setSubPhase("done"); setHasArtifact(true);
+          setFileName(s.code_files[0] || "");
+          setPreviewSessionId(s.session_id || "");
+          if (s.current_version) setCurrentVersion(s.current_version);
+        }
+      }
     });
 
     return () => ws.close();
