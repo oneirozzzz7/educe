@@ -220,8 +220,11 @@ class ExecutionLoop:
                         message="页面空白——没有可见文本、canvas或SVG元素"))
 
                 if console_errors:
-                    # Filter noise (e.g. favicon 404)
-                    real_errors = [e for e in console_errors if "favicon" not in e.lower()]
+                    # Filter noise: favicon 404, CDN loading issues in headless env
+                    real_errors = [e for e in console_errors
+                                   if "favicon" not in e.lower()
+                                   and "net::ERR_" not in e
+                                   and "Failed to load resource" not in e]
                     if real_errors:
                         errors.append(StructuredError(
                             file=html_path.name, line=None, error_type="runtime",
