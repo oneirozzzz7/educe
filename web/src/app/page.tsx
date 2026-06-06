@@ -1248,7 +1248,7 @@ export default function Page() {
               <div className="flex flex-1 min-h-0">
                 {/* Chat panel — hidden when artifact expanded */}
                 {!(showArtifact && artifactExpanded) && (
-                <div className="flex flex-col min-h-0 transition-all duration-300 flex-1"
+                <div className="flex flex-col min-h-0 overflow-hidden transition-all duration-300 flex-1"
                   style={showArtifact ? { width: `${splitPercent}%`, minWidth: 300, borderRight: "none", background: "var(--void)", flex: "none" } : { background: "var(--void)" }}>
                   {/* Scrollable chat content */}
                   <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px 120px" : "24px 28px 120px" }}>
