@@ -1295,11 +1295,7 @@ export default function Page() {
                     {/* Constrain message width for readability */}
                     <div style={{ maxWidth: showArtifact ? "100%" : "760px", margin: showArtifact ? undefined : "0 auto" }}>
                     {/* User messages + AI replies */}
-                    {msgs.filter(msg => {
-                      // When transcript is active, user messages are shown inside the timeline
-                      if (msg.role === "user" && toolEvents.some(e => e.event === "transcript")) return false;
-                      return true;
-                    }).map(msg => (
+                    {msgs.map(msg => (
                       <div key={msg.id} className={`mb-4 ${msg.role === "user" ? "flex justify-end" : ""}`}>
                         {msg.role === "user" ? (
                           <div className="relative group/user shrink-0 max-w-[75%]">
@@ -1316,8 +1312,8 @@ export default function Page() {
                       </div>
                     ))}
 
-                    {/* Transcript Timeline — full process visibility */}
-                    {toolEvents.some(e => e.event === "transcript") && (
+                    {/* Transcript Timeline — only show for BUILD process (has build/plan phase events) */}
+                    {toolEvents.some(e => e.event === "transcript" && (e.phase === "build" || e.phase === "plan" || e.content?.includes("BUILD"))) && (
                       <div className="mb-4" style={{ padding: "12px 16px", borderRadius: 12, background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
                         {toolEvents.filter(e => e.event === "transcript" || e.event === "user_turn").map((evt, i) => {
                           if (evt.event === "user_turn") {
