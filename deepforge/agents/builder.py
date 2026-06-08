@@ -452,11 +452,35 @@ class BuilderAgent(BaseAgent):
         # 领域知识
         domain_section = context.metadata.get("domain_knowledge", "")
 
-        return f"""你是DeepForge Builder。直接输出代码，不要描述、不要解释、不要说"我来创建"。
+        # BUILD 激发——让模型深度思考产品体验，不只是翻译需求为代码
+        build_activation = ""
+        try:
+            from deepforge.core.activation_engine import BUILD_ACTIVATION, DEFAULT_BUILD_SEED
+            build_seed = DEFAULT_BUILD_SEED
+            # 如果有演化后的 seed，使用它
+            if self.knowledge:
+                evolved = self.knowledge.recall("build_seed", max_results=1)
+                if evolved and evolved[0].startswith("[build_seed]"):
+                    build_seed = evolved[0].replace("[build_seed] ", "")
+            build_activation = BUILD_ACTIVATION.format(
+                build_seed=build_seed,
+                domain_context=domain_section)
+        except Exception:
+            pass
+
+        # 意图注入——来自深度意图理解
+        intent = context.metadata.get("_user_intent", "")
+        intent_section = ""
+        if intent and intent != message.content:
+            intent_section = "\n## 理解到的用户真实意图\n{}\n".format(intent)
+
+        return f"""{build_activation}
+
+直接输出代码，不要描述、不要解释、不要说"我来创建"。
 
 ## 用户需求
 {message.content}
-{file_section}{domain_section}{skill_hint}{compiled_knowledge}{recall_section}
+{intent_section}{file_section}{skill_hint}{compiled_knowledge}{recall_section}
 ## 核心要求
 1. 第一行就开始写代码，不要任何前言或废话
 2. 输出完整、可直接运行的代码——不能有截断、不能有TODO占位
