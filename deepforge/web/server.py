@@ -93,6 +93,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 orchestrator.context.artifacts["code_files"] = state.code_files
                 orchestrator.context.artifacts["engineer_output"] = "agentic build"
                 orchestrator.context.artifacts["output_dir"] = state.output_dir
+            # Restore conversation history from state turns
+            if state.turns:
+                from deepforge.core.conversation import Turn
+                for t in state.turns[-20:]:  # Last 20 turns max
+                    turn = Turn(role=t["role"], content=t["content"][:2000],
+                               timestamp=t.get("timestamp", 0))
+                    orchestrator.conversation.turns.append(turn)
 
             sessions[session_id] = orchestrator
         return sessions[session_id]
@@ -564,6 +571,12 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                 orchestrator.context.artifacts["engineer_output"] = "agentic build"
                                 orchestrator.context.artifacts["output_dir"] = target_state.output_dir
                             orchestrator.context.metadata["session_id"] = target_id
+                            # Restore conversation turns
+                            from deepforge.core.conversation import Turn
+                            for t in target_state.turns[-20:]:
+                                orchestrator.conversation.turns.append(
+                                    Turn(role=t["role"], content=t["content"][:2000],
+                                         timestamp=t.get("timestamp", 0)))
                     continue
 
                 # Reset context — "新任务" button clears orchestrator state
