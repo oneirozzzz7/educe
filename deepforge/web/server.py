@@ -154,6 +154,11 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/tasks")
     async def list_tasks(limit: int = 20, offset: int = 0):
+        from deepforge.core.session_state import SessionState
+        state_sessions = SessionState.list_all(limit=limit, offset=offset)
+        if state_sessions:
+            return {"tasks": state_sessions, "total": len(state_sessions), "offset": offset, "limit": limit}
+        # Fallback to old SessionStore for migration
         from deepforge.core.session_store import SessionStore
         store = SessionStore()
         sessions, total = store.list_sessions(limit=limit, offset=offset)
@@ -165,22 +170,48 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/tasks/{task_id}")
     async def get_task(task_id: str):
+        from deepforge.core.session_state import SessionState
+        state = SessionState.load(task_id)
+        if state:
+            # Enrich code turns with actual file content from disk
+            enriched_turns = []
+            for turn in state.turns:
+                t = dict(turn)
+                if t.get("type") == "code" and state.output_dir:
+                    try:
+                        work_dir = Path(state.output_dir)
+                        if work_dir.exists():
+                            html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
+                            main_html = next((f for f in html_files if f.name != "index.html"), None) or (html_files[0] if html_files else None)
+                            if main_html:
+                                content = main_html.read_text(encoding="utf-8", errors="ignore")
+                                t["response"] = "```filepath:{}\n{}\n```".format(main_html.name, content)
+                    except Exception:
+                        pass
+                enriched_turns.append(t)
+            return {
+                "session_id": state.session_id,
+                "turns": enriched_turns,
+                "transcript": state.transcript,
+                "versions": state.versions,
+                "current_version": state.current_version,
+                "phase": state.phase,
+            }
+        # Fallback to old stores
         from deepforge.core.session_store import SessionStore
         store = SessionStore()
         turns = store.get_session(task_id)
         if turns:
             for turn in turns:
                 if turn.get("type") == "code":
-                    # Always read from disk — session store only has a reference
                     try:
                         work_dir = Path(".deepforge/output") / task_id[:16]
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
-                            # Skip index.html copies, prefer the actual file
                             main_html = next((f for f in html_files if f.name != "index.html"), None) or (html_files[0] if html_files else None)
                             if main_html:
                                 content = main_html.read_text(encoding="utf-8", errors="ignore")
-                                turn["response"] = f"```filepath:{main_html.name}\n{content}\n```"
+                                turn["response"] = "```filepath:{}\n{}\n```".format(main_html.name, content)
                     except Exception:
                         pass
             return {"session_id": task_id, "turns": turns}
@@ -514,6 +545,25 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     if orchestrator.credibility:
                         orchestrator.credibility.record_feedback(
                             session_id, data.get("message_id", ""), signal)
+                    continue
+
+                # Switch session — load a different session's state into the orchestrator
+                if data.get("type") == "switch_session":
+                    target_id = data.get("session_id", "")
+                    if target_id:
+                        from deepforge.core.session_state import SessionState
+                        target_state = SessionState.load(target_id)
+                        if target_state:
+                            orchestrator.state = target_state
+                            orchestrator.context.artifacts.clear()
+                            orchestrator.context.metadata.clear()
+                            orchestrator.conversation.turns.clear()
+                            # Bridge state → artifacts
+                            if target_state.code_files:
+                                orchestrator.context.artifacts["code_files"] = target_state.code_files
+                                orchestrator.context.artifacts["engineer_output"] = "agentic build"
+                                orchestrator.context.artifacts["output_dir"] = target_state.output_dir
+                            orchestrator.context.metadata["session_id"] = target_id
                     continue
 
                 # Reset context — "新任务" button clears orchestrator state

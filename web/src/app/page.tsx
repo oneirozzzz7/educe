@@ -1195,7 +1195,15 @@ export default function Page() {
           setHasArtifact(false); setPhase("idle"); setSubPhase("thinking");
           setBrief(""); setFileName(""); setFileSize(0); setRightPanel("code");
           setDecisions(null); setPlans(null); setPlanRequest(""); setElapsed(0); setPreviewSessionId(task.id || "");
+          setCurrentVersion(task.current_version || 0);
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+          // Tell backend to switch to this session's state (enables iteration on history)
+          wsRef.current?.sendRaw({ type: "switch_session", session_id: task.id });
+
+          // Restore transcript from API response
+          if (task.transcript && Array.isArray(task.transcript) && task.transcript.length > 0) {
+            setToolEvents(task.transcript.map((e: any) => ({ event: "transcript", ...e })));
+          }
 
           if (task.turns && Array.isArray(task.turns)) {
             const newMsgs: ChatMsg[] = [];
