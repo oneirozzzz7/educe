@@ -424,17 +424,16 @@ class BuilderAgent(BaseAgent):
         )
 
     def _build_prompt(self, message: Message, context: WorkContext) -> str:
-        # L1: 编译层——高频成功模式零成本注入
-        l1 = self.knowledge.get_l1_compiled()
+        # 只注入代码相关的成功经验（不注入通用知识——法律/医学等与 BUILD 无关）
         compiled_knowledge = ""
-        if l1:
-            compiled_knowledge = "\n## 已验证的最佳实践\n" + "\n".join(f"- {k}" for k in l1[:5])
-
-        # L2+L3: 召回与当前任务相关的知识
-        recalled = self.knowledge.recall(context.user_request, max_results=3)
         recall_section = ""
-        if recalled:
-            recall_section = "\n## 相关经验\n" + "\n".join(f"- {r[:100]}" for r in recalled)
+        if self.knowledge:
+            # 只取 category="success" 的 L1 编译内容（代码构建的成功模式）
+            hot = [e for e in self.knowledge._entries.values()
+                   if e.category == "success" and e.is_hot]
+            if hot:
+                compiled_knowledge = "\n## 构建经验\n" + "\n".join(
+                    f"- {e.content[:80]}" for e in sorted(hot, key=lambda x: -x.usage_count)[:3])
 
         # Skill模板
         skill_hint = ""
