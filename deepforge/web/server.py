@@ -161,19 +161,22 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/tasks")
     async def list_tasks(limit: int = 20, offset: int = 0):
+        # Merge both sources: new SessionState + old SessionStore
         from deepforge.core.session_state import SessionState
-        state_sessions = SessionState.list_all(limit=limit, offset=offset)
-        if state_sessions:
-            return {"tasks": state_sessions, "total": len(state_sessions), "offset": offset, "limit": limit}
-        # Fallback to old SessionStore for migration
         from deepforge.core.session_store import SessionStore
+        state_sessions = SessionState.list_all(limit=100, offset=0)
         store = SessionStore()
-        sessions, total = store.list_sessions(limit=limit, offset=offset)
-        if sessions or offset > 0:
-            return {"tasks": sessions, "total": total, "offset": offset, "limit": limit}
-        from deepforge.core.task_store import TaskStore
-        old_store = TaskStore()
-        return {"tasks": old_store.list_tasks(), "total": 0, "offset": 0, "limit": limit}
+        old_sessions, _ = store.list_sessions(limit=100, offset=0)
+        # Merge: state takes priority for same id, then append old
+        seen_ids = {s["id"] for s in state_sessions}
+        merged = list(state_sessions)
+        for s in old_sessions:
+            if s["id"] not in seen_ids:
+                merged.append(s)
+        # Sort by updated_at desc
+        merged.sort(key=lambda x: x.get("updated_at", 0), reverse=True)
+        total = len(merged)
+        return {"tasks": merged[offset:offset + limit], "total": total, "offset": offset, "limit": limit}
 
     @app.get("/api/tasks/{task_id}")
     async def get_task(task_id: str):
