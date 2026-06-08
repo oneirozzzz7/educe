@@ -429,6 +429,39 @@ function InlineDecision({ decisions, onSubmit }: { decisions: Decision[]; onSubm
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PreviewFrame — scales iframe to simulate wider viewport
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function PreviewFrame({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement | null> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    const iframe = iframeRef.current;
+    if (!el || !iframe) return;
+    const updateScale = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const scale = Math.min(w / 1280, 1);
+      iframe.style.transform = `scale(${scale})`;
+      iframe.style.transformOrigin = "top left";
+      iframe.style.width = `${1280}px`;
+      iframe.style.height = `${Math.floor(h / scale)}px`;
+    };
+    updateScale();
+    const obs = new ResizeObserver(updateScale);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [iframeRef]);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
+      <motion.iframe ref={iframeRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
+        className="border-none" style={{ background: "#fff" }} />
+    </div>
+  );
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CodePreviewPanel (right)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, fileName, toolEvents, subPhase, previewSessionId, expanded, onToggleExpand, addedLines, currentVersion }: {
@@ -598,8 +631,7 @@ function CodePreviewPanel({ streamingCode, html, rightPanel, setRightPanel, file
 
         {/* Preview */}
         {rightPanel === "preview" && previewContent && (
-          <motion.iframe ref={iframeRef} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
-            className="absolute inset-0 w-full h-full border-none" style={{ background: "#fff" }} />
+          <PreviewFrame iframeRef={iframeRef} />
         )}
       </div>
     </div>
