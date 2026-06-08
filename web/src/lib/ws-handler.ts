@@ -79,15 +79,14 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "FILE_WRITTEN", fileName: evt.file, size: evt.size || 0 };
     }
 
-    // Other tool events — transcript entry for visibility
-    if (evt.event === "step_start" || evt.event === "step_done" || evt.event === "step_plan") {
+    // step_start/step_done already covered by transcript events from backend
+    // Only process step_plan for the step plan display
+    if (evt.event === "step_plan" && evt.steps) {
       const entry: TranscriptEntry = {
-        event: evt.event,
-        content: evt.description || evt.event,
-        step: evt.step,
-        total_steps: evt.total,
+        event: "step_plan",
+        content: `步骤计划: ${evt.total || evt.steps.length}步`,
         step_plan: evt.steps,
-        elapsed: evt.time,
+        total_steps: evt.total,
       };
       return { type: "TRANSCRIPT_ENTRY", entry };
     }

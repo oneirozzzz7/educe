@@ -446,7 +446,7 @@ function mapPhase(backendPhase: string | undefined): Phase | null {
 // ═══════════════════════════════════════
 
 export function hasArtifact(state: AppState): boolean {
-  return state.session.codeFiles.length > 0 || state.stream.code.length > 0 || state.stream.html !== null;
+  return state.session.phase === "building" || state.session.codeFiles.length > 0 || state.stream.code.length > 0 || state.stream.html !== null;
 }
 
 export function isActive(state: AppState): boolean {
