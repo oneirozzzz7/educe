@@ -466,6 +466,8 @@ class BuilderAgent(BaseAgent):
 ## 输出格式
 - 用```filepath:文件名格式包裹代码
 - 单HTML文件优先（内嵌CSS+JS），确保DOCTYPE和完整闭合标签
+- PPT/演示需求用HTML+reveal.js或纯HTML幻灯片实现（可通过CDN引入reveal.js）
+- Python脚本需求直接输出.py文件
 - 在代码中标注进度：<!-- STEP: 描述当前完成的部分 -->
 
 ## 你可以使用的工具（可选）

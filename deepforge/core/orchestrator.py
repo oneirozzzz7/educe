@@ -576,8 +576,8 @@ class Orchestrator:
         # 可靠的2选1路由（已验证100%准确）+ CognitiveState信号增强
         router_system = (
             "判断用户需要文字回答还是编写代码。\n"
-            "REPLY：聊天/提问/分析/翻译/写文章等\n"
-            "BUILD：做网页/工具/游戏/脚本/程序等\n"
+            "REPLY：聊天/提问/分析/翻译/写文章等纯文字任务\n"
+            "BUILD：做网页/工具/游戏/脚本/程序/PPT/演示文稿/文档生成/可视化等需要产出文件的任务\n"
             "只回复REPLY或BUILD。"
         )
 
