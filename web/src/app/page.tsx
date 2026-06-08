@@ -582,7 +582,7 @@ export default function Page() {
                 {/* Chat panel */}
                 {!(showArtifact && ui.artifactExpanded) && (
                   <div className="flex flex-col min-h-0 overflow-hidden" style={showArtifact ? { width: `${ui.splitPercent}%`, minWidth: 300, flex: "none", background: "var(--void)" } : { flex: 1, background: "var(--void)" }}>
-                    <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px 120px" : "24px 28px 120px" }}>
+                    <div className="flex-1 overflow-y-auto" style={{ padding: showArtifact ? "16px 18px 80px" : "24px 28px 80px" }}>
                       <div style={{ maxWidth: showArtifact ? "100%" : "760px", margin: showArtifact ? undefined : "0 auto" }}>
                         {/* Messages */}
                         {session.turns.map((turn, i) => (
@@ -621,9 +621,6 @@ export default function Page() {
                         <div ref={chatEndRef} />
                       </div>
                     </div>
-
-                    {/* Input */}
-                    <GlobalInput onSend={send} isBuilding={isBuilding} onStop={stopBuild} files={upload.files} onFileSelect={handleFileSelect} onRemoveFile={id => dispatch({ type: "SET_UPLOAD", files: upload.files.filter(f => f.id !== id) })} uploading={upload.uploading} fileInputRef={fileInputRef} />
                   </div>
                 )}
 
@@ -658,17 +655,10 @@ export default function Page() {
               </div>
             </motion.div>
           )}
-
-          {/* Input at bottom when no artifact */}
-          {active && !showArtifact && (
-            <GlobalInput onSend={send} isBuilding={isBuilding} onStop={stopBuild} files={upload.files} onFileSelect={handleFileSelect} onRemoveFile={id => dispatch({ type: "SET_UPLOAD", files: upload.files.filter(f => f.id !== id) })} uploading={upload.uploading} fileInputRef={fileInputRef} />
-          )}
-
-          {/* Input at bottom when idle */}
-          {!active && (
-            <GlobalInput onSend={send} isBuilding={false} files={upload.files} onFileSelect={handleFileSelect} onRemoveFile={id => dispatch({ type: "SET_UPLOAD", files: upload.files.filter(f => f.id !== id) })} uploading={upload.uploading} fileInputRef={fileInputRef} />
-          )}
         </div>
+
+        {/* Global input — always at bottom, single instance */}
+        <GlobalInput onSend={send} isBuilding={isBuilding} onStop={stopBuild} files={upload.files} onFileSelect={handleFileSelect} onRemoveFile={id => dispatch({ type: "SET_UPLOAD", files: upload.files.filter(f => f.id !== id) })} uploading={upload.uploading} fileInputRef={fileInputRef} />
       </div>
 
       {/* Settings modal */}
