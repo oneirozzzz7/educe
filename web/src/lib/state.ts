@@ -221,8 +221,18 @@ export type Action =
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     // ── Backend state sync ──
-    case "STATE_SYNC":
-      return { ...state, session: mapBackendSnapshot(action.payload, state.session) };
+    case "STATE_SYNC": {
+      const synced = mapBackendSnapshot(action.payload, state.session);
+      // Don't overwrite turns if local has more (we're ahead during streaming)
+      if (state.session.turns.length >= synced.turns.length) {
+        synced.turns = state.session.turns;
+      }
+      // Don't overwrite transcript if local has more
+      if (state.session.transcript.length >= synced.transcript.length) {
+        synced.transcript = state.session.transcript;
+      }
+      return { ...state, session: synced };
+    }
 
     case "SWITCH_SESSION":
       return {

@@ -167,12 +167,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         state_sessions = SessionState.list_all(limit=100, offset=0)
         store = SessionStore()
         old_sessions, _ = store.list_sessions(limit=100, offset=0)
-        # Merge: state takes priority for same id, then append old
-        seen_ids = {s["id"] for s in state_sessions}
+        # Merge: state takes priority for same id prefix, then append old
+        seen_ids = {s["id"][:16] for s in state_sessions}
         merged = list(state_sessions)
         for s in old_sessions:
-            if s["id"] not in seen_ids:
+            if s["id"][:16] not in seen_ids:
                 merged.append(s)
+                seen_ids.add(s["id"][:16])
         # Sort by updated_at desc
         merged.sort(key=lambda x: x.get("updated_at", 0), reverse=True)
         total = len(merged)

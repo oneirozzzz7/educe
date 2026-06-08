@@ -30,12 +30,10 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
 
   // ── agent_message ──
   if (type === "agent_message" && msg.msg_type !== "handoff") {
-    // Check if this is code output
     const content: string = msg.content || "";
     const hasFiles = msg.has_files || false;
 
     if (hasFiles || content.includes("```filepath:") || (content.includes("<!DOCTYPE") && content.length > 500)) {
-      // Code output — extract and set as stream code
       const codeMatch = content.match(/```filepath:([^\n]+)\n([\s\S]*?)```/);
       if (codeMatch) {
         return [
@@ -46,8 +44,9 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "STREAM_CODE_UPDATE", code: content };
     }
 
-    // Text reply
-    return { type: "AGENT_MESSAGE", content, sender: msg.sender || "assistant", hasFiles: false };
+    // Text reply — only dispatch if not already streamed via chunks
+    // (If chunks already built the turn, agent_message is a duplicate)
+    return null;
   }
 
   // ── tool_event ──

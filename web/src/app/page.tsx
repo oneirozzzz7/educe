@@ -588,7 +588,10 @@ export default function Page() {
                         {session.turns.map((turn, i) => (
                           <div key={i} className={`mb-4 ${turn.role === "user" ? "flex justify-end" : ""}`}>
                             {turn.role === "user" ? (
-                              <div className="user-bubble">{turn.content}</div>
+                              <div>
+                                <div className="user-bubble">{turn.content}</div>
+                                {turn.timestamp > 0 && <div style={{ textAlign: "right", fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>{fmtTime(turn.timestamp)}</div>}
+                              </div>
                             ) : (
                               <MessageBubble text={turn.content} timestamp={turn.timestamp} fmtTime={fmtTime} onFeedback={() => {}} />
                             )}
