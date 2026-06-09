@@ -418,7 +418,6 @@ class Orchestrator:
                 content = await self._audit(user_input, content)
             msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
             self.context.add_message(msg)
-            self._notify(msg)
             self._display(msg)
             self._feedback_success()
 
