@@ -328,11 +328,9 @@ class Orchestrator:
             if reply_text and round_idx == max_rounds - 1:
                 final_reply = reply_text
 
-        # 保存回复到后端状态
+        # 保存回复到后端状态（不调 state.add_turn，避免 state_sync 重复推送）
         if final_reply:
             self.conversation.add_assistant(final_reply)
-            if hasattr(self, 'state'):
-                self.state.add_turn("assistant", final_reply)
 
         return self.context
 
