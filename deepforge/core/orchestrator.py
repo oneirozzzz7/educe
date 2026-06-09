@@ -9,6 +9,7 @@ import asyncio
 import logging
 import re
 import uuid
+from pathlib import Path
 from typing import Callable
 
 log = logging.getLogger("deepforge.orchestrator")
@@ -38,6 +39,9 @@ class Orchestrator:
         self.task_store = TaskStore()
         self.bus = EventBus()
         self.knowledge = LayeredCache()
+
+        from deepforge.core.unified_store import UnifiedKnowledgeStore
+        self.unified_store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
 
         from deepforge.core.session_store import SessionStore
         self.session_store = SessionStore()
@@ -188,13 +192,20 @@ class Orchestrator:
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
             elif not domain:
-                # 未匹配明确领域时，recall 候选让模型判断相关性
-                candidates = self.domain_engine.recall_candidates(user_input, max_results=5)
-                if candidates:
-                    filtered = await self._filter_knowledge_by_relevance(user_input, candidates)
-                    if filtered:
+                # 统一知识系统：recall 候选让模型判断相关性
+                client = self._get_client()
+                if client and self.unified_store:
+                    recalled = await self.unified_store.recall(
+                        user_input,
+                        lambda msgs: client.chat(
+                            messages=msgs,
+                            model=self.config.default_model.model,
+                            max_tokens=50, temperature=0.0),
+                    )
+                    if recalled:
                         self.context.metadata["domain_knowledge"] = (
-                            "\n## 相关知识\n" + "\n".join(f"- {k}" for k in filtered))
+                            "\n## 相关知识\n" + "\n".join(
+                                f"- {e.content.body}" for e in recalled))
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -378,6 +389,10 @@ class Orchestrator:
         pipeline_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user", content="__PIPELINE_START__")
         self._notify(pipeline_msg)
 
+        # 注入统一知识系统到 context，供 builder 使用
+        if self.unified_store:
+            self.context.metadata["_unified_store"] = self.unified_store
+
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
 
@@ -479,6 +494,39 @@ class Orchestrator:
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
                                  file_count=len(self.context.artifacts.get("code_files", [])))
 
+        # 采集 SessionSignal 到统一知识系统
+        if self.unified_store:
+            import time as _t
+            transcript = self.context.metadata.get("_transcript")
+            phases = {}
+            if transcript:
+                for e in transcript.entries:
+                    if e.elapsed and e.phase:
+                        phases[e.phase] = phases.get(e.phase, 0) + e.elapsed
+            self.unified_store.record_signal({
+                "type": "build",
+                "session_id": self.context.metadata.get("session_id", ""),
+                "request": {
+                    "user_input": user_input[:200],
+                    "task_type": "build",
+                    "complexity": self.context.metadata.get("_task_complexity", "unknown"),
+                },
+                "execution": {
+                    "duration_seconds": round(sum(phases.values()), 1),
+                    "phases": phases,
+                    "iterations": self.context.artifacts.get("version", 1),
+                    "file_count": len(self.context.artifacts.get("code_files", [])),
+                    "model": self.config.default_model.model,
+                },
+                "signals": {
+                    "success": has_output,
+                    "user_signal": "unknown",
+                },
+                "seeds_used": {
+                    "build_seed_id": "seed_build_general",
+                },
+            })
+
         # Session级保存
         session_id = self.context.metadata.get("session_id", "")
         if session_id:
@@ -574,14 +622,15 @@ class Orchestrator:
             "你是任务理解专家。分析用户意图并决定处理方式。\n\n"
             "先思考：\n"
             "1. 用户真正想要什么？（深层需求，不只是字面意思）\n"
-            "2. 期望的产出形态？（代码文件/文字分析/需要追问确认？）\n"
+            "2. 期望的产出形态？（代码文件/文字分析/需要追问确认？记住偏好？）\n"
             "3. 如果有已有产物，是想改进还是在讨论别的？\n\n"
             "输出格式（严格）：\n"
-            "ACTION: build | reply | clarify\n"
+            "ACTION: build | reply | clarify | memorize\n"
             "INTENT: 一句话描述用户真实意图\n"
             "- build: 需要产出可运行的文件（网页/工具/游戏/脚本/演示/可视化等）\n"
             "- reply: 纯文字对话（提问/分析/翻译/闲聊）\n"
             "- clarify: 意图模糊需要追问（如'继续优化'但不知道优化什么方向）\n"
+            "- memorize: 用户要求记住偏好/规则/模式（'记住...'、'以后每次...'、'下次...'）\n"
         )
 
         # 构建用户消息——注入上下文让模型有足够信息判断
@@ -637,6 +686,8 @@ class Orchestrator:
             return await self._direct_reply(user_input, file_hint)
         if decision["action"] == "clarify":
             return {"action": "clarify", "question": await self._generate_clarify(user_input, decision)}
+        if decision["action"] == "memorize":
+            return await self._handle_memorize(user_input)
         return {"action": "code", "intent": decision.get("intent", user_input)}
 
     def _parse_intent(self, response: str) -> dict:
@@ -644,7 +695,7 @@ class Orchestrator:
         import re
         result = {"action": "reply", "intent": "", "form": "", "context": ""}
 
-        action_m = re.search(r'ACTION:\s*(build|reply|clarify)', response, re.IGNORECASE)
+        action_m = re.search(r'ACTION:\s*(build|reply|clarify|memorize)', response, re.IGNORECASE)
         if action_m:
             result["action"] = action_m.group(1).lower()
 
@@ -813,6 +864,67 @@ class Orchestrator:
             return [candidates[n-1] for n in nums if 1 <= n <= len(candidates)]
         except Exception:
             return []
+
+    async def _handle_memorize(self, user_input: str) -> dict:
+        """用户要求记住偏好/规则——模型结构化解析后写入统一知识系统"""
+        client = self._get_client()
+        if not client or not self.unified_store:
+            return {"action": "reply", "content": "知识系统未初始化，无法记忆。"}
+
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": (
+                        "用户要求你记住一条偏好或规则。解析用户的指令，提取结构化信息。\n"
+                        "输出JSON格式（严格）：\n"
+                        '{"content": "知识内容（简洁一句话）", '
+                        '"category": "preference|rule|pattern", '
+                        '"domain": "tech|design|general", '
+                        '"trigger": "在什么场景下应用这条知识"}\n'
+                        "只输出JSON，不要其他文字。"
+                    )},
+                    {"role": "user", "content": user_input},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=200, temperature=0.0,
+            )
+            import json as _json
+            parsed = _json.loads(result.strip().strip("```json").strip("```"))
+            content = parsed.get("content", user_input)
+            category = parsed.get("category", "insight")
+            domain = parsed.get("domain", "general")
+            trigger = parsed.get("trigger", "")
+
+            conditions = []
+            if trigger:
+                conditions.append({"type": "context", "value": trigger})
+
+            entry_id = self.unified_store.add(
+                content=content,
+                source="user",
+                maturity="pattern",
+                scope="project",
+                category=category,
+                domain=domain,
+                conditions=conditions,
+                session_id=self.context.metadata.get("session_id", ""),
+            )
+            log.info("_handle_memorize | stored id=%s content=%s", entry_id, content[:60])
+
+            reply = f"已记住：{content}"
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content=reply)
+            self.context.add_message(msg)
+            self._notify(msg)
+            return self.context
+        except Exception as e:
+            log.error("_handle_memorize | error: %s", str(e)[:100])
+            reply = f"记忆失败：{str(e)[:50]}"
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content=reply)
+            self.context.add_message(msg)
+            self._notify(msg)
+            return self.context
 
     def _match_skill(self, user_input: str) -> str | None:
         try:

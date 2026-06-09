@@ -433,11 +433,16 @@ class BuilderAgent(BaseAgent):
         )
 
     def _build_prompt(self, message: Message, context: WorkContext) -> str:
-        # 只注入代码相关的成功经验（不注入通用知识——法律/医学等与 BUILD 无关）
+        # 从统一知识系统获取构建经验
         compiled_knowledge = ""
         recall_section = ""
-        if self.knowledge:
-            # 只取 category="success" 的 L1 编译内容（代码构建的成功模式）
+        unified_store = context.metadata.get("_unified_store")
+        if unified_store:
+            compiled = unified_store.get_l1_compiled()
+            if compiled:
+                compiled_knowledge = "\n## 构建经验\n" + "\n".join(
+                    f"- {c}" for c in compiled[:3])
+        elif self.knowledge:
             hot = [e for e in self.knowledge._entries.values()
                    if e.category == "success" and e.is_hot]
             if hot:
@@ -460,13 +465,16 @@ class BuilderAgent(BaseAgent):
         # 领域知识
         domain_section = context.metadata.get("domain_knowledge", "")
 
-        # BUILD 激发——让模型深度思考产品体验，不只是翻译需求为代码
+        # BUILD 激发——从统一知识系统获取 seed
         build_activation = ""
         try:
             from deepforge.core.activation_engine import BUILD_ACTIVATION, DEFAULT_BUILD_SEED
             build_seed = DEFAULT_BUILD_SEED
-            # 如果有演化后的 seed，使用它
-            if self.knowledge:
+            if unified_store:
+                seed_text = unified_store.get_seed_text("build", "general")
+                if seed_text:
+                    build_seed = seed_text
+            elif self.knowledge:
                 evolved = self.knowledge.recall("build_seed", max_results=1)
                 if evolved and evolved[0].startswith("[build_seed]"):
                     build_seed = evolved[0].replace("[build_seed] ", "")
