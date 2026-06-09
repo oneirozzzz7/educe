@@ -563,6 +563,11 @@ class Orchestrator:
                 "knowledge_used": recalled_ids,
             })
 
+            # 构建成功后：让模型判断是否有可提炼的经验写入知识系统
+            if has_output:
+                asyncio.create_task(
+                    self._maybe_extract_knowledge(user_input, recalled_ids))
+
         # Session级保存
         session_id = self.context.metadata.get("session_id", "")
         if session_id:
@@ -666,7 +671,7 @@ class Orchestrator:
             "- build: 需要产出可运行的文件（网页/工具/游戏/脚本/演示/可视化等）\n"
             "- reply: 纯文字对话（提问/分析/翻译/闲聊）\n"
             "- clarify: 意图模糊需要追问（如'继续优化'但不知道优化什么方向）\n"
-            "- memorize: 用户要求记住偏好/规则/模式（'记住...'、'以后每次...'、'下次...'）\n"
+            "- memorize: 用户要求记住偏好/规则/模式，或查看/删除已有记忆（'记住...'、'以后每次...'、'列出记忆'、'删掉...'）\n"
         )
 
         # 构建用户消息——注入上下文让模型有足够信息判断
@@ -874,22 +879,23 @@ class Orchestrator:
         return next(iter(self.agents.values())).model_client
 
     async def _handle_memorize(self, user_input: str):
-        """用户要求记住偏好/规则——模型结构化解析后写入统一知识系统"""
+        """用户要求记住/查看/删除知识——模型判断操作类型后执行"""
         client = self._get_client()
         if not client or not self.unified_store:
-            return {"action": "reply", "content": "知识系统未初始化，无法记忆。"}
+            return {"action": "reply", "content": "知识系统未初始化。"}
 
         try:
             result = await client.chat(
                 messages=[
                     {"role": "system", "content": (
-                        "用户要求你记住一条偏好或规则。解析用户的指令，提取结构化信息。\n"
-                        "输出JSON格式（严格）：\n"
-                        '{"content": "知识内容（简洁一句话）", '
-                        '"category": "preference|rule|pattern", '
-                        '"domain": "tech|design|general", '
-                        '"trigger": "在什么场景下应用这条知识"}\n'
-                        "只输出JSON，不要其他文字。"
+                        "用户在操作记忆系统。判断用户想做什么，输出JSON：\n"
+                        "新增：{\"op\": \"add\", \"content\": \"知识内容\", "
+                        "\"category\": \"preference|rule|pattern\", "
+                        "\"domain\": \"tech|design|general\", "
+                        "\"trigger\": \"应用场景\"}\n"
+                        "查看：{\"op\": \"list\"}\n"
+                        "删除：{\"op\": \"delete\", \"keyword\": \"要删除的知识关键词\"}\n"
+                        "只输出JSON。"
                     )},
                     {"role": "user", "content": user_input},
                 ],
@@ -897,29 +903,56 @@ class Orchestrator:
                 max_tokens=200, temperature=0.0,
             )
             import json as _json
-            parsed = _json.loads(result.strip().strip("```json").strip("```"))
-            content = parsed.get("content", user_input)
-            category = parsed.get("category", "insight")
-            domain = parsed.get("domain", "general")
-            trigger = parsed.get("trigger", "")
+            raw = result.strip().strip("```json").strip("```").strip()
+            parsed = _json.loads(raw)
+            op = parsed.get("op", "add")
 
-            conditions = []
-            if trigger:
-                conditions.append({"type": "context", "value": trigger})
+            if op == "list":
+                entries = self.unified_store._catalog
+                if not entries:
+                    reply = "当前没有已记录的知识。"
+                else:
+                    lines = [f"• {e['preview']}" for e in entries[:15]]
+                    reply = f"已记录 {len(entries)} 条知识：\n" + "\n".join(lines)
 
-            entry_id = self.unified_store.add(
-                content=content,
-                source="user",
-                maturity="pattern",
-                scope="project",
-                category=category,
-                domain=domain,
-                conditions=conditions,
-                session_id=self.context.metadata.get("session_id", ""),
-            )
-            log.info("_handle_memorize | stored id=%s content=%s", entry_id, content[:60])
+            elif op == "delete":
+                keyword = parsed.get("keyword", "")
+                deleted = False
+                for e in list(self.unified_store._catalog):
+                    if keyword and keyword in e["preview"]:
+                        path = self.unified_store.entries_dir / f"{e['id']}.json"
+                        if path.exists():
+                            path.unlink()
+                        self.unified_store._catalog.remove(e)
+                        deleted = True
+                        break
+                if deleted:
+                    self.unified_store._save_catalog()
+                    self.unified_store._invalidate_compiled()
+                    reply = f"已删除包含「{keyword}」的知识。"
+                else:
+                    reply = f"未找到包含「{keyword}」的知识。"
 
-            reply = f"已记住：{content}"
+            else:
+                content = parsed.get("content", user_input)
+                category = parsed.get("category", "insight")
+                domain = parsed.get("domain", "general")
+                trigger = parsed.get("trigger", "")
+                conditions = []
+                if trigger:
+                    conditions.append({"type": "context", "value": trigger})
+                self.unified_store.add(
+                    content=content,
+                    source="user",
+                    maturity="pattern",
+                    scope="project",
+                    category=category,
+                    domain=domain,
+                    conditions=conditions,
+                    session_id=self.context.metadata.get("session_id", ""),
+                )
+                reply = f"已记住：{content}"
+
             msg = Message(type=MessageType.RESULT, sender="assistant",
                          receiver="user", content=reply)
             self.context.add_message(msg)
@@ -927,12 +960,67 @@ class Orchestrator:
             return self.context
         except Exception as e:
             log.error("_handle_memorize | error: %s", str(e)[:100])
-            reply = f"记忆失败：{str(e)[:50]}"
+            # fallback：JSON解析失败时，直接把用户原话存为知识
+            self.unified_store.add(
+                content=user_input,
+                source="user",
+                maturity="observation",
+                scope="project",
+                session_id=self.context.metadata.get("session_id", ""),
+            )
+            reply = f"已记住（原文）：{user_input[:60]}"
             msg = Message(type=MessageType.RESULT, sender="assistant",
                          receiver="user", content=reply)
             self.context.add_message(msg)
             self._notify(msg)
             return self.context
+
+    async def _maybe_extract_knowledge(self, user_input: str, existing_ids: list[str]):
+        """构建成功后，让模型判断是否有可复用的经验值得记录"""
+        client = self._get_client()
+        if not client or not self.unified_store:
+            return
+        try:
+            transcript = self.context.metadata.get("_transcript")
+            transcript_summary = ""
+            if transcript:
+                transcript_summary = "\n".join(
+                    f"[{e.phase}] {e.content}" for e in transcript.entries[-8:])
+
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": (
+                        "一次代码构建刚完成。判断这次构建过程中是否产生了可复用的经验。\n"
+                        "可复用经验 = 下次遇到同类任务时能直接帮助的具体规则/模式/约束。\n"
+                        "不是经验 = 只是正常完成了任务、没有特别的发现或教训。\n\n"
+                        "如果有经验，输出JSON：{\"has_insight\": true, \"content\": \"一句话描述\", "
+                        "\"category\": \"rule|pattern|pitfall\"}\n"
+                        "如果没有，输出：{\"has_insight\": false}\n"
+                        "只输出JSON。"
+                    )},
+                    {"role": "user", "content": (
+                        f"用户需求：{user_input[:200]}\n"
+                        f"构建过程：\n{transcript_summary[:500]}"
+                    )},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=150, temperature=0.0,
+            )
+            import json as _json
+            parsed = _json.loads(result.strip().strip("```json").strip("```"))
+            if parsed.get("has_insight") and parsed.get("content"):
+                self.unified_store.add(
+                    content=parsed["content"],
+                    source="auto",
+                    maturity="observation",
+                    scope="session",
+                    category=parsed.get("category", "insight"),
+                    domain="tech",
+                    session_id=self.context.metadata.get("session_id", ""),
+                )
+                log.info("_maybe_extract_knowledge | extracted: %s", parsed["content"][:60])
+        except Exception:
+            pass
 
     def _match_skill(self, user_input: str) -> str | None:
         try:
