@@ -41,7 +41,11 @@ class Orchestrator:
         self.knowledge = LayeredCache()
 
         from deepforge.core.unified_store import UnifiedKnowledgeStore
-        self.unified_store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+        self.unified_store = None
+        try:
+            self.unified_store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+        except Exception:
+            pass
 
         from deepforge.core.session_store import SessionStore
         self.session_store = SessionStore()
@@ -210,26 +214,25 @@ class Orchestrator:
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
 
-        # 统一知识系统：recall 让模型判断相关性
-        if not self.context.metadata.get("domain_knowledge"):
-            client = self._get_client()
-            if client and self.unified_store:
-                recalled = await self.unified_store.recall(
-                    user_input,
-                    lambda msgs: client.chat(
-                        messages=msgs,
-                        model=self.config.default_model.model,
-                        max_tokens=50, temperature=0.0),
-                )
-                if recalled:
-                    self.context.metadata["domain_knowledge"] = (
-                        "\n## 相关知识\n" + "\n".join(
-                            f"- {e.content.body}" for e in recalled))
-                    self.context.metadata["_recalled_knowledge_ids"] = [
-                        e.id for e in recalled]
-                    # 记录摘要，等 transcript 创建后补录
-                    self.context.metadata["_recalled_knowledge_summary"] = "、".join(
-                        e.content.body[:30] for e in recalled[:3])
+        # 统一知识系统：recall 让模型判断相关性（独立于 domain_engine，结果追加）
+        client = self._get_client()
+        if client and self.unified_store:
+            recalled = await self.unified_store.recall(
+                user_input,
+                lambda msgs: client.chat(
+                    messages=msgs,
+                    model=self.config.default_model.model,
+                    max_tokens=50, temperature=0.0),
+            )
+            if recalled:
+                existing = self.context.metadata.get("domain_knowledge", "")
+                self.context.metadata["domain_knowledge"] = (
+                    existing + "\n## 相关知识\n" + "\n".join(
+                        f"- {e.content.body}" for e in recalled))
+                self.context.metadata["_recalled_knowledge_ids"] = [
+                    e.id for e in recalled]
+                self.context.metadata["_recalled_knowledge_summary"] = "、".join(
+                    e.content.body[:30] for e in recalled[:3])
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -1385,7 +1388,11 @@ class Orchestrator:
         file_context = self.context.metadata.get("uploaded_files_text", "")
 
         domain_context = self.context.metadata.get("domain_knowledge", "")
-        l1 = self.knowledge.get_l1_compiled() if self.knowledge else []
+        l1 = []
+        if self.unified_store:
+            l1 = self.unified_store.get_l1_compiled()
+        elif self.knowledge:
+            l1 = self.knowledge.get_l1_compiled()
 
         recalled = []
         if self.distiller:

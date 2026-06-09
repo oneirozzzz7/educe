@@ -215,10 +215,38 @@ class UnifiedKnowledgeStore:
             entry.stats.failure_count += 1
             entry.stats.streak = 0
         entry.updated_at = time.time()
+
+        # 成熟度自然升级（模型数据驱动，不硬编码阈值——使用统计作为信号）
+        new_maturity = self._evaluate_maturity(entry)
+        if new_maturity != entry.maturity:
+            self._save_version(entry)
+            entry.version += 1
+            entry.maturity = new_maturity
+
         self._write_entry(entry)
         self._update_catalog_entry(entry)
         self._save_catalog()
         self._invalidate_compiled()
+
+    def _evaluate_maturity(self, entry: "KnowledgeEntry") -> str:
+        """根据使用统计评估成熟度——数据驱动的自然升降"""
+        rate = entry.success_rate
+        usage = entry.stats.usage_count
+        streak = entry.stats.streak
+
+        if entry.maturity == "observation":
+            if usage >= 3 and rate > 0.6:
+                return "experience"
+        elif entry.maturity == "experience":
+            if usage >= 8 and rate > 0.8 and streak >= 3:
+                return "pattern"
+            if usage >= 5 and rate < 0.3:
+                return "observation"
+        elif entry.maturity == "pattern":
+            if usage >= 5 and rate < 0.4:
+                return "experience"
+
+        return entry.maturity
 
     # ═══════════════════════════════════════
     #  检索（纯模型判断）
