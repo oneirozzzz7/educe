@@ -227,13 +227,9 @@ class Orchestrator:
                             f"- {e.content.body}" for e in recalled))
                     self.context.metadata["_recalled_knowledge_ids"] = [
                         e.id for e in recalled]
-                    # 用户可见：在 transcript 中记录使用了哪些知识
-                    transcript = self.context.metadata.get("_transcript")
-                    if transcript:
-                        knowledge_summary = "、".join(
-                            e.content.body[:30] for e in recalled[:3])
-                        transcript.add("analyze", "system",
-                            f"应用已有知识：{knowledge_summary}")
+                    # 记录摘要，等 transcript 创建后补录
+                    self.context.metadata["_recalled_knowledge_summary"] = "、".join(
+                        e.content.body[:30] for e in recalled[:3])
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -335,6 +331,11 @@ class Orchestrator:
         self.context.metadata["_transcript"] = transcript
         if hasattr(self, 'state'):
             self.context.metadata["_session_state"] = self.state
+
+        # 补录：如果 recall 阶段命中了知识，现在 transcript 已就绪，写入用户可见记录
+        knowledge_summary = self.context.metadata.pop("_recalled_knowledge_summary", None)
+        if knowledge_summary:
+            transcript.add("analyze", "system", f"应用已有知识：{knowledge_summary}")
 
         import time as _time
         _t0 = _time.time()
