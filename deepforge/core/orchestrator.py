@@ -168,15 +168,23 @@ class Orchestrator:
                     "weight": weight,
                 })
 
-            # 负向信号→降级上一轮用过的知识 + 标记下一轮不提取
+            # 根据用户反馈更新上一轮 recall 过的知识的使用结果
+            prev_recalled = self.context.metadata.get("_recalled_knowledge_ids", [])
+            if prev_recalled and self.unified_store:
+                is_positive = signal in ("grateful", "engaged")
+                is_negative = signal in ("error", "unsatisfied")
+                if is_positive or is_negative:
+                    for eid in prev_recalled:
+                        self.unified_store.record_usage(eid, success=is_positive)
+
             if signal == "error":
                 self.context.metadata["_skip_next_extraction"] = True
-                recalled_ids = self.context.metadata.get("_recalled_knowledge_ids", [])
-                for eid in recalled_ids:
-                    if self.unified_store:
-                        self.unified_store.record_usage(eid, success=False)
             else:
                 self.context.metadata.pop("_skip_next_extraction", None)
+
+        # 清除上一轮的 recall 状态，避免跨轮残留
+        self.context.metadata.pop("_recalled_knowledge_ids", None)
+        self.context.metadata.pop("domain_knowledge", None)
 
         self.conversation.add_user(user_input, file_content)
         if hasattr(self, 'state'):
@@ -219,6 +227,13 @@ class Orchestrator:
                             f"- {e.content.body}" for e in recalled))
                     self.context.metadata["_recalled_knowledge_ids"] = [
                         e.id for e in recalled]
+                    # 用户可见：在 transcript 中记录使用了哪些知识
+                    transcript = self.context.metadata.get("_transcript")
+                    if transcript:
+                        knowledge_summary = "、".join(
+                            e.content.body[:30] for e in recalled[:3])
+                        transcript.add("analyze", "system",
+                            f"应用已有知识：{knowledge_summary}")
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -521,10 +536,7 @@ class Orchestrator:
                     if e.elapsed and e.phase:
                         phases[e.phase] = phases.get(e.phase, 0) + e.elapsed
 
-            # 对 recall 过的知识记录使用结果
             recalled_ids = self.context.metadata.get("_recalled_knowledge_ids", [])
-            for kid in recalled_ids:
-                self.unified_store.record_usage(kid, success=has_output)
 
             self.unified_store.record_signal({
                 "type": "build",
@@ -861,7 +873,7 @@ class Orchestrator:
             return None
         return next(iter(self.agents.values())).model_client
 
-    async def _handle_memorize(self, user_input: str) -> dict:
+    async def _handle_memorize(self, user_input: str):
         """用户要求记住偏好/规则——模型结构化解析后写入统一知识系统"""
         client = self._get_client()
         if not client or not self.unified_store:
