@@ -168,6 +168,8 @@ class AgenticLoop:
                             on_tool_event({"event": "write_file_result", "success": True,
                                           "file": fp, "size": len(code.encode("utf-8")),
                                           "output": "已写入 {} ({}字符)".format(fp, len(code))})
+                            on_tool_event({"event": "step_code_content",
+                                          "step": turn + 1, "code": code})
 
                 termination_reason = "complete"
                 if on_tool_event:
@@ -215,6 +217,9 @@ class AgenticLoop:
                         evt["file"] = result.file_written
                         evt["size"] = len(content.encode("utf-8"))
                     on_tool_event(evt)
+                    if result.file_written:
+                        on_tool_event({"event": "step_code_content",
+                                       "step": turn + 1, "code": content})
 
             result_text = "\n\n".join(
                 "工具 {} 执行结果:\n{}".format(r.tool, r.output) for r in results

@@ -187,6 +187,14 @@ class Orchestrator:
             domain_knowledge = self.domain_engine.inject_knowledge(user_input, domain)
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
+            elif not domain:
+                # 未匹配明确领域时，recall 候选让模型判断相关性
+                candidates = self.domain_engine.recall_candidates(user_input, max_results=5)
+                if candidates:
+                    filtered = await self._filter_knowledge_by_relevance(user_input, candidates)
+                    if filtered:
+                        self.context.metadata["domain_knowledge"] = (
+                            "\n## 相关知识\n" + "\n".join(f"- {k}" for k in filtered))
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -309,24 +317,6 @@ class Orchestrator:
                     session_id, user_input, decision.get("question", ""),
                     turn_type="clarify", domain=self.cognitive_state.domain)
             return self.context
-
-        if decision["action"] == "propose_plans":
-            self.context.metadata["expert_name"] = "编程专家"
-            transcript.add("analyze", "system", "任务类型: BUILD", elapsed=_decide_elapsed)
-            transcript.current_phase = "plan"
-            _t1 = _time.time()
-            plans = await self._generate_plans(user_input)
-            if plans:
-                transcript.add("plan", "model", "生成了{}个方案".format(len(plans)), elapsed=round(_time.time() - _t1, 1))
-                plan_msg = Message(
-                    type=MessageType.SYSTEM, sender="planner", receiver="user",
-                    content="__PLAN_PROPOSAL__",
-                    data={"plans": plans, "original_request": user_input})
-                self._notify(plan_msg)
-                self.context.metadata["_pending_plans"] = plans
-                self.context.metadata["_pending_request"] = user_input
-                self.cognitive_state.phase = "planning"
-                return self.context
 
         if decision["action"] in ("code", "build_direct"):
             self.context.metadata["expert_name"] = "编程专家"
@@ -795,6 +785,34 @@ class Orchestrator:
         if not self.agents:
             return None
         return next(iter(self.agents.values())).model_client
+
+    async def _filter_knowledge_by_relevance(self, query: str, candidates: list[str]) -> list[str]:
+        """让模型判断候选知识与当前任务的相关性，只保留相关的"""
+        client = self._get_client()
+        if not client:
+            return []
+        numbered = "\n".join(f"{i+1}. {c[:100]}" for i, c in enumerate(candidates))
+        try:
+            result = await client.chat(
+                messages=[
+                    {"role": "system", "content": (
+                        "判断以下知识条目是否与用户当前任务直接相关。\n"
+                        "只输出相关条目的编号（逗号分隔），如果都不相关则输出 none。\n"
+                        "相关 = 对完成当前任务有直接帮助的经验、模式或约束。\n"
+                        "不相关 = 来自其他领域、与当前任务无关的知识。"
+                    )},
+                    {"role": "user", "content": f"任务：{query}\n\n候选知识：\n{numbered}"},
+                ],
+                model=self.config.default_model.model,
+                max_tokens=50, temperature=0.0,
+            )
+            if "none" in result.lower():
+                return []
+            import re
+            nums = [int(n) for n in re.findall(r'\d+', result)]
+            return [candidates[n-1] for n in nums if 1 <= n <= len(candidates)]
+        except Exception:
+            return []
 
     def _match_skill(self, user_input: str) -> str | None:
         try:

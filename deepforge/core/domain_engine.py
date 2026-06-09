@@ -228,16 +228,16 @@ class DomainEngine:
         return best_domain if best_score >= 2 else None
 
     def inject_knowledge(self, query: str, domain: str | None = None) -> str:
-        """按命中注入领域知识到prompt"""
+        """按命中注入领域知识到prompt——明确匹配领域时格式化注入"""
         if domain and domain in self.domains:
             dk = self.domains[domain]
             return self._format_domain(dk, query)
 
-        recalled = self.knowledge.recall(query, max_results=5)
-        if recalled:
-            return "\n## 领域知识\n" + "\n".join(f"- {r}" for r in recalled)
-
         return ""
+
+    def recall_candidates(self, query: str, max_results: int = 5) -> list[str]:
+        """召回候选知识（不过滤），由上层决定是否注入"""
+        return self.knowledge.recall(query, max_results=max_results)
 
     def _format_domain(self, dk: DomainKnowledge, query: str) -> str:
         """格式化领域知识为prompt注入段"""
