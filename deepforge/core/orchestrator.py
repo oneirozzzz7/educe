@@ -302,11 +302,7 @@ class Orchestrator:
                 final_reply = raw
                 break
 
-            # 有 action 时，先推送文字部分给用户（如果有的话）
-            if reply_text:
-                for i in range(0, len(reply_text), 20):
-                    self._notify_chunk("assistant", reply_text[i:i+20])
-
+            # 有 action 时，不推送文字（等最终轮统一推送）
             # 执行每个 action
             for action in actions:
                 result = await self._execute_action(action, user_input, transcript)
