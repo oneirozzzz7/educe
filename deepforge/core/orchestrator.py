@@ -222,29 +222,7 @@ class Orchestrator:
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
 
-        # 统一知识系统：recall 让模型判断相关性（独立于 domain_engine，结果追加）
-        client = self._get_client()
-        if client and self.unified_store:
-            recalled = await self.unified_store.recall(
-                user_input,
-                lambda msgs: client.chat(
-                    messages=msgs,
-                    model=self.config.default_model.model,
-                    max_tokens=50, temperature=0.0),
-            )
-            if recalled:
-                existing = self.context.metadata.get("domain_knowledge", "")
-                self.context.metadata["domain_knowledge"] = (
-                    existing + "\n## 相关知识\n" + "\n".join(
-                        f"- {e.content.body}" for e in recalled))
-                self.context.metadata["_recalled_knowledge_ids"] = [
-                    e.id for e in recalled]
-                self.context.metadata["_recalled_knowledge_summary"] = "、".join(
-                    e.content.body[:30] for e in recalled[:3])
-                log_activity(_sid, "knowledge_recall",
-                            count=len(recalled),
-                            ids=[e.id for e in recalled],
-                            previews=[e.preview for e in recalled])
+        # 知识 recall 延迟到 build 确认后执行（避免干扰 _decide 的意图判断）
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -351,11 +329,6 @@ class Orchestrator:
         if hasattr(self, 'state'):
             self.context.metadata["_session_state"] = self.state
 
-        # 补录：如果 recall 阶段命中了知识，现在 transcript 已就绪，写入用户可见记录
-        knowledge_summary = self.context.metadata.pop("_recalled_knowledge_summary", None)
-        if knowledge_summary:
-            transcript.add("analyze", "system", f"应用已有知识：{knowledge_summary}")
-
         import time as _time
         _t0 = _time.time()
         decision = await self._decide(user_input)
@@ -443,6 +416,36 @@ class Orchestrator:
         # 注入统一知识系统到 context，供 builder 使用
         if self.unified_store:
             self.context.metadata["_unified_store"] = self.unified_store
+
+        # 知识 recall（在 build 确认后执行，不干扰 _decide 意图判断）
+        _sid = self.context.metadata.get("session_id", "")
+        client = self._get_client()
+        if client and self.unified_store:
+            recalled = await self.unified_store.recall(
+                user_input,
+                lambda msgs: client.chat(
+                    messages=msgs,
+                    model=self.config.default_model.model,
+                    max_tokens=50, temperature=0.0),
+            )
+            if recalled:
+                existing = self.context.metadata.get("domain_knowledge", "")
+                self.context.metadata["domain_knowledge"] = (
+                    existing + "\n## 相关知识\n" + "\n".join(
+                        f"- {e.content.body}" for e in recalled))
+                self.context.metadata["_recalled_knowledge_ids"] = [
+                    e.id for e in recalled]
+                self.context.metadata["_recalled_knowledge_summary"] = "、".join(
+                    e.content.body[:30] for e in recalled[:3])
+                log_activity(_sid, "knowledge_recall",
+                            count=len(recalled),
+                            ids=[e.id for e in recalled],
+                            previews=[e.preview for e in recalled])
+                # transcript 记录（此时 transcript 已存在）
+                transcript = self.context.metadata.get("_transcript")
+                if transcript:
+                    transcript.add("analyze", "system",
+                        f"应用已有知识：{self.context.metadata['_recalled_knowledge_summary']}")
 
         task_id = uuid.uuid4().hex[:8]
         self.observer.start_task(task_id, user_input, self.config.default_model.model)
@@ -687,7 +690,7 @@ class Orchestrator:
             "你是任务理解专家。分析用户意图并决定处理方式。\n\n"
             "先思考：\n"
             "1. 用户真正想要什么？（深层需求，不只是字面意思）\n"
-            "2. 期望的产出形态？（代码文件/文字分析/需要追问确认？记住偏好？）\n"
+            "2. 期望的产出形态？（代码文件/文字分析/需要追问确认？操作记忆系统？）\n"
             "3. 如果有已有产物，是想改进还是在讨论别的？\n\n"
             "输出格式（严格）：\n"
             "ACTION: build | reply | clarify | memorize\n"
@@ -695,7 +698,7 @@ class Orchestrator:
             "- build: 需要产出可运行的文件（网页/工具/游戏/脚本/演示/可视化等）\n"
             "- reply: 纯文字对话（提问/分析/翻译/闲聊）\n"
             "- clarify: 意图模糊需要追问（如'继续优化'但不知道优化什么方向）\n"
-            "- memorize: 用户要求记住偏好/规则/模式，或查看/删除已有记忆（'记住...'、'以后每次...'、'列出记忆'、'删掉...'）\n"
+            "- memorize: 操作记忆/知识系统（记住/查看/删除偏好、规则、记忆）\n"
         )
 
         # 构建用户消息——注入上下文让模型有足够信息判断
