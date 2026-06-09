@@ -6,9 +6,12 @@ Orchestrator做路由和循环控制，不是Agent
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import uuid
 from typing import Callable
+
+log = logging.getLogger("deepforge.orchestrator")
 
 from rich.console import Console
 from rich.panel import Panel
@@ -619,6 +622,9 @@ class Orchestrator:
                 structure[:200] if structure else "未知")
 
         try:
+            log.info("_decide | user_input=%s", user_input[:80])
+            log.debug("_decide | intent_system=%s", intent_system[:200])
+            log.debug("_decide | user_msg=%s", user_msg[:300])
             result = await client.chat(
                 messages=[
                     {"role": "system", "content": intent_system},
@@ -627,10 +633,13 @@ class Orchestrator:
                 model=self.config.default_model.model,
                 max_tokens=200, temperature=0.0,
             )
+            log.info("_decide | raw_response=%s", result[:200])
             decision = self._parse_intent(result)
-        except Exception:
+        except Exception as e:
+            log.error("_decide | exception: %s", str(e)[:100])
             decision = {"action": "reply", "intent": user_input, "form": ""}
 
+        log.info("_decide | decision=%s", decision)
         self.context.metadata["_route_decision"] = decision
         self.context.metadata["_user_intent"] = decision.get("intent", user_input)
 

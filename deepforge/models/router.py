@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, AsyncIterator
 
 import httpx
 from openai import AsyncOpenAI
+
+log = logging.getLogger("deepforge.model")
 
 
 class ModelClient:
@@ -25,6 +28,10 @@ class ModelClient:
         if "397" in model or "qwen" in model.lower():
             extra["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
 
+        msg_summary = messages[-1].get("content", "")[:80] if messages else ""
+        log.info("model_call | model=%s, max_tokens=%d, msgs=%d, last_msg=%s",
+                 model, max_tokens, len(messages), msg_summary)
+
         for attempt in range(3):
             try:
                 response = await self.client.chat.completions.create(
@@ -42,12 +49,11 @@ class ModelClient:
 
         # Slot reservation: if output was truncated and we haven't escalated yet, retry with 4x tokens
         finish_reason = getattr(response.choices[0], "finish_reason", None)
+        log.info("model_resp | finish=%s, content_len=%d",
+                 finish_reason, len(response.choices[0].message.content or ""))
         if finish_reason == "length" and not _is_escalation:
             escalated = min(max_tokens * 4, 32768)
-            import logging
-            logging.getLogger("deepforge").info(
-                "max_tokens escalation: %d -> %d (finish_reason=length)", max_tokens, escalated
-            )
+            log.info("max_tokens escalation: %d -> %d (finish_reason=length)", max_tokens, escalated)
             return await self._chat_raw(
                 messages, model, temperature, escalated, enable_thinking, _is_escalation=True
             )

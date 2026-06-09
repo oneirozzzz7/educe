@@ -5,9 +5,12 @@ Builder Agent — DeepForge的核心Agent
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import AsyncIterator
 from pathlib import Path
+
+log = logging.getLogger("deepforge.builder")
 
 from deepforge.core.agent import BaseAgent
 from deepforge.core.message import Message, MessageType, WorkContext
@@ -72,7 +75,9 @@ class BuilderAgent(BaseAgent):
                        receiver=message.receiver, content=build_input),
                 context)}]
         else:
-            messages = [{"role": "user", "content": self._build_prompt(message, context)}]
+            prompt_content = self._build_prompt(message, context)
+            log.info("builder | prompt_len=%d, first_200=%s", len(prompt_content), prompt_content[:200])
+            messages = [{"role": "user", "content": prompt_content}]
 
         session_id = context.metadata.get("session_id", "default")
         output_dir = Path(".deepforge/output") / session_id[:16]
@@ -239,6 +244,10 @@ class BuilderAgent(BaseAgent):
                     "构建完成: {} ({}轮, {})".format(
                         build_result.reason, build_result.turns,
                         "{}个文件".format(len(build_result.files)) if build_result.files else "无产出"))
+
+        log.info("builder | final_files=%s, total_size=%d",
+                 list(final_files.keys()) if final_files else "EMPTY",
+                 sum(len(v) for v in final_files.values()) if final_files else 0)
 
         # Smoke test: headless browser check for HTML files
         if final_files:
