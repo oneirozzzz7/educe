@@ -159,12 +159,22 @@ class Orchestrator:
             self.context.metadata["_last_user_signal"] = signal
             self.context.metadata["_last_signal_weight"] = weight
 
+            # 回填上一轮构建的 user_signal 到统一知识系统
+            if self.unified_store and signal != "neutral":
+                self.unified_store.record_signal({
+                    "type": "user_feedback",
+                    "session_id": self.context.metadata.get("session_id", ""),
+                    "signal": signal,
+                    "weight": weight,
+                })
+
             # 负向信号→降级上一轮用过的知识 + 标记下一轮不提取
             if signal == "error":
                 self.context.metadata["_skip_next_extraction"] = True
-                recalled_ids = getattr(self.knowledge, '_last_recalled_ids', [])
+                recalled_ids = self.context.metadata.get("_recalled_knowledge_ids", [])
                 for eid in recalled_ids:
-                    self.knowledge.record_failure(eid)
+                    if self.unified_store:
+                        self.unified_store.record_usage(eid, success=False)
             else:
                 self.context.metadata.pop("_skip_next_extraction", None)
 
@@ -510,6 +520,12 @@ class Orchestrator:
                 for e in transcript.entries:
                     if e.elapsed and e.phase:
                         phases[e.phase] = phases.get(e.phase, 0) + e.elapsed
+
+            # 对 recall 过的知识记录使用结果
+            recalled_ids = self.context.metadata.get("_recalled_knowledge_ids", [])
+            for kid in recalled_ids:
+                self.unified_store.record_usage(kid, success=has_output)
+
             self.unified_store.record_signal({
                 "type": "build",
                 "session_id": self.context.metadata.get("session_id", ""),
@@ -527,11 +543,12 @@ class Orchestrator:
                 },
                 "signals": {
                     "success": has_output,
-                    "user_signal": "unknown",
+                    "user_signal": "pending",
                 },
                 "seeds_used": {
                     "build_seed_id": "seed_build_general",
                 },
+                "knowledge_used": recalled_ids,
             })
 
         # Session级保存

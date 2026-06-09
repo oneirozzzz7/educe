@@ -481,6 +481,8 @@ class BuilderAgent(BaseAgent):
             build_activation = BUILD_ACTIVATION.format(
                 build_seed=build_seed,
                 domain_context=domain_section)
+            if unified_store:
+                unified_store.record_seed_use("build", "general")
         except Exception:
             pass
 

@@ -172,6 +172,7 @@ class UnifiedKnowledgeStore:
         self._write_entry(entry)
         self._add_to_catalog(entry)
         self._save_catalog()
+        self._invalidate_compiled()
         return entry.id
 
     def update(self, entry_id: str, **changes) -> int:
@@ -217,6 +218,7 @@ class UnifiedKnowledgeStore:
         self._write_entry(entry)
         self._update_catalog_entry(entry)
         self._save_catalog()
+        self._invalidate_compiled()
 
     # ═══════════════════════════════════════
     #  检索（纯模型判断）
@@ -315,6 +317,19 @@ class UnifiedKnowledgeStore:
             return seed["current"].get("text", "")
         return ""
 
+    def record_seed_use(self, seed_type: str = "build", domain: str = "general"):
+        """记录 seed 被使用一次"""
+        seed_id = f"seed_{seed_type}_{domain}"
+        path = self.seeds_dir / f"{seed_id}.json"
+        if not path.exists():
+            seed_id = f"seed_{seed_type}_general"
+            path = self.seeds_dir / f"{seed_id}.json"
+        if not path.exists():
+            return
+        seed = json.loads(path.read_text(encoding="utf-8"))
+        seed["current"]["performance"]["uses"] = seed["current"]["performance"].get("uses", 0) + 1
+        path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+
     def update_seed(self, seed_id: str, new_text: str, reason: str = "") -> int:
         path = self.seeds_dir / f"{seed_id}.json"
         if path.exists():
@@ -386,6 +401,11 @@ class UnifiedKnowledgeStore:
         path = self.entries_dir / f"{entry.id}.json"
         path.write_text(
             json.dumps(entry.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _invalidate_compiled(self):
+        compiled_path = self.compiled_dir / "l1_hot.json"
+        if compiled_path.exists():
+            compiled_path.unlink()
 
     def _save_version(self, entry: KnowledgeEntry):
         ver_dir = self.versions_dir / entry.id
