@@ -44,8 +44,10 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "STREAM_CODE_UPDATE", code: content };
     }
 
-    // Text reply — only dispatch if not already streamed via chunks
-    // (If chunks already built the turn, agent_message is a duplicate)
+    // Text reply — dispatch as new turn if it's a direct result (not streamed via chunks)
+    if (msg.msg_type === "result" || msg.msg_type === "system") {
+      return { type: "AGENT_MESSAGE", content, sender: msg.sender || "assistant", hasFiles: false };
+    }
     return null;
   }
 

@@ -958,6 +958,9 @@ class Orchestrator:
                          receiver="user", content=reply)
             self.context.add_message(msg)
             self._notify(msg)
+            self.conversation.add_assistant(reply)
+            if hasattr(self, 'state'):
+                self.state.add_turn("assistant", reply, "text")
             return self.context
         except Exception as e:
             log.error("_handle_memorize | error: %s", str(e)[:100])
@@ -974,6 +977,9 @@ class Orchestrator:
                          receiver="user", content=reply)
             self.context.add_message(msg)
             self._notify(msg)
+            self.conversation.add_assistant(reply)
+            if hasattr(self, 'state'):
+                self.state.add_turn("assistant", reply, "text")
             return self.context
 
     async def _maybe_extract_knowledge(self, user_input: str, existing_ids: list[str]):
