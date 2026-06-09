@@ -253,10 +253,18 @@ class UnifiedKnowledgeStore:
         except Exception:
             return []
 
-    def _get_candidates(self, scope: str | None = None) -> list[dict]:
+    def _get_candidates(self, scope: str | None = None, max_candidates: int = 100) -> list[dict]:
         if scope:
-            return [e for e in self._catalog if e["scope"] == scope or e["scope"] == "global"]
-        return self._catalog
+            pool = [e for e in self._catalog if e["scope"] == scope or e["scope"] == "global"]
+        else:
+            pool = list(self._catalog)
+        if len(pool) <= max_candidates:
+            return pool
+        pool.sort(key=lambda x: (
+            {"template": 4, "pattern": 3, "experience": 2, "observation": 1}.get(x["maturity"], 0),
+            x["usage_count"] * x["success_rate"],
+        ), reverse=True)
+        return pool[:max_candidates]
 
     def get_entry(self, entry_id: str) -> KnowledgeEntry | None:
         path = self.entries_dir / f"{entry_id}.json"
