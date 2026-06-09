@@ -960,7 +960,6 @@ class Orchestrator:
             msg = Message(type=MessageType.RESULT, sender="assistant",
                          receiver="user", content=reply)
             self.context.add_message(msg)
-            self._notify(msg)
             self.conversation.add_assistant(reply)
             if hasattr(self, 'state'):
                 self.state.add_turn("assistant", reply, "text")
@@ -979,7 +978,6 @@ class Orchestrator:
             msg = Message(type=MessageType.RESULT, sender="assistant",
                          receiver="user", content=reply)
             self.context.add_message(msg)
-            self._notify(msg)
             self.conversation.add_assistant(reply)
             if hasattr(self, 'state'):
                 self.state.add_turn("assistant", reply, "text")
