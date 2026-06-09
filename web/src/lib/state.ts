@@ -455,6 +455,6 @@ export function isActive(state: AppState): boolean {
 
 export function hasBuildTranscript(state: AppState): boolean {
   return state.session.transcript.some(
-    e => e.phase === "build" || e.phase === "plan" || e.phase === "analyze" || e.content?.includes("BUILD")
+    e => e.phase === "build" || e.phase === "plan" || e.content?.includes("BUILD")
   );
 }
