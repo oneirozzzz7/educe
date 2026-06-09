@@ -483,6 +483,9 @@ class BuilderAgent(BaseAgent):
                 domain_context=domain_section)
             if unified_store:
                 unified_store.record_seed_use("build", "general")
+                from deepforge.core.activity_log import log_activity
+                log_activity(context.metadata.get("session_id", ""),
+                            "seed_used", seed=build_seed[:50])
         except Exception:
             pass
 

@@ -14,6 +14,8 @@ from typing import Callable
 
 log = logging.getLogger("deepforge.orchestrator")
 
+from deepforge.core.activity_log import log_activity
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -131,6 +133,9 @@ class Orchestrator:
 
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
+        _sid = self.context.metadata.get("session_id", "")
+        log_activity(_sid, "user_input", input=user_input[:200],
+                     has_file=bool(file_content))
 
         # SelfEvolver: 计数 + 懒评估进化（每5次交互评估1次，降低延迟影响）
         if self.self_evolver:
@@ -180,6 +185,9 @@ class Orchestrator:
                 if is_positive or is_negative:
                     for eid in prev_recalled:
                         self.unified_store.record_usage(eid, success=is_positive)
+                    log_activity(_sid, "knowledge_feedback",
+                                signal=signal, ids=prev_recalled,
+                                success=is_positive)
 
             if signal == "error":
                 self.context.metadata["_skip_next_extraction"] = True
@@ -233,6 +241,10 @@ class Orchestrator:
                     e.id for e in recalled]
                 self.context.metadata["_recalled_knowledge_summary"] = "、".join(
                     e.content.body[:30] for e in recalled[:3])
+                log_activity(_sid, "knowledge_recall",
+                            count=len(recalled),
+                            ids=[e.id for e in recalled],
+                            previews=[e.preview for e in recalled])
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -529,6 +541,11 @@ class Orchestrator:
         has_output = bool(self.context.artifacts.get("code_files"))
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
                                  file_count=len(self.context.artifacts.get("code_files", [])))
+        _sid = self.context.metadata.get("session_id", "")
+        log_activity(_sid, "build_complete",
+                    success=has_output,
+                    files=len(self.context.artifacts.get("code_files", [])),
+                    complexity=self.context.metadata.get("_task_complexity", "?"))
 
         # 采集 SessionSignal 到统一知识系统
         if self.unified_store:
@@ -726,6 +743,10 @@ class Orchestrator:
         log.info("_decide | decision=%s", decision)
         self.context.metadata["_route_decision"] = decision
         self.context.metadata["_user_intent"] = decision.get("intent", user_input)
+        _sid = self.context.metadata.get("session_id", "")
+        log_activity(_sid, "decide",
+                    action=decision.get("action", "?"),
+                    intent=decision.get("intent", "")[:80])
 
         if decision["action"] == "reply":
             return await self._direct_reply(user_input, file_hint)
@@ -910,6 +931,8 @@ class Orchestrator:
             raw = result.strip().strip("```json").strip("```").strip()
             parsed = _json.loads(raw)
             op = parsed.get("op", "add")
+            _sid = self.context.metadata.get("session_id", "")
+            log_activity(_sid, "memorize_op", op=op, parsed=parsed)
 
             if op == "list":
                 entries = self.unified_store._catalog
@@ -1026,6 +1049,8 @@ class Orchestrator:
                     domain="tech",
                     session_id=self.context.metadata.get("session_id", ""),
                 )
+                log_activity(self.context.metadata.get("session_id", ""),
+                            "auto_extract", content=parsed["content"][:80])
                 log.info("_maybe_extract_knowledge | extracted: %s", parsed["content"][:60])
         except Exception:
             pass
