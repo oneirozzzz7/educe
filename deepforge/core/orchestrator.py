@@ -137,26 +137,7 @@ class Orchestrator:
         log_activity(_sid, "user_input", input=user_input[:200],
                      has_file=bool(file_content))
 
-        # SelfEvolver: 计数 + 懒评估进化（每5次交互评估1次，降低延迟影响）
-        if self.self_evolver:
-            self.self_evolver.tick()
-            if self.self_evolver.should_start_evolution():
-                await self.self_evolver.generate_candidate()
-                if self.self_evolver.evolving:
-                    console.print("[dim]  self-evolver: candidate generated, starting lazy eval[/dim]")
-            if self.self_evolver.evolving and self.self_evolver._call_count % 5 == 0:
-                await self._evolve_one_step(user_input)
-            if self.self_evolver.ab_complete():
-                evo_result = self.self_evolver.finalize()
-                if evo_result.get("result") == "evolved":
-                    if self.activation_engine:
-                        self.activation_engine._current_seed = self.self_evolver.current_best
-                    console.print("[dim]  self-evolver: EVOLVED gen {}[/dim]".format(
-                        evo_result.get("generation", "?")))
-                else:
-                    console.print("[dim]  self-evolver: kept current[/dim]")
-
-        # 检测用户对上一轮回答的反馈信号
+        # ═══ 反馈回填（检测用户对上一轮回答的信号）═══
         prev_assistant = ""
         if self.conversation.turns:
             for t in reversed(self.conversation.turns):
@@ -167,17 +148,13 @@ class Orchestrator:
             signal, weight = self.quality_tracker.detect_user_signal(user_input, prev_assistant)
             self.context.metadata["_last_user_signal"] = signal
             self.context.metadata["_last_signal_weight"] = weight
-
-            # 回填上一轮构建的 user_signal 到统一知识系统
             if self.unified_store and signal != "neutral":
                 self.unified_store.record_signal({
                     "type": "user_feedback",
-                    "session_id": self.context.metadata.get("session_id", ""),
+                    "session_id": _sid,
                     "signal": signal,
                     "weight": weight,
                 })
-
-            # 根据用户反馈更新上一轮 recall 过的知识的使用结果
             prev_recalled = self.context.metadata.get("_recalled_knowledge_ids", [])
             if prev_recalled and self.unified_store:
                 is_positive = signal in ("grateful", "engaged")
@@ -189,12 +166,7 @@ class Orchestrator:
                                 signal=signal, ids=prev_recalled,
                                 success=is_positive)
 
-            if signal == "error":
-                self.context.metadata["_skip_next_extraction"] = True
-            else:
-                self.context.metadata.pop("_skip_next_extraction", None)
-
-        # 清除上一轮的 recall 状态，避免跨轮残留
+        # ═══ 清除上一轮状态 ═══
         self.context.metadata.pop("_recalled_knowledge_ids", None)
         self.context.metadata.pop("domain_knowledge", None)
 
@@ -211,87 +183,9 @@ class Orchestrator:
             else:
                 self.context.metadata.pop("uploaded_files_text", None)
 
-        # 每轮独立判断意图——不依赖上一轮状态
-        skill_prompt = self._match_skill(user_input)
-        if skill_prompt:
-            self.context.metadata["skill_prompt"] = skill_prompt
-
-        if self.domain_engine:
-            domain = self.domain_engine.match_domain(user_input)
-            domain_knowledge = self.domain_engine.inject_knowledge(user_input, domain)
-            if domain_knowledge:
-                self.context.metadata["domain_knowledge"] = domain_knowledge
-
-        # 知识 recall 延迟到 build 确认后执行（避免干扰 _decide 的意图判断）
-
-        # 构建认知黑板——从各模块收集信息
-        from deepforge.core.cognitive_state import CognitiveState
-        cs = CognitiveState()
-
-        # 意图层（ContextAnalyzer）
-        if self.context_analyzer:
-            signals = self.context_analyzer.analyze(
-                user_input, self.conversation.turns, self.context.artifacts)
-            self.context.metadata["_context_signals"] = signals
-            cs.intent_clarity = signals.user_intent_hint if signals.user_intent_hint != "unclear" else "clear"
-            if signals.topic_continuity == "switch":
-                cs.phase = "opening"
-
-        # 能力层（QualityTracker + domain）
-        detected_domain = self._detect_domain(user_input, "")
-        cs.domain = detected_domain
-        stats = self.quality_tracker.get_domain_stats()
-        domain_stat = stats.get(detected_domain, {})
-        if domain_stat.get("total_responses", 0) >= 5:
-            cs.task_success_rate = domain_stat.get("avg_quality", 0.8)
-
-        # 用户层（UserProfile）
-        session_id = self.context.metadata.get("session_id", "")
-        if self.profile_manager and session_id:
-            profile = self.profile_manager.get_or_create(session_id)
-            cs.user_expertise = profile.expertise_level
-            cs.user_preference = profile.response_preference
-
-        # 对话层
-        cs.turn_count = len(self.conversation.turns)
-        cs.last_relevance = self.context.metadata.get("_validation_result", {}).get("relevant", True)
-        if cs.last_relevance is True:
-            cs.last_relevance = 1.0
-        elif cs.last_relevance is False:
-            cs.last_relevance = 0.3
-
-        # 能力层补充（ActivationEvolver→best_seed）
-        if self.activation_engine and hasattr(self.activation_engine, '_evolver') and self.activation_engine._evolver:
-            cs.best_seed = self.activation_engine._evolver.get_best_seed(detected_domain)
-        if self.self_evolver:
-            cs.best_seed = self.self_evolver.current_best
-
-        # 对话阶段推断（不硬编码——从状态推断）
-        has_prev_code = bool(self.context.artifacts.get("engineer_output"))
-        if cs.turn_count == 0:
-            cs.phase = "opening"
-        elif has_prev_code and cs.turn_count >= 2:
-            cs.phase = "reviewing"
-        elif cs.turn_count >= 6:
-            cs.phase = "deep"
-        else:
-            cs.phase = "conversing"
-
-        # 信心层（CredibilityEngine）
-        if self.credibility:
-            cred_result = self.credibility.assess(
-                user_input, "", detected_domain,
-                user_signal=self.context.metadata.get("_last_user_signal", "neutral"))
-            cs.framework_confidence = cred_result.get("level", "medium")
-
-        self.cognitive_state = cs
-        self.context.metadata["_cognitive_state"] = cs.to_dict()
-
-        # 如果有用户决策回来——直接走构建
+        # ═══ 如果有用户决策回来——直接走构建 ═══
         if self.context.metadata.get("_user_decisions"):
             self.context.metadata["expert_name"] = "编程专家"
-            self.cognitive_state.phase = "building"
-            # Restore transcript from pending state
             transcript = self.context.metadata.get("_transcript")
             if transcript:
                 decisions = self.context.metadata["_user_decisions"]
@@ -299,11 +193,10 @@ class Orchestrator:
                 transcript.add("plan", "user", "确认选择: {}".format(choices[:100]))
             result = await self._run_build(user_input)
             self.context.metadata.pop("_user_decisions", None)
-            self.context.metadata.pop("_skip_analysis", None)
             self.context.metadata.pop("_pending_request", None)
             return result
 
-        # Reuse existing transcript (cross-turn continuity) or create new one
+        # ═══ Transcript 设置 ═══
         from deepforge.core.transcript import TaskTranscript
         transcript = self.context.metadata.get("_transcript")
         if transcript:
@@ -311,17 +204,14 @@ class Orchestrator:
         else:
             transcript = TaskTranscript(user_input)
 
-        # 每轮清空 state.transcript 避免跨轮 state_sync 重复
         if hasattr(self, 'state'):
             self.state.transcript = []
 
-        # Wire transcript to WebSocket via _notify + persist to state
         def push_transcript_event(evt: dict):
             import json as _json
             evt_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                 content="__TOOL_EVENT__" + _json.dumps(evt, ensure_ascii=False))
             self._notify(evt_msg)
-            # Persist to SessionState
             if hasattr(self, 'state'):
                 self.state.transcript.append(evt)
         transcript.on_update = push_transcript_event
@@ -329,81 +219,199 @@ class Orchestrator:
         if hasattr(self, 'state'):
             self.context.metadata["_session_state"] = self.state
 
-        import time as _time
-        _t0 = _time.time()
-        decision = await self._decide(user_input)
-        _decide_elapsed = round(_time.time() - _t0, 1)
+        # ═══ 行为循环：模型思考 → action → 执行 → 回注 → 循环 ═══
+        return await self._action_loop(user_input, transcript)
 
-        # _decide 可能直接返回 WorkContext（reply/memorize已处理完毕）
-        if not isinstance(decision, dict):
-            return self.context
+    async def _action_loop(self, user_input: str, transcript) -> WorkContext:
+        """核心行为循环：模型自由决策，框架执行。"""
+        from deepforge.core.action_executor import parse_actions
+        from deepforge.core.system_prompt import build_system_prompt
 
-        if decision["action"] == "clarify":
-            transcript.add("analyze", "system",
-                "意图模糊，追问确认", elapsed=_decide_elapsed)
-            clarify_msg = Message(
-                type=MessageType.RESULT, sender="assistant", receiver="user",
-                content=decision.get("question", ""))
-            self._notify(clarify_msg)
-            self._display(clarify_msg)
-            self.cognitive_state.phase = "exploring"
-            session_id = self.context.metadata.get("session_id", "")
-            if session_id:
-                self.session_store.append_turn(
-                    session_id, user_input, decision.get("question", ""),
-                    turn_type="clarify", domain=self.cognitive_state.domain)
-            return self.context
-
-        if decision["action"] in ("code", "build_direct"):
-            self.context.metadata["expert_name"] = "编程专家"
-            transcript.add("analyze", "system", "任务类型: BUILD", elapsed=_decide_elapsed)
-
-            # 复杂任务 + 首次构建 → 先提议方案让用户选
-            has_prev_code = bool(self.context.artifacts.get("code_files"))
-            if not has_prev_code:
-                _t1 = _time.time()
-                complexity = await self._assess_complexity(user_input)
-                self.context.metadata["_task_complexity"] = complexity
-                transcript.add("analyze", "system", "复杂度: {}".format(complexity.upper()), elapsed=round(_time.time() - _t1, 1))
-
-                if complexity == "complex":
-                    transcript.current_phase = "plan"
-                    _t2 = _time.time()
-                    plans = await self._generate_plans(user_input)
-                    if plans and len(plans) >= 2:
-                        transcript.add("plan", "model", "生成了{}个方案".format(len(plans)), elapsed=round(_time.time() - _t2, 1))
-                        plan_msg = Message(
-                            type=MessageType.SYSTEM, sender="planner", receiver="user",
-                            content="__PLAN_PROPOSAL__",
-                            data={"plans": plans, "original_request": user_input})
-                        self._notify(plan_msg)
-                        self.context.metadata["_pending_plans"] = plans
-                        self.context.metadata["_pending_request"] = user_input
-                        self.cognitive_state.phase = "planning"
-                        return self.context
-
-            self.cognitive_state.phase = "building"
-            transcript.current_phase = "build"
-            return await self._run_build(user_input)
-        else:
-            content = decision["content"]
-            if self.config.hallucination_guard.enabled:
-                content = await self._audit(user_input, content)
-            msg = Message(type=MessageType.RESULT, sender="assistant", receiver="user", content=content)
+        client = self._get_client()
+        if not client:
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content="请先配置模型。")
             self.context.add_message(msg)
-            self._display(msg)
-            self._feedback_success()
-
-            # Session级保存（替代per-turn碎片化存储）
-            session_id = self.context.metadata.get("session_id", "")
-            if session_id:
-                self.session_store.append_turn(
-                    session_id, user_input, content,
-                    turn_type="text",
-                    domain=self.context.metadata.get("expert_name", ""),
-                )
-
+            self._notify(msg)
             return self.context
+
+        _sid = self.context.metadata.get("session_id", "")
+
+        # 构建 system prompt（身份 + 激发 + 知识 + 工具）
+        seed = ""
+        if self.unified_store:
+            seed = self.unified_store.get_seed_text("build", "general")
+
+        knowledge_hints = []
+        if self.unified_store and self.unified_store._catalog:
+            knowledge_hints = [e["preview"] for e in self.unified_store._catalog[:10]]
+
+        file_context = self.context.metadata.get("uploaded_files_text", "")
+        user_context = ""
+        if file_context:
+            user_context = f"用户上传了文件内容：\n{file_context[:2000]}"
+
+        system = build_system_prompt(
+            seed=seed,
+            knowledge_hints=knowledge_hints if knowledge_hints else None,
+            user_context=user_context,
+        )
+
+        # 构建对话历史
+        history = self.conversation.get_history_for_llm()
+        cleaned = []
+        for h in history:
+            content = h.get("content", "")
+            if len(content) > 1500:
+                cleaned.append({"role": h["role"], "content": content[:300] + "\n...(截断)"})
+            else:
+                cleaned.append(h)
+        history = cleaned[-6:]
+
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": user_input})
+
+        max_rounds = 5
+        final_reply = ""
+
+        for round_idx in range(max_rounds):
+            # 模型调用
+            try:
+                raw = ""
+                async for chunk in client.chat_stream(
+                    messages=messages,
+                    model=self.config.default_model.model,
+                    max_tokens=self.config.default_model.max_tokens,
+                ):
+                    raw += chunk
+                    self._notify_chunk("assistant", chunk)
+            except Exception:
+                if not raw:
+                    raw = await client.chat(
+                        messages=messages,
+                        model=self.config.default_model.model,
+                        max_tokens=self.config.default_model.max_tokens,
+                    )
+
+            # 解析 action
+            reply_text, actions = parse_actions(raw)
+            log_activity(_sid, "model_output",
+                        round=round_idx,
+                        has_actions=len(actions),
+                        action_types=[a.type for a in actions],
+                        reply_preview=reply_text[:80])
+
+            if not actions:
+                # 无 action = 纯回复，循环结束
+                final_reply = raw
+                break
+
+            # 执行每个 action
+            for action in actions:
+                result = await self._execute_action(action, user_input, transcript)
+                log_activity(_sid, "action_executed",
+                            type=action.type,
+                            success=result.get("success", False),
+                            output_preview=result.get("output", "")[:80])
+
+                # 如果是 build，直接返回（build 有自己的完整流程）
+                if action.type == "build":
+                    return self.context
+
+                # 结果回注到对话，让模型看到
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({"role": "user", "content":
+                    f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
+
+            # 如果还有回复文字，作为最终回复
+            if reply_text and round_idx == max_rounds - 1:
+                final_reply = reply_text
+
+        # 保存回复到后端状态
+        if final_reply:
+            self.conversation.add_assistant(final_reply)
+            if hasattr(self, 'state'):
+                self.state.add_turn("assistant", final_reply)
+
+        return self.context
+
+    async def _execute_action(self, action, user_input: str, transcript) -> dict:
+        """执行单个 action，返回结果 dict。"""
+        from deepforge.core.action_executor import ParsedAction
+        import json as _json
+        _sid = self.context.metadata.get("session_id", "")
+
+        if action.type == "memorize":
+            return await self._exec_memorize(action, _sid)
+
+        elif action.type == "build":
+            self.context.metadata["expert_name"] = "编程专家"
+            transcript.current_phase = "build"
+            transcript.add("analyze", "system", "任务类型: BUILD")
+            await self._run_build(user_input)
+            return {"success": True, "output": "构建完成"}
+
+        elif action.type == "lookup_tools":
+            tools = self._get_tool_descriptions()
+            return {"success": True, "output": f"可用工具：\n{tools}"}
+
+        elif action.type == "use_tool":
+            return await self._exec_use_tool(action)
+
+        else:
+            return {"success": False, "output": f"未知操作: {action.type}"}
+
+    async def _exec_memorize(self, action, session_id: str) -> dict:
+        """执行记忆操作"""
+        import json as _json
+        if not self.unified_store:
+            return {"success": False, "output": "知识系统未初始化"}
+        try:
+            parsed = _json.loads(action.params)
+        except Exception:
+            parsed = {"op": "add", "content": action.params}
+
+        op = parsed.get("op", "add")
+        log_activity(session_id, "memorize_op", op=op, parsed=parsed)
+
+        if op == "list":
+            entries = self.unified_store._catalog
+            if not entries:
+                return {"success": True, "output": "当前没有已记录的知识。"}
+            lines = [f"- {e['preview']}" for e in entries[:15]]
+            return {"success": True, "output": f"已记录 {len(entries)} 条知识：\n" + "\n".join(lines)}
+
+        elif op == "delete":
+            keyword = parsed.get("keyword", "")
+            for e in list(self.unified_store._catalog):
+                if keyword and keyword in e["preview"]:
+                    path = self.unified_store.entries_dir / f"{e['id']}.json"
+                    if path.exists():
+                        path.unlink()
+                    self.unified_store._catalog.remove(e)
+                    self.unified_store._save_catalog()
+                    self.unified_store._invalidate_compiled()
+                    return {"success": True, "output": f"已删除包含「{keyword}」的知识。"}
+            return {"success": False, "output": f"未找到包含「{keyword}」的知识。"}
+
+        else:
+            content = parsed.get("content", action.params)
+            category = parsed.get("category", "insight")
+            domain = parsed.get("domain", "general")
+            self.unified_store.add(
+                content=content, source="user", maturity="pattern",
+                scope="project", category=category, domain=domain,
+                session_id=session_id)
+            return {"success": True, "output": f"已记住：{content}"}
+
+    async def _exec_use_tool(self, action) -> dict:
+        """执行外部工具调用"""
+        return {"success": False, "output": f"工具 {action.name} 尚未注册"}
+
+    def _get_tool_descriptions(self) -> str:
+        """返回当前可用工具的描述"""
+        return "暂无外部工具注册。你可以使用内置能力：记忆、构建。"
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
