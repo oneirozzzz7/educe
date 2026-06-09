@@ -333,6 +333,10 @@ class Orchestrator:
         else:
             transcript = TaskTranscript(user_input)
 
+        # 每轮清空 state.transcript 避免跨轮 state_sync 重复
+        if hasattr(self, 'state'):
+            self.state.transcript = []
+
         # Wire transcript to WebSocket via _notify + persist to state
         def push_transcript_event(evt: dict):
             import json as _json
