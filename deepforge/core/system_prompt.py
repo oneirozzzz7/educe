@@ -49,14 +49,18 @@ def build_system_prompt(
 
     action_format = (
         "\n## 行为表达\n"
-        "当你决定执行操作时，在回复中使用以下格式：\n"
+        "当你需要执行操作时，必须使用以下格式，框架才能真正执行：\n"
         '<action type="操作类型">参数</action>\n\n'
         "可用操作：\n"
-        "- memorize：记忆操作（增删查），参数为JSON {\"op\":\"add/list/delete\", ...}\n"
-        "- build：产出代码文件，参数为用户需求描述\n"
+        "- memorize：记忆操作。参数为JSON，如 {\"op\":\"add\",\"content\":\"偏好描述\"} 或 {\"op\":\"list\"} 或 {\"op\":\"delete\",\"keyword\":\"关键词\"}\n"
+        "- build：产出代码文件。参数为需求描述文字\n"
         "- use_tool：使用工具，需指定 name 属性，参数为JSON\n"
         "- lookup_tools：查看可用工具列表，无参数（自闭合标签）\n\n"
-        "不需要操作时直接回复用户，不要加任何标签。\n"
+        "重要规则：\n"
+        "- 记忆的增删查必须用 <action type=\"memorize\"> 标签，你不能自己假装执行\n"
+        "- 生成代码文件必须用 <action type=\"build\"> 标签，不要直接在回复中写代码\n"
+        "- 不需要操作时直接回复用户，不加任何标签\n"
+        "- 你可以在标签前后写自然语言给用户看\n"
     )
 
     return identity + seed_section + knowledge_section + tools_section + context_section + action_format

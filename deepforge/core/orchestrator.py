@@ -276,23 +276,16 @@ class Orchestrator:
         final_reply = ""
 
         for round_idx in range(max_rounds):
-            # 模型调用
+            # 模型调用（action 轮次用非流式，避免标签被流式推送到前端）
             try:
-                raw = ""
-                async for chunk in client.chat_stream(
+                raw = await client.chat(
                     messages=messages,
                     model=self.config.default_model.model,
                     max_tokens=self.config.default_model.max_tokens,
-                ):
-                    raw += chunk
-                    self._notify_chunk("assistant", chunk)
-            except Exception:
-                if not raw:
-                    raw = await client.chat(
-                        messages=messages,
-                        model=self.config.default_model.model,
-                        max_tokens=self.config.default_model.max_tokens,
-                    )
+                )
+            except Exception as e:
+                log.error("_action_loop | model call failed: %s", str(e)[:100])
+                raw = ""
 
             # 解析 action
             reply_text, actions = parse_actions(raw)
@@ -303,9 +296,16 @@ class Orchestrator:
                         reply_preview=reply_text[:80])
 
             if not actions:
-                # 无 action = 纯回复，循环结束
+                # 无 action = 纯回复，流式推送给用户，循环结束
+                for i in range(0, len(raw), 20):
+                    self._notify_chunk("assistant", raw[i:i+20])
                 final_reply = raw
                 break
+
+            # 有 action 时，先推送文字部分给用户（如果有的话）
+            if reply_text:
+                for i in range(0, len(reply_text), 20):
+                    self._notify_chunk("assistant", reply_text[i:i+20])
 
             # 执行每个 action
             for action in actions:
@@ -383,7 +383,7 @@ class Orchestrator:
             return {"success": True, "output": f"已记录 {len(entries)} 条知识：\n" + "\n".join(lines)}
 
         elif op == "delete":
-            keyword = parsed.get("keyword", "")
+            keyword = parsed.get("keyword", parsed.get("key", ""))
             for e in list(self.unified_store._catalog):
                 if keyword and keyword in e["preview"]:
                     path = self.unified_store.entries_dir / f"{e['id']}.json"
@@ -396,7 +396,9 @@ class Orchestrator:
             return {"success": False, "output": f"未找到包含「{keyword}」的知识。"}
 
         else:
-            content = parsed.get("content", action.params)
+            content = parsed.get("content", parsed.get("value", action.params))
+            if isinstance(content, dict):
+                content = str(content)
             category = parsed.get("category", "insight")
             domain = parsed.get("domain", "general")
             self.unified_store.add(
