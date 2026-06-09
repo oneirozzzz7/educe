@@ -191,21 +191,24 @@ class Orchestrator:
             domain_knowledge = self.domain_engine.inject_knowledge(user_input, domain)
             if domain_knowledge:
                 self.context.metadata["domain_knowledge"] = domain_knowledge
-            elif not domain:
-                # 统一知识系统：recall 候选让模型判断相关性
-                client = self._get_client()
-                if client and self.unified_store:
-                    recalled = await self.unified_store.recall(
-                        user_input,
-                        lambda msgs: client.chat(
-                            messages=msgs,
-                            model=self.config.default_model.model,
-                            max_tokens=50, temperature=0.0),
-                    )
-                    if recalled:
-                        self.context.metadata["domain_knowledge"] = (
-                            "\n## 相关知识\n" + "\n".join(
-                                f"- {e.content.body}" for e in recalled))
+
+        # 统一知识系统：recall 让模型判断相关性
+        if not self.context.metadata.get("domain_knowledge"):
+            client = self._get_client()
+            if client and self.unified_store:
+                recalled = await self.unified_store.recall(
+                    user_input,
+                    lambda msgs: client.chat(
+                        messages=msgs,
+                        model=self.config.default_model.model,
+                        max_tokens=50, temperature=0.0),
+                )
+                if recalled:
+                    self.context.metadata["domain_knowledge"] = (
+                        "\n## 相关知识\n" + "\n".join(
+                            f"- {e.content.body}" for e in recalled))
+                    self.context.metadata["_recalled_knowledge_ids"] = [
+                        e.id for e in recalled]
 
         # 构建认知黑板——从各模块收集信息
         from deepforge.core.cognitive_state import CognitiveState
@@ -312,6 +315,10 @@ class Orchestrator:
         _t0 = _time.time()
         decision = await self._decide(user_input)
         _decide_elapsed = round(_time.time() - _t0, 1)
+
+        # _decide 可能直接返回 WorkContext（reply/memorize已处理完毕）
+        if not isinstance(decision, dict):
+            return self.context
 
         if decision["action"] == "clarify":
             transcript.add("analyze", "system",
@@ -836,34 +843,6 @@ class Orchestrator:
         if not self.agents:
             return None
         return next(iter(self.agents.values())).model_client
-
-    async def _filter_knowledge_by_relevance(self, query: str, candidates: list[str]) -> list[str]:
-        """让模型判断候选知识与当前任务的相关性，只保留相关的"""
-        client = self._get_client()
-        if not client:
-            return []
-        numbered = "\n".join(f"{i+1}. {c[:100]}" for i, c in enumerate(candidates))
-        try:
-            result = await client.chat(
-                messages=[
-                    {"role": "system", "content": (
-                        "判断以下知识条目是否与用户当前任务直接相关。\n"
-                        "只输出相关条目的编号（逗号分隔），如果都不相关则输出 none。\n"
-                        "相关 = 对完成当前任务有直接帮助的经验、模式或约束。\n"
-                        "不相关 = 来自其他领域、与当前任务无关的知识。"
-                    )},
-                    {"role": "user", "content": f"任务：{query}\n\n候选知识：\n{numbered}"},
-                ],
-                model=self.config.default_model.model,
-                max_tokens=50, temperature=0.0,
-            )
-            if "none" in result.lower():
-                return []
-            import re
-            nums = [int(n) for n in re.findall(r'\d+', result)]
-            return [candidates[n-1] for n in nums if 1 <= n <= len(candidates)]
-        except Exception:
-            return []
 
     async def _handle_memorize(self, user_input: str) -> dict:
         """用户要求记住偏好/规则——模型结构化解析后写入统一知识系统"""
