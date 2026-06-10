@@ -273,9 +273,9 @@ export default function Home() {
           <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
             {events.length === 0 && !isThinking && (
-              <div style={{ textAlign: "center", paddingTop: "25vh" }}>
-                <LogoMark size={42} />
-                <div style={{ fontSize: 14, color: "var(--text-3)", fontWeight: 300, marginTop: 16, letterSpacing: "0.05em" }}>Think it. Build it.</div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "22vh" }}>
+                <LogoMark size={48} />
+                <div style={{ fontSize: 20, color: "var(--text-3)", fontWeight: 300, marginTop: 20, letterSpacing: "0.08em", fontFamily: "'Geist', sans-serif" }}>Think it. Build it.</div>
               </div>
             )}
 
