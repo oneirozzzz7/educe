@@ -2,9 +2,8 @@
  * WebSocket 消息 → Action 映射
  *
  * 纯函数：接收 WS 消息，返回 Action（或 null 表示忽略）。
- * 不持有状态，不产生副作用。
  */
-import type { Action, TranscriptEntry, Decision } from "./state";
+import type { Action, AppEvent, PendingAction } from "./state";
 
 export function mapWsMessage(msg: any): Action | Action[] | null {
   const type = msg.type;
@@ -23,9 +22,9 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     }
   }
 
-  // ── chunk ──
+  // ── chunk（实时文字/代码流）──
   if (type === "chunk") {
-    return { type: "STREAM_CHUNK", content: msg.content || "", sender: msg.sender || "" };
+    return { type: "STREAM_CHUNK", content: msg.content || "" };
   }
 
   // ── agent_message ──
@@ -44,9 +43,10 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "STREAM_CODE_UPDATE", code: content };
     }
 
-    // Text reply — dispatch as new turn if it's a direct result (not streamed via chunks)
+    // 非代码的 result/system 消息 → 追加为事件
     if (msg.msg_type === "result" || msg.msg_type === "system") {
-      return { type: "AGENT_MESSAGE", content, sender: msg.sender || "assistant", hasFiles: false };
+      const event: AppEvent = { type: "ai_reply", ts: Date.now() / 1000, content };
+      return { type: "APPEND_EVENT", event };
     }
     return null;
   }
@@ -64,36 +64,32 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     }
 
     if (evt.event === "transcript") {
-      const entry: TranscriptEntry = {
-        event: "transcript",
+      const event: AppEvent = {
+        type: "transcript",
+        ts: Date.now() / 1000,
         phase: evt.phase,
         role: evt.role,
         content: evt.content,
         elapsed: evt.elapsed,
-        step: evt.step,
-        total_steps: evt.total_steps,
-        step_plan: evt.step_plan,
       };
-      return { type: "TRANSCRIPT_ENTRY", entry };
+      return { type: "APPEND_EVENT", event };
     }
 
     if (evt.event === "write_file_result" && evt.file) {
       return { type: "FILE_WRITTEN", fileName: evt.file, size: evt.size || 0 };
     }
 
-    // step_start/step_done already covered by transcript events from backend
-    // Only process step_plan for the step plan display
     if (evt.event === "step_plan" && evt.steps) {
-      const entry: TranscriptEntry = {
-        event: "step_plan",
+      const event: AppEvent = {
+        type: "transcript",
+        ts: Date.now() / 1000,
         content: `步骤计划: ${evt.total || evt.steps.length}步`,
         step_plan: evt.steps,
-        total_steps: evt.total,
       };
-      return { type: "TRANSCRIPT_ENTRY", entry };
+      return { type: "APPEND_EVENT", event };
     }
 
-    return null; // Ignore other tool events
+    return null;
   }
 
   // ── action_confirm_request ──
@@ -101,35 +97,25 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return { type: "ACTION_CONFIRM_REQUEST", actions: msg.actions || [] };
   }
 
-  // ── decision_request ──
-  if (type === "decision_request") {
-    return { type: "DECISION_REQUEST", decisions: msg.decisions as Decision[] };
-  }
-
-  // ── plan_proposal ──
-  if (type === "plan_proposal") {
-    return { type: "PLAN_PROPOSAL", plans: msg.plans || [], request: msg.original_request || "" };
-  }
-
   // ── build_progress ──
   if (type === "build_progress") {
-    const entry: TranscriptEntry = { event: "transcript", phase: "build", role: "system", content: msg.step || "" };
-    return { type: "TRANSCRIPT_ENTRY", entry };
-  }
-
-  // ── expert ──
-  if (type === "expert") {
-    return { type: "THINKING_START", expertName: msg.content };
+    const event: AppEvent = {
+      type: "build_progress",
+      ts: Date.now() / 1000,
+      step: msg.step || "",
+    };
+    return { type: "APPEND_EVENT", event };
   }
 
   // ── state_sync ──
   if (type === "state_sync") {
-    return { type: "STATE_SYNC", payload: msg };
+    return { type: "SYNC_STATE", payload: msg };
   }
 
   // ── error ──
   if (type === "error") {
-    return { type: "ERROR", message: msg.content || "Unknown error" };
+    const event: AppEvent = { type: "error", ts: Date.now() / 1000, content: msg.content };
+    return { type: "APPEND_EVENT", event };
   }
 
   return null;
