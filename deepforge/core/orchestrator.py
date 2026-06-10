@@ -220,8 +220,6 @@ class Orchestrator:
         self.context.metadata["_transcript"] = transcript
         if hasattr(self, 'state'):
             self.context.metadata["_session_state"] = self.state
-
-        # ═══ 行为循环：模型思考 → action → 执行 → 回注 → 循环 ═══
         return await self._action_loop(user_input, transcript)
 
     async def _action_loop(self, user_input: str, transcript) -> WorkContext:
@@ -326,6 +324,9 @@ class Orchestrator:
                             type=action.type,
                             success=result.get("success", False),
                             output_preview=result.get("output", "")[:80])
+                if hasattr(self, 'state'):
+                    self.state.add_action_executed(
+                        action.type, result.get("output", ""), result.get("success", False))
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
@@ -382,7 +383,6 @@ class Orchestrator:
             if reply_text and round_idx == max_rounds - 1:
                 final_reply = reply_text
 
-        # 保存回复到后端状态（不调 state.add_turn，避免 state_sync 重复推送）
         if final_reply:
             self.conversation.add_assistant(final_reply)
 
@@ -550,10 +550,9 @@ class Orchestrator:
         if decision == "cancel":
             self.context.metadata.pop("_pending_actions", None)
             self.context.metadata.pop("_pending_user_input", None)
-            msg = Message(type=MessageType.RESULT, sender="assistant",
-                         receiver="user", content="好的，已取消。")
-            self._notify(msg)
             self.conversation.add_assistant("好的，已取消。")
+            if hasattr(self, 'state'):
+                self.state.add_ai_reply("好的，已取消。")
             return self.context
 
         elif decision == "revise":
@@ -619,6 +618,10 @@ class Orchestrator:
         # 注入统一知识系统到 context，供 builder 使用
         if self.unified_store:
             self.context.metadata["_unified_store"] = self.unified_store
+
+        # 记录 build 开始事件
+        if hasattr(self, 'state'):
+            self.state.add_build_start()
 
         # 知识 recall（在 build 确认后执行，不干扰 _decide 意图判断）
         _sid = self.context.metadata.get("session_id", "")
@@ -755,6 +758,11 @@ class Orchestrator:
                     success=has_output,
                     files=len(self.context.artifacts.get("code_files", [])),
                     complexity=self.context.metadata.get("_task_complexity", "?"))
+
+        # 记录 build 完成事件
+        if hasattr(self, 'state'):
+            code_files = self.context.artifacts.get("code_files", [])
+            self.state.add_build_complete(code_files, success=has_output)
 
         # 采集 SessionSignal 到统一知识系统
         if self.unified_store:

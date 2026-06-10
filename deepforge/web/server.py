@@ -93,13 +93,18 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 orchestrator.context.artifacts["code_files"] = state.code_files
                 orchestrator.context.artifacts["engineer_output"] = "agentic build"
                 orchestrator.context.artifacts["output_dir"] = state.output_dir
-            # Restore conversation history from state turns
-            if state.turns:
+            # Restore conversation history from events
+            if state.events:
                 from deepforge.core.conversation import Turn
-                for t in state.turns[-20:]:  # Last 20 turns max
-                    turn = Turn(role=t["role"], content=t["content"][:2000],
-                               timestamp=t.get("timestamp", 0))
-                    orchestrator.conversation.turns.append(turn)
+                for evt in state.events:
+                    if evt.get("type") == "user_input":
+                        orchestrator.conversation.turns.append(
+                            Turn(role="user", content=evt["content"][:2000],
+                                 timestamp=evt.get("ts", 0)))
+                    elif evt.get("type") == "ai_reply":
+                        orchestrator.conversation.turns.append(
+                            Turn(role="assistant", content=evt["content"][:2000],
+                                 timestamp=evt.get("ts", 0)))
 
             sessions[session_id] = orchestrator
         return sessions[session_id]
@@ -184,28 +189,14 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         from deepforge.core.session_state import SessionState
         state = SessionState.load(task_id)
         if state:
-            # Enrich code turns with actual file content from disk
-            enriched_turns = []
-            for turn in state.turns:
-                t = dict(turn)
-                if t.get("type") == "code" and state.output_dir:
-                    try:
-                        work_dir = Path(state.output_dir)
-                        if work_dir.exists():
-                            html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
-                            main_html = next((f for f in html_files if f.name != "index.html"), None) or (html_files[0] if html_files else None)
-                            if main_html:
-                                content = main_html.read_text(encoding="utf-8", errors="ignore")
-                                t["response"] = "```filepath:{}\n{}\n```".format(main_html.name, content)
-                    except Exception:
-                        pass
-                enriched_turns.append(t)
             return {
                 "session_id": state.session_id,
                 "events": state.events,
                 "versions": state.versions,
                 "current_version": state.current_version,
                 "phase": state.phase,
+                "created_at": state.created_at,
+                "updated_at": state.updated_at,
             }
         # Fallback to old stores
         from deepforge.core.session_store import SessionStore
@@ -461,7 +452,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         orchestrator = get_orchestrator(session_id)
 
         # Push initial state to frontend on connect (supports refresh recovery)
-        if hasattr(orchestrator, 'state') and orchestrator.state.turns:
+        if hasattr(orchestrator, 'state') and orchestrator.state.events:
             try:
                 await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
             except Exception:
@@ -585,12 +576,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                 orchestrator.context.artifacts["engineer_output"] = "agentic build"
                                 orchestrator.context.artifacts["output_dir"] = target_state.output_dir
                             orchestrator.context.metadata["session_id"] = target_id
-                            # Restore conversation turns
+                            # Restore conversation from events
                             from deepforge.core.conversation import Turn
-                            for t in target_state.turns[-20:]:
-                                orchestrator.conversation.turns.append(
-                                    Turn(role=t["role"], content=t["content"][:2000],
-                                         timestamp=t.get("timestamp", 0)))
+                            for evt in target_state.events:
+                                if evt.get("type") == "user_input":
+                                    orchestrator.conversation.turns.append(
+                                        Turn(role="user", content=evt["content"][:2000],
+                                             timestamp=evt.get("ts", 0)))
+                                elif evt.get("type") == "ai_reply":
+                                    orchestrator.conversation.turns.append(
+                                        Turn(role="assistant", content=evt["content"][:2000],
+                                             timestamp=evt.get("ts", 0)))
                     continue
 
                 # Reset context — "新任务" button clears orchestrator state
@@ -727,8 +723,6 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     if code_files and code_files != orchestrator.state.code_files:
                         orchestrator.state.code_files = code_files
                         orchestrator.state.output_dir = orchestrator.context.artifacts.get("output_dir", "")
-                    orchestrator.state.expert_name = orchestrator.context.metadata.get("expert_name", "")
-                    orchestrator.state.complexity = orchestrator.context.metadata.get("_task_complexity", "")
                     orchestrator.state.user_request = user_input
                     orchestrator.state.save()
                     try:
