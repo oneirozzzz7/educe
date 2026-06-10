@@ -6,6 +6,7 @@ import { reducer, INITIAL_STATE, type AppState, type AppEvent } from "@/lib/stat
 import { mapWsMessage } from "@/lib/ws-handler";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { SettingsModal } from "@/components/settings-modal";
+import { LogoMark, LogoBrand } from "@/components/logo";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -201,8 +202,8 @@ export default function Home() {
       {/* ── 侧边栏（窄） ── */}
       <div style={{
         width: state.sidebarOpen ? "var(--sidebar-width-open)" : "var(--sidebar-width)",
-        background: "var(--surface-1)",
-        borderRight: "1px solid var(--border-1)",
+        background: "var(--bg)",
+        borderRight: "1px solid var(--border-0)",
         transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
         flexShrink: 0,
         display: "flex",
@@ -211,14 +212,18 @@ export default function Home() {
       }}>
         <button
           onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })}
-          style={{ padding: 14, background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 14, transition: "color 0.2s" }}
-          onMouseEnter={e => (e.currentTarget.style.color = "var(--text-1)")}
+          style={{ width: 48, height: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", transition: "color 0.2s" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
           onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
         >
-          {state.sidebarOpen ? "◁" : "☰"}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="3" width="12" height="1.5" rx="0.75" fill="currentColor" opacity="0.8"/>
+            <rect x="2" y="7.25" width="8" height="1.5" rx="0.75" fill="currentColor" opacity="0.5"/>
+            <rect x="2" y="11.5" width="10" height="1.5" rx="0.75" fill="currentColor" opacity="0.3"/>
+          </svg>
         </button>
         {state.sidebarOpen && (
-          <div style={{ padding: "8px 16px", fontSize: 11, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+          <div style={{ padding: "12px 16px", fontSize: 11, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
             历史
           </div>
         )}
@@ -238,7 +243,7 @@ export default function Home() {
           flexShrink: 0,
           background: "var(--surface-1)",
         }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)", letterSpacing: "-0.3px" }}>Educe</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)", letterSpacing: "-0.3px" }}><LogoMark size={18} /></span>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {connected && (
               <span style={{ fontSize: 11, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 5 }}>
@@ -269,8 +274,8 @@ export default function Home() {
 
             {events.length === 0 && !isThinking && (
               <div style={{ textAlign: "center", paddingTop: "25vh" }}>
-                <div style={{ fontSize: 36, fontWeight: 300, color: "var(--text-0)", marginBottom: 12, letterSpacing: "-1px" }}>Educe</div>
-                <div style={{ fontSize: 15, color: "var(--text-3)", fontWeight: 400 }}>描述你想做的东西</div>
+                <LogoMark size={42} />
+                <div style={{ fontSize: 15, color: "var(--text-3)", fontWeight: 400, marginTop: 16 }}>描述你想做的东西</div>
               </div>
             )}
 
