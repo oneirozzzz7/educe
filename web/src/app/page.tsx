@@ -202,7 +202,7 @@ export default function Home() {
       <div style={{
         width: state.sidebarOpen ? "var(--sidebar-width-open)" : "var(--sidebar-width)",
         background: "var(--surface-1)",
-        borderRight: "1px solid var(--border-0)",
+        borderRight: "1px solid var(--border-1)",
         transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
         flexShrink: 0,
         display: "flex",
@@ -211,13 +211,15 @@ export default function Home() {
       }}>
         <button
           onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })}
-          style={{ padding: 14, background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16 }}
+          style={{ padding: 14, background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 14, transition: "color 0.2s" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "var(--text-1)")}
+          onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
         >
-          {state.sidebarOpen ? "◁" : "▷"}
+          {state.sidebarOpen ? "◁" : "☰"}
         </button>
         {state.sidebarOpen && (
-          <div style={{ padding: "0 12px", fontSize: 12, color: "var(--text-3)" }}>
-            历史任务
+          <div style={{ padding: "8px 16px", fontSize: 11, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+            历史
           </div>
         )}
       </div>
@@ -227,30 +229,35 @@ export default function Home() {
 
         {/* 顶栏 */}
         <div style={{
-          height: 48,
+          height: 52,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 20px",
-          borderBottom: "1px solid var(--border-0)",
+          padding: "0 24px",
+          borderBottom: "1px solid var(--border-1)",
           flexShrink: 0,
+          background: "var(--surface-1)",
         }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-0)" }}>Educe</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)", letterSpacing: "-0.3px" }}>Educe</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {connected && (
-              <span style={{ fontSize: 11, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 5 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pass)" }} />
                 {model}
               </span>
             )}
             <button
               onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
-              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16 }}
+              style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
               title="知识管理"
             >🧠</button>
             <button
               onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16 }}
+              style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-1)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
               title="设置"
             >⚙</button>
           </div>
@@ -261,9 +268,9 @@ export default function Home() {
           <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
             {events.length === 0 && !isThinking && (
-              <div style={{ textAlign: "center", paddingTop: "20vh" }}>
-                <div style={{ fontSize: 28, fontWeight: 300, color: "var(--text-0)", marginBottom: 8 }}>Educe</div>
-                <div style={{ fontSize: 14, color: "var(--text-3)" }}>描述你想做的东西</div>
+              <div style={{ textAlign: "center", paddingTop: "25vh" }}>
+                <div style={{ fontSize: 36, fontWeight: 300, color: "var(--text-0)", marginBottom: 12, letterSpacing: "-1px" }}>Educe</div>
+                <div style={{ fontSize: 15, color: "var(--text-3)", fontWeight: 400 }}>描述你想做的东西</div>
               </div>
             )}
 

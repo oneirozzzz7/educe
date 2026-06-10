@@ -6,28 +6,28 @@
 
 /* ═══ Soft Violet 配色系统 ═══ */
 :root {
-  --bg:          #1a1a1f;
-  --surface-1:   #252530;
-  --surface-2:   #2f2f3a;
-  --surface-3:   #3a3a48;
-  --border-0:    rgba(255,255,255,0.04);
-  --border-1:    rgba(255,255,255,0.06);
-  --border-2:    rgba(255,255,255,0.10);
+  --bg:          #131316;
+  --surface-1:   #1e1e24;
+  --surface-2:   #282830;
+  --surface-3:   #35353f;
+  --border-0:    rgba(255,255,255,0.05);
+  --border-1:    rgba(255,255,255,0.08);
+  --border-2:    rgba(255,255,255,0.12);
   --text-0:      #f5f5f7;
   --text-1:      rgba(255,255,255,0.85);
-  --text-2:      rgba(255,255,255,0.6);
-  --text-3:      rgba(255,255,255,0.3);
+  --text-2:      rgba(255,255,255,0.55);
+  --text-3:      rgba(255,255,255,0.28);
   --accent:      #a78bfa;
   --accent-deep: #7c3aed;
-  --accent-dim:  rgba(167,139,250,0.10);
+  --accent-dim:  rgba(167,139,250,0.12);
   --accent-glow: rgba(167,139,250,0.06);
   --pass:        #34d399;
-  --pass-dim:    rgba(52,211,153,0.10);
+  --pass-dim:    rgba(52,211,153,0.12);
   --fail:        #f87171;
-  --fail-dim:    rgba(248,113,113,0.10);
-  --shadow-sm:   0 1px 2px rgba(0,0,0,0.3);
-  --shadow:      0 2px 8px rgba(0,0,0,0.3);
-  --shadow-md:   0 4px 16px rgba(0,0,0,0.4);
+  --fail-dim:    rgba(248,113,113,0.12);
+  --shadow-sm:   0 1px 2px rgba(0,0,0,0.4);
+  --shadow:      0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md:   0 8px 24px rgba(0,0,0,0.5);
   --radius:      12px;
   --radius-sm:   8px;
   --sidebar-width: 48px;
@@ -182,11 +182,12 @@ body {
   outline: none;
   width: 100%;
   transition: border-color 0.3s, box-shadow 0.3s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 .main-input::placeholder { color: var(--text-3); }
 .main-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  box-shadow: 0 0 0 3px var(--accent-dim), 0 4px 20px rgba(0,0,0,0.4);
 }
 
 /* ═══ 画中画（构建迷你面板）═══ */
