@@ -499,6 +499,16 @@ export default function Page() {
     dispatch({ type: "PLAN_SELECTED" });
   }
 
+  function handleActionConfirm() {
+    wsRef.current?.send("确认");
+    dispatch({ type: "ACTION_CONFIRMED" });
+  }
+
+  function handleActionCancel() {
+    wsRef.current?.send("取消");
+    dispatch({ type: "ACTION_CONFIRMED" });
+  }
+
   function reset() {
     const newSid = sidRef.current; // keep same WS connection
     wsRef.current?.sendRaw({ type: "reset_context" });
@@ -620,6 +630,23 @@ export default function Page() {
 
                         {/* Pending plans */}
                         {pending.plans && <PlanProposal plans={pending.plans} onSelect={handlePlanSelect} originalRequest={pending.planRequest} />}
+
+                        {/* Pending action confirm */}
+                        {pending.actionConfirm && (
+                          <div style={{ margin: "12px 0", padding: "16px", borderRadius: 12, border: "1px solid var(--border-1)", background: "var(--surface-1)" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: "var(--text-1)" }}>确认执行</div>
+                            {pending.actionConfirm.map((a, i) => (
+                              <div key={i} style={{ padding: "8px 12px", marginBottom: 6, borderRadius: 8, background: "var(--surface-2)", fontSize: 13, color: "var(--text-2)" }}>
+                                {a.type === "build" ? "🔨 " : "🧠 "}{a.display}
+                              </div>
+                            ))}
+                            <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                              <button onClick={handleActionConfirm} style={{ padding: "6px 16px", borderRadius: 6, border: "none", background: "var(--accent)", color: "#000", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>确认开始</button>
+                              <button onClick={handleActionCancel} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid var(--border-1)", background: "transparent", color: "var(--text-2)", fontSize: 13, cursor: "pointer" }}>取消</button>
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-3)" }}>补充你的想法（可选）</div>
+                          </div>
+                        )}
 
                         <div ref={chatEndRef} />
                       </div>
