@@ -388,10 +388,6 @@ class Orchestrator:
                             actions=[i["display"] for i in confirm_items])
                 return self.context
 
-            # 如果没有需要确认的（不应该走到这里，但防御性处理）
-            if reply_text and round_idx == max_rounds - 1:
-                final_reply = reply_text
-
         if final_reply:
             self.conversation.add_assistant(final_reply)
 
