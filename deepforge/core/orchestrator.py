@@ -225,7 +225,7 @@ class Orchestrator:
     async def _action_loop(self, user_input: str, transcript) -> WorkContext:
         """核心行为循环：模型自由决策，框架执行。"""
         from deepforge.core.action_executor import parse_actions
-        from deepforge.core.system_prompt import build_system_prompt
+        from deepforge.core.context_manager import build_context, SessionMemory
 
         client = self._get_client()
         if not client:
@@ -237,24 +237,30 @@ class Orchestrator:
 
         _sid = self.context.metadata.get("session_id", "")
 
-        # 构建 system prompt（身份 + 激发 + 知识 + 工具）
+        # 构建 context（索引式知识呈现 + 作用域隔离）
         seed = ""
         if self.unified_store:
             seed = self.unified_store.get_seed_text("build", "general")
 
-        knowledge_hints = []
-        if self.unified_store and self.unified_store._catalog:
-            knowledge_hints = [e["preview"] for e in self.unified_store._catalog[:10]]
+        catalog = []
+        if self.unified_store:
+            catalog = self.unified_store._catalog
 
+        # session 临时记忆
+        session_memory = self.context.metadata.get("_session_memory")
+        if not session_memory:
+            session_memory = SessionMemory()
+            self.context.metadata["_session_memory"] = session_memory
+
+        # 文件上下文加入 session 记忆
         file_context = self.context.metadata.get("uploaded_files_text", "")
-        user_context = ""
         if file_context:
-            user_context = f"用户上传了文件内容：\n{file_context[:2000]}"
+            session_memory.add(f"用户上传了文件（{len(file_context)}字符）")
 
-        system = build_system_prompt(
+        system = build_context(
+            session_memory=session_memory,
+            catalog=catalog,
             seed=seed,
-            knowledge_hints=knowledge_hints if knowledge_hints else None,
-            user_context=user_context,
         )
 
         # 构建对话历史
@@ -337,7 +343,13 @@ class Orchestrator:
         _sid = self.context.metadata.get("session_id", "")
 
         if action.type == "memorize":
-            return await self._exec_memorize(action, _sid)
+            result = await self._exec_memorize(action, _sid)
+            # memorize 成功后更新 session 记忆
+            if result.get("success") and "已记住" in result.get("output", ""):
+                session_memory = self.context.metadata.get("_session_memory")
+                if session_memory:
+                    session_memory.add(result["output"])
+            return result
 
         elif action.type == "build":
             self.context.metadata["expert_name"] = "编程专家"
@@ -345,6 +357,9 @@ class Orchestrator:
             transcript.add("analyze", "system", "任务类型: BUILD")
             await self._run_build(user_input)
             return {"success": True, "output": "构建完成"}
+
+        elif action.type == "recall":
+            return await self._exec_recall(action, _sid)
 
         elif action.type == "lookup_tools":
             tools = self._get_tool_descriptions()
@@ -355,6 +370,37 @@ class Orchestrator:
 
         else:
             return {"success": False, "output": f"未知操作: {action.type}"}
+
+    async def _exec_recall(self, action, session_id: str) -> dict:
+        """检索知识系统，返回具体内容"""
+        if not self.unified_store:
+            return {"success": False, "output": "知识系统未初始化"}
+
+        keyword = action.params.strip()
+        # 从 catalog 中搜索匹配的条目
+        results = []
+        for entry_data in self.unified_store._catalog:
+            preview = entry_data.get("preview", "")
+            domain = entry_data.get("domain", "")
+            category = entry_data.get("category", "")
+            if (keyword in preview or keyword in domain or keyword in category):
+                entry = self.unified_store.get_entry(entry_data["id"])
+                if entry:
+                    results.append(entry.content.body)
+
+        if not results:
+            return {"success": True, "output": f"未找到与「{keyword}」相关的记忆。"}
+
+        # 记录 recalled IDs 用于反馈闭环
+        recalled_ids = [e["id"] for e in self.unified_store._catalog
+                       if keyword in e.get("preview", "") or keyword in e.get("domain", "")]
+        self.context.metadata["_recalled_knowledge_ids"] = recalled_ids
+        log_activity(session_id, "knowledge_recall",
+                    count=len(results), ids=recalled_ids,
+                    keyword=keyword)
+
+        lines = "\n".join(f"- {r}" for r in results[:5])
+        return {"success": True, "output": f"找到 {len(results)} 条相关记忆：\n{lines}"}
 
     async def _exec_memorize(self, action, session_id: str) -> dict:
         """执行记忆操作"""
