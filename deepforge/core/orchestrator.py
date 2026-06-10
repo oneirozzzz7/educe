@@ -183,6 +183,11 @@ class Orchestrator:
             else:
                 self.context.metadata.pop("uploaded_files_text", None)
 
+        # ═══ 如果有待确认的 action（用户确认/补充/取消）═══
+        pending = self.context.metadata.get("_pending_actions")
+        if pending:
+            return await self._handle_action_confirm(user_input, pending)
+
         # ═══ 如果有用户决策回来——直接走构建 ═══
         if self.context.metadata.get("_user_decisions"):
             self.context.metadata["expert_name"] = "编程专家"
@@ -308,25 +313,68 @@ class Orchestrator:
                 final_reply = raw
                 break
 
-            # 有 action 时，不推送文字（等最终轮统一推送）
-            # 执行每个 action
-            for action in actions:
+            # 需要用户确认的 action 类型
+            needs_confirm = {"memorize", "build"}
+
+            # 检查是否有需要确认的 action
+            pending_actions = [a for a in actions if a.type in needs_confirm]
+            immediate_actions = [a for a in actions if a.type not in needs_confirm]
+
+            # 立即执行不需要确认的（recall、lookup_tools、use_tool）
+            for action in immediate_actions:
                 result = await self._execute_action(action, user_input, transcript)
                 log_activity(_sid, "action_executed",
                             type=action.type,
                             success=result.get("success", False),
                             output_preview=result.get("output", "")[:80])
-
-                # 如果是 build，直接返回（build 有自己的完整流程）
-                if action.type == "build":
-                    return self.context
-
-                # 结果回注到对话，让模型看到
                 messages.append({"role": "assistant", "content": raw})
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
 
-            # 如果还有回复文字，作为最终回复
+            # 需要确认的 action → 暂存，发确认请求给前端，返回等待
+            if pending_actions:
+                import json as _json
+                # 推送模型的文字回复（如果有的话）
+                if reply_text:
+                    for i in range(0, len(reply_text), 20):
+                        self._notify_chunk("assistant", reply_text[i:i+20])
+                    self.conversation.add_assistant(reply_text)
+
+                # 构造待确认的 action 列表
+                confirm_items = []
+                for a in pending_actions:
+                    item = {"type": a.type, "params": a.params, "name": a.name}
+                    if a.type == "memorize":
+                        try:
+                            parsed = _json.loads(a.params)
+                            op = parsed.get("op", "add")
+                            if op == "add":
+                                item["display"] = f"记住：{parsed.get('content', parsed.get('value', a.params[:60]))}"
+                            elif op == "delete":
+                                item["display"] = f"删除记忆：{parsed.get('keyword', parsed.get('key', ''))}"
+                            else:
+                                item["display"] = f"记忆操作：{op}"
+                        except Exception:
+                            item["display"] = f"记忆操作：{a.params[:60]}"
+                    elif a.type == "build":
+                        item["display"] = f"构建：{a.params[:100]}"
+                    confirm_items.append(item)
+
+                # 暂存到 context，等用户确认
+                self.context.metadata["_pending_actions"] = confirm_items
+                self.context.metadata["_pending_user_input"] = user_input
+
+                # 发送确认请求到前端
+                confirm_msg = Message(
+                    type=MessageType.SYSTEM, sender="system", receiver="user",
+                    content="__ACTION_CONFIRM__" + _json.dumps(confirm_items, ensure_ascii=False))
+                self._notify(confirm_msg)
+
+                log_activity(_sid, "action_confirm_request",
+                            actions=[i["display"] for i in confirm_items])
+                return self.context
+
+            # 如果没有需要确认的（不应该走到这里，但防御性处理）
             if reply_text and round_idx == max_rounds - 1:
                 final_reply = reply_text
 
@@ -450,6 +498,102 @@ class Orchestrator:
     async def _exec_use_tool(self, action) -> dict:
         """执行外部工具调用"""
         return {"success": False, "output": f"工具 {action.name} 尚未注册"}
+
+    async def _handle_action_confirm(self, user_input: str, pending: list) -> "WorkContext":
+        """处理用户对待确认 action 的回应（确认/补充/取消）"""
+        from deepforge.core.action_executor import ParsedAction
+        import json as _json
+        _sid = self.context.metadata.get("session_id", "")
+        original_input = self.context.metadata.get("_pending_user_input", "")
+
+        # 让模型判断用户的回应是确认、补充还是取消
+        client = self._get_client()
+        if not client:
+            self.context.metadata.pop("_pending_actions", None)
+            return self.context
+
+        pending_desc = "\n".join(f"- {p['display']}" for p in pending)
+        result = await client.chat(
+            messages=[
+                {"role": "system", "content": (
+                    "用户之前的操作需要确认。待执行操作：\n" + pending_desc + "\n\n"
+                    "用户刚才的回应是什么意思？输出JSON：\n"
+                    "{\"decision\": \"confirm\" | \"cancel\" | \"revise\", \"note\": \"用户补充的内容\"}\n"
+                    "- confirm: 用户同意执行（如'好的'、'确认'、'可以'、'就这样'）\n"
+                    "- cancel: 用户取消（如'算了'、'不要了'、'取消'）\n"
+                    "- revise: 用户补充或修改了需求（如'再加个...'、'改成...'、其他具体内容）\n"
+                    "只输出JSON。"
+                )},
+                {"role": "user", "content": user_input},
+            ],
+            model=self.config.default_model.model,
+            max_tokens=100, temperature=0.0,
+        )
+
+        try:
+            parsed = _json.loads(result.strip().strip("```json").strip("```"))
+        except Exception:
+            parsed = {"decision": "confirm", "note": ""}
+
+        decision = parsed.get("decision", "confirm")
+        note = parsed.get("note", "")
+
+        log_activity(_sid, "action_confirm_response",
+                    decision=decision, note=note[:80])
+
+        if decision == "cancel":
+            self.context.metadata.pop("_pending_actions", None)
+            self.context.metadata.pop("_pending_user_input", None)
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content="好的，已取消。")
+            self._notify(msg)
+            self.conversation.add_assistant("好的，已取消。")
+            return self.context
+
+        elif decision == "revise":
+            # 用户补充了内容 → 清除 pending，用新的完整需求重新走 action loop
+            self.context.metadata.pop("_pending_actions", None)
+            self.context.metadata.pop("_pending_user_input", None)
+            # 把原始需求 + 补充内容合并重新处理
+            revised_input = f"{original_input}。补充：{user_input}"
+            # 重新走 transcript + action loop
+            from deepforge.core.transcript import TaskTranscript
+            transcript = self.context.metadata.get("_transcript")
+            if not transcript:
+                transcript = TaskTranscript(revised_input)
+                self.context.metadata["_transcript"] = transcript
+            return await self._action_loop(revised_input, transcript)
+
+        else:
+            # confirm → 执行所有 pending actions
+            self.context.metadata.pop("_pending_actions", None)
+            self.context.metadata.pop("_pending_user_input", None)
+
+            transcript = self.context.metadata.get("_transcript")
+            if not transcript:
+                from deepforge.core.transcript import TaskTranscript
+                transcript = TaskTranscript(original_input)
+                self.context.metadata["_transcript"] = transcript
+
+            for p in pending:
+                action = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
+                result = await self._execute_action(action, original_input, transcript)
+                log_activity(_sid, "action_executed",
+                            type=action.type,
+                            success=result.get("success", False),
+                            output_preview=result.get("output", "")[:80])
+
+                # 如果是 build，直接返回
+                if action.type == "build":
+                    return self.context
+
+                # 非 build 的执行结果推送给用户
+                if result.get("output"):
+                    for i in range(0, len(result["output"]), 20):
+                        self._notify_chunk("assistant", result["output"][i:i+20])
+                    self.conversation.add_assistant(result["output"])
+
+            return self.context
 
     def _get_tool_descriptions(self) -> str:
         """返回当前可用工具的描述"""

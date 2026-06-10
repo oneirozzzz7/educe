@@ -96,6 +96,11 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return null; // Ignore other tool events
   }
 
+  // ── action_confirm_request ──
+  if (type === "action_confirm_request") {
+    return { type: "ACTION_CONFIRM_REQUEST", actions: msg.actions || [] };
+  }
+
   // ── decision_request ──
   if (type === "decision_request") {
     return { type: "DECISION_REQUEST", decisions: msg.decisions as Decision[] };

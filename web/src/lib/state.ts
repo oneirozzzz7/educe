@@ -92,6 +92,7 @@ export interface PendingState {
   plans: Plan[] | null;
   planRequest: string;
   clarifyQuestion: string;
+  actionConfirm: Array<{type: string; params: string; display: string}> | null;
 }
 
 export interface UIState {
@@ -152,6 +153,7 @@ export const EMPTY_PENDING: PendingState = {
   plans: null,
   planRequest: "",
   clarifyQuestion: "",
+  actionConfirm: null,
 };
 
 export const INITIAL_UI: UIState = {
@@ -193,6 +195,8 @@ export type Action =
   | { type: "TRANSCRIPT_ENTRY"; entry: TranscriptEntry }
   // Interaction
   | { type: "DECISION_REQUEST"; decisions: Decision[] }
+  | { type: "ACTION_CONFIRM_REQUEST"; actions: Array<{type: string; params: string; display: string}> }
+  | { type: "ACTION_CONFIRMED" }
   | { type: "PLAN_PROPOSAL"; plans: Plan[]; request: string }
   | { type: "CLARIFY"; question: string }
   | { type: "DECISION_SUBMITTED" }
@@ -318,6 +322,20 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         stream: { ...state.stream, thinking: false },
         pending: { ...state.pending, decisions: action.decisions },
+      };
+
+    case "ACTION_CONFIRM_REQUEST":
+      return {
+        ...state,
+        stream: { ...state.stream, thinking: false },
+        pending: { ...state.pending, actionConfirm: action.actions },
+      };
+
+    case "ACTION_CONFIRMED":
+      return {
+        ...state,
+        pending: { ...state.pending, actionConfirm: null },
+        stream: { ...state.stream, thinking: true },
       };
 
     case "PLAN_PROPOSAL":

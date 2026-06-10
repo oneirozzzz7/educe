@@ -505,6 +505,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 step = msg.content.replace("__BUILD_PROGRESS__", "")
                 await websocket.send_json({"type": "build_progress", "step": step})
                 return
+            if msg.content.startswith("__ACTION_CONFIRM__"):
+                import json as _json
+                try:
+                    actions = _json.loads(msg.content.replace("__ACTION_CONFIRM__", ""))
+                    await websocket.send_json({
+                        "type": "action_confirm_request",
+                        "actions": actions,
+                    })
+                except Exception:
+                    pass
+                return
             if msg.content.startswith("__TOOL_EVENT__"):
                 import json as _json
                 try:
