@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Educe Logo 方案</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,400&family=Spectral:ital,wght@0,300;0,400;1,400&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #131316; font-family: 'Geist', sans-serif; color: #f5f5f7; padding: 60px 40px; }
+h1 { text-align: center; font-size: 22px; font-weight: 400; color: rgba(255,255,255,0.5); margin-bottom: 50px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1100px; margin: 0 auto; }
+.card { background: #1e1e24; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; min-height: 200px; justify-content: center; position: relative; }
+.label { position: absolute; top: 14px; left: 18px; font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.5px; }
+.accent { color: #a78bfa; }
+.accent-deep { color: #7c3aed; }
+
+/* V1: 衬线优雅 */
+.v1 { font-family: 'Instrument Serif', serif; font-size: 52px; letter-spacing: -0.02em; }
+
+/* V2: 衬线 + E放大 */
+.v2 { font-family: 'Fraunces', serif; font-size: 46px; font-weight: 400; letter-spacing: -0.01em; display: flex; align-items: baseline; }
+.v2 .big-e { font-size: 64px; line-height: 0.8; }
+
+/* V3: 极简无衬线 + 字距 */
+.v3 { font-family: 'Geist', sans-serif; font-size: 40px; font-weight: 300; letter-spacing: 0.15em; }
+
+/* V4: 衬线斜体（流动感，呼应"引出"）*/
+.v4 { font-family: 'Newsreader', serif; font-style: italic; font-size: 50px; font-weight: 400; }
+
+/* V5: 符号 + 字 */
+.v5-mark { width: 36px; height: 36px; }
+.v5 { font-family: 'Geist', sans-serif; font-size: 34px; font-weight: 500; letter-spacing: -0.02em; display: flex; align-items: center; gap: 14px; }
+
+/* V6: 下划线引出 */
+.v6 { font-family: 'Spectral', serif; font-size: 46px; font-weight: 300; position: relative; }
+.v6::after { content: ''; position: absolute; left: 0; bottom: -8px; width: 40%; height: 2px; background: linear-gradient(to right, #a78bfa, transparent); }
+
+/* V7: 点阵涌现 */
+.v7 { font-family: 'Geist', sans-serif; font-size: 38px; font-weight: 400; letter-spacing: 0.02em; display: flex; align-items: center; gap: 12px; }
+.v7-dots { display: grid; grid-template-columns: repeat(3, 4px); gap: 3px; }
+.v7-dots span { width: 4px; height: 4px; border-radius: 50%; background: #a78bfa; }
+.v7-dots span:nth-child(1){opacity:0.3} .v7-dots span:nth-child(2){opacity:0.5} .v7-dots span:nth-child(3){opacity:1}
+.v7-dots span:nth-child(4){opacity:0.2} .v7-dots span:nth-child(5){opacity:0.4} .v7-dots span:nth-child(6){opacity:0.8}
+.v7-dots span:nth-child(7){opacity:0.1} .v7-dots span:nth-child(8){opacity:0.3} .v7-dots span:nth-child(9){opacity:0.6}
+
+/* V8: 全小写极简 */
+.v8 { font-family: 'Geist', sans-serif; font-size: 42px; font-weight: 600; letter-spacing: -0.04em; }
+
+/* 小尺寸预览（顶栏实际大小）*/
+.small-row { max-width: 1100px; margin: 50px auto 0; padding: 24px; background: #1e1e24; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+.small-title { font-size: 11px; color: rgba(255,255,255,0.3); margin-bottom: 20px; }
+.small-items { display: flex; gap: 40px; flex-wrap: wrap; align-items: center; }
+.small-items > div { display: flex; align-items: center; height: 28px; }
+.s1 { font-family: 'Instrument Serif', serif; font-size: 22px; }
+.s2 { font-family: 'Fraunces', serif; font-size: 20px; }
+.s4 { font-family: 'Newsreader', serif; font-style: italic; font-size: 21px; }
+.s6 { font-family: 'Spectral', serif; font-size: 20px; font-weight: 300; }
+.s8 { font-family: 'Geist', sans-serif; font-size: 19px; font-weight: 600; letter-spacing: -0.03em; }
+</style>
+</head>
+<body>
+
+<h1>Educe Logo — 8 个方案</h1>
+
+<div class="grid">
+
+  <div class="card">
+    <span class="label">V1 · Instrument Serif 衬线优雅</span>
+    <div class="v1"><span class="accent">E</span>duce</div>
+  </div>
+
+  <div class="card">
+    <span class="label">V2 · Fraunces 大写 E 强调</span>
+    <div class="v2"><span class="big-e accent">E</span><span>duce</span></div>
+  </div>
+
+  <div class="card">
+    <span class="label">V3 · 无衬线 宽字距 轻盈</span>
+    <div class="v3"><span class="accent">E</span>DUCE</div>
+  </div>
+
+  <div class="card">
+    <span class="label">V4 · Newsreader 斜体 流动感</span>
+    <div class="v4"><span class="accent">E</span>duce</div>
+  </div>
+
+  <div class="card">
+    <span class="label">V5 · 符号 + 字（涌现环）</span>
+    <div class="v5">
+      <svg class="v5-mark" viewBox="0 0 72 72" fill="none">
+        <circle cx="36" cy="36" r="32" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle cx="36" cy="36" r="32" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-dasharray="50 150"/>
+        <circle cx="36" cy="36" r="4" fill="#a78bfa"/>
+      </svg>
+      <span><span class="accent">E</span>duce</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="label">V6 · Spectral 渐变下划线（引出）</span>
+    <div class="v6"><span class="accent">E</span>duce</div>
+  </div>
+
+  <div class="card">
+    <span class="label">V7 · 点阵涌现 + 字</span>
+    <div class="v7">
+      <div class="v7-dots"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <span>Educe</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="label">V8 · 全小写 紧凑现代</span>
+    <div class="v8"><span class="accent">e</span>duce</div>
+  </div>
+
+</div>
+
+<div class="small-row">
+  <div class="small-title">顶栏实际大小预览（约 20px）</div>
+  <div class="small-items">
+    <div class="s1"><span class="accent">E</span>duce</div>
+    <div class="s2"><span class="accent">E</span>duce</div>
+    <div class="s4"><span class="accent">E</span>duce</div>
+    <div class="s6"><span class="accent">E</span>duce</div>
+    <div class="s8"><span class="accent">e</span>duce</div>
+  </div>
+</div>
+
+</body>
+</html>

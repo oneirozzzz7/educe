@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Educe 配色方案对比</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #111; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; color: #f5f5f7; padding: 40px; }
+h1 { text-align: center; font-size: 24px; font-weight: 500; margin-bottom: 40px; color: rgba(255,255,255,0.6); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 1200px; margin: 0 auto; }
+.scheme { border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+.scheme-header { padding: 16px 20px; font-size: 14px; font-weight: 600; letter-spacing: 0.5px; }
+.scheme-body { padding: 24px; }
+.user-msg { text-align: right; margin-bottom: 16px; }
+.user-msg span { display: inline-block; padding: 10px 16px; border-radius: 18px 18px 4px 18px; font-size: 14px; max-width: 70%; }
+.ai-reply { margin-bottom: 20px; display: flex; gap: 10px; }
+.ai-reply .bar { width: 2px; border-radius: 1px; flex-shrink: 0; }
+.ai-reply .content { font-size: 14px; line-height: 1.6; color: rgba(255,255,255,0.85); }
+.confirm-card { border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1); }
+.confirm-card .title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.confirm-card .item { padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 6px; }
+.confirm-card .btns { margin-top: 12px; display: flex; gap: 8px; }
+.confirm-card .btn-primary { padding: 6px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; }
+.confirm-card .btn-ghost { padding: 6px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: transparent; font-size: 13px; cursor: pointer; color: rgba(255,255,255,0.6); }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
+.input-area { margin-top: 16px; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: rgba(255,255,255,0.4); }
+
+/* Scheme A: Apple Purple */
+.scheme-a { background: #1c1c1e; }
+.scheme-a .scheme-header { background: #2c2c2e; color: #bf5af2; }
+.scheme-a .user-msg span { background: #bf5af2; color: #fff; }
+.scheme-a .ai-reply .bar { background: linear-gradient(to bottom, #bf5af2, #8b3fcf); }
+.scheme-a .confirm-card { background: #2c2c2e; }
+.scheme-a .confirm-card .title { color: #bf5af2; }
+.scheme-a .confirm-card .item { background: #3a3a3c; color: rgba(255,255,255,0.8); }
+.scheme-a .btn-primary { background: #bf5af2; color: #fff; }
+.scheme-a .status-bar { background: rgba(191,90,242,0.1); color: #bf5af2; }
+.scheme-a .input-area { background: #2c2c2e; border: 1px solid rgba(255,255,255,0.08); }
+
+/* Scheme B: Soft Violet */
+.scheme-b { background: #1a1a1f; }
+.scheme-b .scheme-header { background: #252530; color: #a78bfa; }
+.scheme-b .user-msg span { background: #7c3aed; color: #fff; }
+.scheme-b .ai-reply .bar { background: linear-gradient(to bottom, #a78bfa, #7c3aed); }
+.scheme-b .confirm-card { background: #252530; }
+.scheme-b .confirm-card .title { color: #a78bfa; }
+.scheme-b .confirm-card .item { background: #2f2f3a; color: rgba(255,255,255,0.8); }
+.scheme-b .btn-primary { background: #7c3aed; color: #fff; }
+.scheme-b .status-bar { background: rgba(167,139,250,0.1); color: #a78bfa; }
+.scheme-b .input-area { background: #252530; border: 1px solid rgba(255,255,255,0.06); }
+
+/* Scheme C: Blue Gradient */
+.scheme-c { background: #1c1c1e; }
+.scheme-c .scheme-header { background: #2c2c2e; color: #0a84ff; }
+.scheme-c .user-msg span { background: #0a84ff; color: #fff; }
+.scheme-c .ai-reply .bar { background: linear-gradient(to bottom, #0a84ff, #5e5ce6); }
+.scheme-c .confirm-card { background: #2c2c2e; }
+.scheme-c .confirm-card .title { color: #0a84ff; }
+.scheme-c .confirm-card .item { background: #3a3a3c; color: rgba(255,255,255,0.8); }
+.scheme-c .btn-primary { background: #0a84ff; color: #fff; }
+.scheme-c .status-bar { background: rgba(10,132,255,0.1); color: #0a84ff; }
+.scheme-c .input-area { background: #2c2c2e; border: 1px solid rgba(255,255,255,0.08); }
+
+/* Scheme D: Warm Teal */
+.scheme-d { background: #1a1f1e; }
+.scheme-d .scheme-header { background: #242d2b; color: #64d2ff; }
+.scheme-d .user-msg span { background: #30b0c7; color: #fff; }
+.scheme-d .ai-reply .bar { background: linear-gradient(to bottom, #64d2ff, #30b0c7); }
+.scheme-d .confirm-card { background: #242d2b; }
+.scheme-d .confirm-card .title { color: #64d2ff; }
+.scheme-d .confirm-card .item { background: #2d3836; color: rgba(255,255,255,0.8); }
+.scheme-d .btn-primary { background: #30b0c7; color: #fff; }
+.scheme-d .status-bar { background: rgba(100,210,255,0.08); color: #64d2ff; }
+.scheme-d .input-area { background: #242d2b; border: 1px solid rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+
+<h1>Educe 配色方案对比</h1>
+
+<div class="grid">
+
+<!-- Scheme A: Apple Purple -->
+<div class="scheme scheme-a">
+  <div class="scheme-header">方案A · Apple Purple #bf5af2</div>
+  <div class="scheme-body">
+    <div class="user-msg"><span>以后设计都参考 Apple Design 风格</span></div>
+    <div class="ai-reply">
+      <div class="bar"></div>
+      <div class="content">好的，我记住了。以后所有设计相关的构建都会遵循 Apple Design 语言——简洁、留白、注重排版。</div>
+    </div>
+    <div class="confirm-card">
+      <div class="title">确认执行</div>
+      <div class="item">🧠 记住：所有设计参考 Apple Design 风格</div>
+      <div class="btns">
+        <button class="btn-primary">确认</button>
+        <button class="btn-ghost">取消</button>
+      </div>
+    </div>
+    <div class="status-bar">✅ 已记住：Apple Design 风格 · 17:17</div>
+    <div class="input-area">描述你想做的东西...</div>
+  </div>
+</div>
+
+<!-- Scheme B: Soft Violet -->
+<div class="scheme scheme-b">
+  <div class="scheme-header">方案B · Soft Violet #a78bfa</div>
+  <div class="scheme-body">
+    <div class="user-msg"><span>以后设计都参考 Apple Design 风格</span></div>
+    <div class="ai-reply">
+      <div class="bar"></div>
+      <div class="content">好的，我记住了。以后所有设计相关的构建都会遵循 Apple Design 语言——简洁、留白、注重排版。</div>
+    </div>
+    <div class="confirm-card">
+      <div class="title">确认执行</div>
+      <div class="item">🧠 记住：所有设计参考 Apple Design 风格</div>
+      <div class="btns">
+        <button class="btn-primary">确认</button>
+        <button class="btn-ghost">取消</button>
+      </div>
+    </div>
+    <div class="status-bar">✅ 已记住：Apple Design 风格 · 17:17</div>
+    <div class="input-area">描述你想做的东西...</div>
+  </div>
+</div>
+
+<!-- Scheme C: Blue -->
+<div class="scheme scheme-c">
+  <div class="scheme-header">方案C · Apple Blue #0a84ff</div>
+  <div class="scheme-body">
+    <div class="user-msg"><span>以后设计都参考 Apple Design 风格</span></div>
+    <div class="ai-reply">
+      <div class="bar"></div>
+      <div class="content">好的，我记住了。以后所有设计相关的构建都会遵循 Apple Design 语言——简洁、留白、注重排版。</div>
+    </div>
+    <div class="confirm-card">
+      <div class="title">确认执行</div>
+      <div class="item">🧠 记住：所有设计参考 Apple Design 风格</div>
+      <div class="btns">
+        <button class="btn-primary">确认</button>
+        <button class="btn-ghost">取消</button>
+      </div>
+    </div>
+    <div class="status-bar">✅ 已记住：Apple Design 风格 · 17:17</div>
+    <div class="input-area">描述你想做的东西...</div>
+  </div>
+</div>
+
+<!-- Scheme D: Teal -->
+<div class="scheme scheme-d">
+  <div class="scheme-header">方案D · Cool Teal #64d2ff</div>
+  <div class="scheme-body">
+    <div class="user-msg"><span>以后设计都参考 Apple Design 风格</span></div>
+    <div class="ai-reply">
+      <div class="bar"></div>
+      <div class="content">好的，我记住了。以后所有设计相关的构建都会遵循 Apple Design 语言——简洁、留白、注重排版。</div>
+    </div>
+    <div class="confirm-card">
+      <div class="title">确认执行</div>
+      <div class="item">🧠 记住：所有设计参考 Apple Design 风格</div>
+      <div class="btns">
+        <button class="btn-primary">确认</button>
+        <button class="btn-ghost">取消</button>
+      </div>
+    </div>
+    <div class="status-bar">✅ 已记住：Apple Design 风格 · 17:17</div>
+    <div class="input-area">描述你想做的东西...</div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>
