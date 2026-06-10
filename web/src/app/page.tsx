@@ -273,9 +273,28 @@ export default function Home() {
           <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
             {events.length === 0 && !isThinking && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "22vh" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "20vh", position: "relative" }}>
+                {/* 背景光晕 */}
+                <div style={{
+                  position: "absolute",
+                  top: "18vh",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 320,
+                  height: 180,
+                  background: "radial-gradient(ellipse at center, rgba(167,139,250,0.06) 0%, transparent 70%)",
+                  pointerEvents: "none",
+                }} />
                 <LogoMark size={48} />
-                <div style={{ fontSize: 20, color: "var(--text-3)", fontWeight: 300, marginTop: 20, letterSpacing: "0.08em", fontFamily: "'Geist', sans-serif" }}>Think it. Build it.</div>
+                <div style={{
+                  fontSize: 28,
+                  color: "var(--text-3)",
+                  fontWeight: 300,
+                  marginTop: 28,
+                  letterSpacing: "0.1em",
+                  fontFamily: "'Geist', sans-serif",
+                  opacity: 0.6,
+                }}>Think it. Build it.</div>
               </div>
             )}
 

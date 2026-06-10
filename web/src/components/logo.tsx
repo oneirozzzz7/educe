@@ -41,8 +41,16 @@ export function LogoMark({ size = 20 }: { size?: number }) {
         width: lineWidth,
         height: lineHeight,
         borderRadius: lineHeight,
-        background: "linear-gradient(90deg, var(--accent) 0%, rgba(167,139,250,0.3) 60%, transparent 100%)",
+        background: "linear-gradient(90deg, var(--accent) 0%, rgba(167,139,250,0.2) 70%, transparent 100%)",
+        animation: "educe-line 2s ease-out forwards",
+        transformOrigin: "left",
       }} />
+      <style>{`
+        @keyframes educe-line {
+          from { transform: scaleX(0); opacity: 0; }
+          to { transform: scaleX(1); opacity: 1; }
+        }
+      `}</style>
     </span>
   );
 }
