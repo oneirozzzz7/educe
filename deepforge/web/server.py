@@ -202,8 +202,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 enriched_turns.append(t)
             return {
                 "session_id": state.session_id,
-                "turns": enriched_turns,
-                "transcript": state.transcript,
+                "events": state.events,
                 "versions": state.versions,
                 "current_version": state.current_version,
                 "phase": state.phase,

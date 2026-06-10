@@ -172,7 +172,7 @@ class Orchestrator:
 
         self.conversation.add_user(user_input, file_content)
         if hasattr(self, 'state'):
-            self.state.add_turn("user", user_input)
+            self.state.add_user_input(user_input)
 
         if file_content:
             self.context.metadata["uploaded_files_text"] = file_content
@@ -209,16 +209,13 @@ class Orchestrator:
         else:
             transcript = TaskTranscript(user_input)
 
-        if hasattr(self, 'state'):
-            self.state.transcript = []
-
         def push_transcript_event(evt: dict):
             import json as _json
             evt_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                 content="__TOOL_EVENT__" + _json.dumps(evt, ensure_ascii=False))
             self._notify(evt_msg)
             if hasattr(self, 'state'):
-                self.state.transcript.append(evt)
+                self.state.add_event("transcript", **{k: v for k, v in evt.items() if k != "event"})
         transcript.on_update = push_transcript_event
         self.context.metadata["_transcript"] = transcript
         if hasattr(self, 'state'):
@@ -311,6 +308,8 @@ class Orchestrator:
                 for i in range(0, len(raw), 20):
                     self._notify_chunk("assistant", raw[i:i+20])
                 final_reply = raw
+                if hasattr(self, 'state'):
+                    self.state.add_ai_reply(raw)
                 break
 
             # 需要用户确认的 action 类型
@@ -369,6 +368,11 @@ class Orchestrator:
                     type=MessageType.SYSTEM, sender="system", receiver="user",
                     content="__ACTION_CONFIRM__" + _json.dumps(confirm_items, ensure_ascii=False))
                 self._notify(confirm_msg)
+
+                if hasattr(self, 'state'):
+                    if reply_text:
+                        self.state.add_ai_reply(reply_text)
+                    self.state.add_action_confirm(confirm_items)
 
                 log_activity(_sid, "action_confirm_request",
                             actions=[i["display"] for i in confirm_items])
@@ -540,6 +544,8 @@ class Orchestrator:
 
         log_activity(_sid, "action_confirm_response",
                     decision=decision, note=note[:80])
+        if hasattr(self, 'state'):
+            self.state.add_user_confirm(decision, note)
 
         if decision == "cancel":
             self.context.metadata.pop("_pending_actions", None)
@@ -582,6 +588,9 @@ class Orchestrator:
                             type=action.type,
                             success=result.get("success", False),
                             output_preview=result.get("output", "")[:80])
+                if hasattr(self, 'state'):
+                    self.state.add_action_executed(
+                        action.type, result.get("output", ""), result.get("success", False))
 
                 # 如果是 build，直接返回
                 if action.type == "build":
@@ -819,8 +828,7 @@ class Orchestrator:
             summary = "[代码任务未能完成]"
         self.conversation.add_assistant(summary, domain="tech")
         if hasattr(self, 'state'):
-            turn_type = "code" if has_output else "text"
-            self.state.add_turn("assistant", summary, turn_type)
+            self.state.add_ai_reply(summary)
             asyncio.create_task(self._evolve_from_result())
 
         if not has_output:
@@ -1185,7 +1193,7 @@ class Orchestrator:
             self.context.add_message(msg)
             self.conversation.add_assistant(reply)
             if hasattr(self, 'state'):
-                self.state.add_turn("assistant", reply, "text")
+                self.state.add_ai_reply(reply)
             return self.context
         except Exception as e:
             log.error("_handle_memorize | error: %s", str(e)[:100])
@@ -1203,7 +1211,7 @@ class Orchestrator:
             self.context.add_message(msg)
             self.conversation.add_assistant(reply)
             if hasattr(self, 'state'):
-                self.state.add_turn("assistant", reply, "text")
+                self.state.add_ai_reply(reply)
             return self.context
 
     async def _maybe_extract_knowledge(self, user_input: str, existing_ids: list[str]):
@@ -1775,7 +1783,7 @@ class Orchestrator:
             self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)
             if hasattr(self, 'state'):
-                self.state.add_turn("assistant", raw)
+                self.state.add_ai_reply(raw)
 
             # 四信号融合可信度评估
             if self.credibility:
