@@ -318,6 +318,8 @@ class Orchestrator:
             immediate_actions = [a for a in actions if a.type not in needs_confirm]
 
             # 立即执行不需要确认的（recall、lookup_tools、use_tool）
+            if immediate_actions:
+                messages.append({"role": "assistant", "content": raw})
             for action in immediate_actions:
                 result = await self._execute_action(action, user_input, transcript)
                 log_activity(_sid, "action_executed",
@@ -327,9 +329,16 @@ class Orchestrator:
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
-                messages.append({"role": "assistant", "content": raw})
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
+
+            # immediate action 伴随的文字推送给用户
+            if immediate_actions and reply_text and not pending_actions:
+                for i in range(0, len(reply_text), 20):
+                    self._notify_chunk("assistant", reply_text[i:i+20])
+                self.conversation.add_assistant(reply_text)
+                if hasattr(self, 'state'):
+                    self.state.add_ai_reply(reply_text)
 
             # 需要确认的 action → 暂存，发确认请求给前端，返回等待
             if pending_actions:
@@ -580,7 +589,11 @@ class Orchestrator:
                 transcript = TaskTranscript(original_input)
                 self.context.metadata["_transcript"] = transcript
 
-            for p in pending:
+            # 先执行非 build 的 action，再执行 build（确保 memorize 不被跳过）
+            non_build = [p for p in pending if p["type"] != "build"]
+            build_actions = [p for p in pending if p["type"] == "build"]
+
+            for p in non_build:
                 action = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
                 result = await self._execute_action(action, original_input, transcript)
                 log_activity(_sid, "action_executed",
@@ -590,16 +603,22 @@ class Orchestrator:
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
-
-                # 如果是 build，直接返回
-                if action.type == "build":
-                    return self.context
-
-                # 非 build 的执行结果推送给用户
                 if result.get("output"):
                     for i in range(0, len(result["output"]), 20):
                         self._notify_chunk("assistant", result["output"][i:i+20])
                     self.conversation.add_assistant(result["output"])
+
+            for p in build_actions:
+                action = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
+                result = await self._execute_action(action, original_input, transcript)
+                log_activity(_sid, "action_executed",
+                            type=action.type,
+                            success=result.get("success", False),
+                            output_preview=result.get("output", "")[:80])
+                if hasattr(self, 'state'):
+                    self.state.add_action_executed(
+                        action.type, result.get("output", ""), result.get("success", False))
+                return self.context
 
             return self.context
 

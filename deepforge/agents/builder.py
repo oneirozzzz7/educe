@@ -300,11 +300,6 @@ class BuilderAgent(BaseAgent):
             context.add_artifact("engineer_output", "agentic build")
             context.add_artifact("version", version_num)
 
-            # Sync to SessionState if available
-            state = context.metadata.get("_session_state")
-            if state:
-                state.set_build_complete(built_paths, str(output_dir), version_num)
-                state.save()
             self._record_success(context.user_request, final_files)
 
             # Push version event to frontend
