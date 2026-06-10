@@ -275,7 +275,7 @@ export default function Home() {
             {events.length === 0 && !isThinking && (
               <div style={{ textAlign: "center", paddingTop: "25vh" }}>
                 <LogoMark size={42} />
-                <div style={{ fontSize: 15, color: "var(--text-3)", fontWeight: 400, marginTop: 16 }}>描述你想做的东西</div>
+                <div style={{ fontSize: 14, color: "var(--text-3)", fontWeight: 300, marginTop: 16, letterSpacing: "0.05em" }}>Think it. Build it.</div>
               </div>
             )}
 
