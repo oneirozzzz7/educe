@@ -633,24 +633,34 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 if data.get("type") == "action_confirm_response":
                     decision = data.get("decision", "confirm")
                     note = data.get("note", "")
-                    # 直接设置 pending_actions 的决策，跳过模型判断
                     pending = orchestrator.context.metadata.get("_pending_actions")
                     if pending:
+                        # 用户动作写入 conversation（模型能看到）
+                        confirm_text = f"[用户确认] {decision}"
+                        if note:
+                            confirm_text += f"，补充：{note}"
+                        orchestrator.conversation.add_user(confirm_text)
+
                         if decision == "cancel":
                             orchestrator.context.metadata.pop("_pending_actions", None)
                             orchestrator.context.metadata.pop("_pending_user_input", None)
+                            # 写入 conversation + events
+                            orchestrator.conversation.add_assistant("好的，已取消。")
                             if hasattr(orchestrator, 'state'):
                                 orchestrator.state.add_user_confirm("cancel")
                                 orchestrator.state.add_ai_reply("好的，已取消。")
-                            orchestrator.conversation.add_assistant("好的，已取消。")
+                            # 实时推送给前端
+                            await websocket.send_json({"type": "tool_event", "event": "transcript", "phase": "action", "role": "system", "content": "已取消", "elapsed": 0})
                             await websocket.send_json({"type": "status", "content": "idle"})
+
                         elif decision == "confirm":
                             if hasattr(orchestrator, 'state'):
                                 orchestrator.state.add_user_confirm("confirm", note)
                             await websocket.send_json({"type": "status", "content": "thinking"})
-                            # 如果有补充内容，合并到需求中
+
                             original = orchestrator.context.metadata.get("_pending_user_input", "")
                             if note:
+                                # 有补充 → 合并需求重新走 action loop
                                 original = f"{original}。补充：{note}"
                                 orchestrator.context.metadata.pop("_pending_actions", None)
                                 orchestrator.context.metadata.pop("_pending_user_input", None)
@@ -659,7 +669,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                 except Exception as e:
                                     await websocket.send_json({"type": "error", "content": str(e)})
                             else:
-                                # 无补充，直接执行 pending actions
+                                # 无补充 → 直接执行 pending actions
                                 from deepforge.core.action_executor import ParsedAction
                                 actions = orchestrator.context.metadata.pop("_pending_actions", [])
                                 orchestrator.context.metadata.pop("_pending_user_input", None)
@@ -668,18 +678,33 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                     from deepforge.core.transcript import TaskTranscript
                                     transcript = TaskTranscript(original)
                                     orchestrator.context.metadata["_transcript"] = transcript
+
                                 non_build = [p for p in actions if p["type"] != "build"]
                                 build_acts = [p for p in actions if p["type"] == "build"]
+
                                 for p in non_build:
                                     a = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
                                     result = await orchestrator._execute_action(a, original, transcript)
+                                    result_text = result.get("output", "")
+                                    # 写入 conversation（模型能看到执行结果）
+                                    orchestrator.conversation.add_assistant(f"[系统] {result_text}")
                                     if hasattr(orchestrator, 'state'):
-                                        orchestrator.state.add_action_executed(a.type, result.get("output", ""), result.get("success", False))
+                                        orchestrator.state.add_action_executed(a.type, result_text, result.get("success", False))
+                                    # 实时推送给前端
+                                    import json as _json2
+                                    await websocket.send_json({
+                                        "type": "tool_event", "event": "transcript",
+                                        "phase": "action", "role": "system",
+                                        "content": f"{'✅' if result.get('success') else '❌'} {result_text[:100]}",
+                                        "elapsed": 0,
+                                    })
+
                                 for p in build_acts:
                                     a = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
                                     await orchestrator._execute_action(a, original, transcript)
                                     if hasattr(orchestrator, 'state'):
                                         orchestrator.state.add_action_executed(a.type, "构建完成", True)
+
                             if hasattr(orchestrator, 'state'):
                                 orchestrator.state.save()
                                 try:

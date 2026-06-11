@@ -119,6 +119,7 @@ export type Action =
   // 确认机制
   | { type: "ACTION_CONFIRM_REQUEST"; actions: PendingAction[] }
   | { type: "ACTION_CONFIRMED" }
+  | { type: "ACTION_CANCELLED" }
 
   // UI
   | { type: "TOGGLE_SIDEBAR" }
@@ -242,12 +243,33 @@ export function reducer(state: AppState, action: Action): AppState {
         stream: { ...state.stream, thinking: false },
       };
 
-    case "ACTION_CONFIRMED":
+    case "ACTION_CONFIRMED": {
+      // 追加确认事件到 events（保留在历史中）
+      const confirmEvent: AppEvent = {
+        type: "user_confirm",
+        ts: Date.now() / 1000,
+        decision: "confirm",
+      };
       return {
         ...state,
+        events: [...state.events, confirmEvent],
         pendingConfirm: null,
         stream: { ...state.stream, thinking: true },
       };
+    }
+
+    case "ACTION_CANCELLED": {
+      const cancelEvent: AppEvent = {
+        type: "user_confirm",
+        ts: Date.now() / 1000,
+        decision: "cancel",
+      };
+      return {
+        ...state,
+        events: [...state.events, cancelEvent],
+        pendingConfirm: null,
+      };
+    }
 
     // ── UI ──
     case "TOGGLE_SIDEBAR":

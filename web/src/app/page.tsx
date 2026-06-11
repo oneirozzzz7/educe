@@ -217,7 +217,12 @@ function EventRenderer({ event }: { event: AppEvent }) {
       );
 
     case "user_confirm":
-      return null;
+      return (
+        <div className={`status-bar ${event.decision === "confirm" ? "status-bar-success" : ""}`} style={{ marginBottom: 12 }}>
+          {event.decision === "confirm" ? "✅ 已确认" : "⊘ 已取消"}
+          {event.note && ` · 补充：${event.note}`}
+        </div>
+      );
 
     case "action_executed":
       return (
@@ -313,7 +318,7 @@ export default function Home() {
 
   function handleCancel() {
     wsRef.current?.sendRaw({ type: "action_confirm_response", decision: "cancel" });
-    dispatch({ type: "ACTION_CONFIRMED" });
+    dispatch({ type: "ACTION_CANCELLED" });
   }
 
   function handleNewChat() {
