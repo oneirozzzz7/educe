@@ -246,7 +246,12 @@ export default function Home() {
           <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)", letterSpacing: "-0.3px" }}><LogoMark size={18} /></span>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {connected && (
-              <span style={{ fontSize: 11, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 5 }}>
+              <span
+                onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+                style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "var(--text-0)")}
+                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
+              >
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pass)" }} />
                 {model}
               </span>
@@ -258,13 +263,6 @@ export default function Home() {
               onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
               title="知识管理"
             >🧠</button>
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-0)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
-              title="设置"
-            >⚙</button>
           </div>
         </div>
 
