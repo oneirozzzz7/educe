@@ -889,6 +889,11 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     await websocket.send_json({"type": "status", "content": "idle"})
 
         except WebSocketDisconnect:
+            # Clean up stuck building state
+            if orchestrator and hasattr(orchestrator, 'state') and orchestrator.state.phase == "building":
+                code_files = orchestrator.context.artifacts.get("code_files", [])
+                orchestrator.state.add_build_complete(code_files, success=bool(code_files))
+                orchestrator.state.save()
             if session_id in sessions:
                 del sessions[session_id]
             if session_id in session_files:
