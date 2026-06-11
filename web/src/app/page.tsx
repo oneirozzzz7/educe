@@ -222,12 +222,14 @@ export default function Home() {
   }
 
   function handleConfirm() {
-    wsRef.current?.send("确认");
+    const supplement = document.querySelector<HTMLTextAreaElement>(".confirm-card-input");
+    const note = supplement?.value?.trim() || "";
+    wsRef.current?.sendRaw({ type: "action_confirm_response", decision: "confirm", note });
     dispatch({ type: "ACTION_CONFIRMED" });
   }
 
   function handleCancel() {
-    wsRef.current?.send("取消");
+    wsRef.current?.sendRaw({ type: "action_confirm_response", decision: "cancel" });
     dispatch({ type: "ACTION_CONFIRMED" });
   }
 

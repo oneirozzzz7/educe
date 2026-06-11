@@ -614,6 +614,67 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     orchestrator.state.save()
                     continue
 
+                # 处理 action 确认/取消
+                if data.get("type") == "action_confirm_response":
+                    decision = data.get("decision", "confirm")
+                    note = data.get("note", "")
+                    # 直接设置 pending_actions 的决策，跳过模型判断
+                    pending = orchestrator.context.metadata.get("_pending_actions")
+                    if pending:
+                        if decision == "cancel":
+                            orchestrator.context.metadata.pop("_pending_actions", None)
+                            orchestrator.context.metadata.pop("_pending_user_input", None)
+                            if hasattr(orchestrator, 'state'):
+                                orchestrator.state.add_user_confirm("cancel")
+                                orchestrator.state.add_ai_reply("好的，已取消。")
+                            orchestrator.conversation.add_assistant("好的，已取消。")
+                            await websocket.send_json({"type": "status", "content": "idle"})
+                        elif decision == "confirm":
+                            if hasattr(orchestrator, 'state'):
+                                orchestrator.state.add_user_confirm("confirm", note)
+                            await websocket.send_json({"type": "status", "content": "thinking"})
+                            # 如果有补充内容，合并到需求中
+                            original = orchestrator.context.metadata.get("_pending_user_input", "")
+                            if note:
+                                original = f"{original}。补充：{note}"
+                                orchestrator.context.metadata.pop("_pending_actions", None)
+                                orchestrator.context.metadata.pop("_pending_user_input", None)
+                                try:
+                                    await orchestrator.run(original)
+                                except Exception as e:
+                                    await websocket.send_json({"type": "error", "content": str(e)})
+                            else:
+                                # 无补充，直接执行 pending actions
+                                from deepforge.core.action_executor import ParsedAction
+                                actions = orchestrator.context.metadata.pop("_pending_actions", [])
+                                orchestrator.context.metadata.pop("_pending_user_input", None)
+                                transcript = orchestrator.context.metadata.get("_transcript")
+                                if not transcript:
+                                    from deepforge.core.transcript import TaskTranscript
+                                    transcript = TaskTranscript(original)
+                                    orchestrator.context.metadata["_transcript"] = transcript
+                                non_build = [p for p in actions if p["type"] != "build"]
+                                build_acts = [p for p in actions if p["type"] == "build"]
+                                for p in non_build:
+                                    a = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
+                                    result = await orchestrator._execute_action(a, original, transcript)
+                                    if hasattr(orchestrator, 'state'):
+                                        orchestrator.state.add_action_executed(a.type, result.get("output", ""), result.get("success", False))
+                                for p in build_acts:
+                                    a = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
+                                    await orchestrator._execute_action(a, original, transcript)
+                                    if hasattr(orchestrator, 'state'):
+                                        orchestrator.state.add_action_executed(a.type, "构建完成", True)
+                            if hasattr(orchestrator, 'state'):
+                                orchestrator.state.save()
+                                try:
+                                    await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
+                                except Exception:
+                                    pass
+                            await asyncio.sleep(0.05)
+                            await websocket.send_json({"type": "status", "content": "idle"})
+                    continue
+
                 # 处理决策选择（协作式构建）
                 if data.get("type") == "decision_response":
                     user_decisions = data.get("decisions", [])
