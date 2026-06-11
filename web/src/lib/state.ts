@@ -149,9 +149,12 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "SYNC_STATE": {
       const p = action.payload;
+      // 首次加载（events为空）时用 state_sync 的 events 初始化；后续不覆盖
+      const syncedEvents = (state.events.length === 0 && p.events?.length > 0)
+        ? p.events : state.events;
       return {
         ...state,
-        // 不覆盖 events — events 通过实时 APPEND_EVENT 维护，state_sync 只同步元数据
+        events: syncedEvents,
         phase: mapPhase(p.phase) || state.phase,
         codeFiles: p.code_files || state.codeFiles,
         outputDir: p.output_dir || state.outputDir,

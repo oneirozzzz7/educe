@@ -127,6 +127,15 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             "evolution": config.evolution.enabled,
         }
 
+    @app.get("/api/knowledge")
+    async def get_knowledge():
+        from deepforge.core.unified_store import UnifiedKnowledgeStore
+        try:
+            store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+            return {"entries": store._catalog}
+        except Exception:
+            return {"entries": []}
+
     @app.get("/api/stats")
     async def stats():
         from deepforge.core.observer import Observer

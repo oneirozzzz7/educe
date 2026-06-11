@@ -10,6 +10,43 @@ import { LogoMark, LogoBrand } from "@/components/logo";
 
 marked.setOptions({ gfm: true, breaks: true });
 
+// ═══ 知识管理面板 ═══
+
+function KnowledgePanel() {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`http://${API_HOST}/api/knowledge`)
+      .then(r => r.json())
+      .then(d => { setEntries(d.entries || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ color: "var(--text-3)", fontSize: 13 }}>加载中...</div>;
+  if (entries.length === 0) return <div style={{ color: "var(--text-3)", fontSize: 13 }}>暂无记忆。通过对话告诉我你的偏好，我会记住。</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {entries.map((e: any, i: number) => (
+        <div key={i} style={{
+          padding: "12px 14px", borderRadius: "var(--radius-sm)",
+          background: "var(--surface-2)", border: "1px solid var(--border-0)",
+        }}>
+          <div style={{ fontSize: 13, color: "var(--text-0)", marginBottom: 4 }}>{e.preview}</div>
+          <div style={{ fontSize: 11, color: "var(--text-3)", display: "flex", gap: 8 }}>
+            <span>{e.domain || "通用"}</span>
+            <span>·</span>
+            <span>{e.source === "user" ? "🟢 用户" : e.source === "auto" ? "🔵 系统" : e.source}</span>
+            <span>·</span>
+            <span>{e.maturity}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ═══ 事件渲染器 ═══
 
 function EventRenderer({ event }: { event: AppEvent }) {
@@ -128,7 +165,12 @@ export default function Home() {
 
   // ── WebSocket ──
   useEffect(() => {
-    const sid = crypto.randomUUID?.() ?? Date.now().toString(36);
+    // 持久化 session_id（刷新后恢复同一 session）
+    let sid = localStorage.getItem("educe_session_id");
+    if (!sid) {
+      sid = crypto.randomUUID?.() ?? Date.now().toString(36);
+      localStorage.setItem("educe_session_id", sid);
+    }
     dispatch({ type: "SET_SESSION_ID", value: sid });
     const ws = createWS(sid);
     wsRef.current = ws;
@@ -411,6 +453,31 @@ export default function Home() {
           model={model}
           onModelChange={m => dispatch({ type: "SET_MODEL", value: m })}
         />
+      )}
+
+      {/* ── 知识管理面板（右侧滑出） ── */}
+      {state.knowledgeOpen && (
+        <>
+          <div
+            onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200 }}
+          />
+          <div style={{
+            position: "fixed", top: 0, right: 0, bottom: 0, width: 360,
+            background: "var(--surface-1)", borderLeft: "1px solid var(--border-1)",
+            zIndex: 201, display: "flex", flexDirection: "column",
+            boxShadow: "var(--shadow-md)",
+            animation: "slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--border-0)" }}>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)" }}>🧠 知识管理</span>
+              <button onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+              <KnowledgePanel />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
