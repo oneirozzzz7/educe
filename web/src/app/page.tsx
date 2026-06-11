@@ -261,6 +261,18 @@ export default function Home() {
             <rect x="2" y="11.5" width="10" height="1.5" rx="0.75" fill="currentColor" opacity="0.3"/>
           </svg>
         </button>
+        {/* 新建对话按钮 */}
+        <button
+          onClick={() => {
+            const newSid = crypto.randomUUID?.() ?? Date.now().toString(36);
+            localStorage.setItem("educe_session_id", newSid);
+            window.location.reload();
+          }}
+          style={{ width: 48, height: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 18, transition: "color 0.2s" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
+          onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
+          title="新建对话"
+        >+</button>
         {state.sidebarOpen && (
           <div style={{ padding: "12px 16px", fontSize: 11, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
             历史
