@@ -136,6 +136,21 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         except Exception:
             return {"entries": []}
 
+    @app.delete("/api/knowledge/{entry_id}")
+    async def delete_knowledge(entry_id: str):
+        from deepforge.core.unified_store import UnifiedKnowledgeStore
+        try:
+            store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+            path = store.entries_dir / f"{entry_id}.json"
+            if path.exists():
+                path.unlink()
+            store._catalog = [e for e in store._catalog if e["id"] != entry_id]
+            store._save_catalog()
+            store._invalidate_compiled()
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     @app.get("/api/stats")
     async def stats():
         from deepforge.core.observer import Observer

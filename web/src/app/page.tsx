@@ -1,45 +1,164 @@
 "use client";
 
-import { useReducer, useRef, useEffect, useState, useCallback } from "react";
+import { useReducer, useRef, useEffect, useState } from "react";
 import { marked } from "marked";
-import { reducer, INITIAL_STATE, type AppState, type AppEvent } from "@/lib/state";
+import { reducer, INITIAL_STATE, type AppState, type AppEvent, type PendingAction } from "@/lib/state";
 import { mapWsMessage } from "@/lib/ws-handler";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { SettingsModal } from "@/components/settings-modal";
-import { LogoMark, LogoBrand } from "@/components/logo";
+import { LogoMark } from "@/components/logo";
 
 marked.setOptions({ gfm: true, breaks: true });
 
+// ═══ 历史列表项 ═══
+
+interface HistoryItem {
+  id: string;
+  title: string;
+  event_count: number;
+  type: string;
+  updated_at: number;
+}
+
+function HistorySidebar({ open, currentId, onSelect, onNew }: {
+  open: boolean; currentId: string;
+  onSelect: (id: string) => void; onNew: () => void;
+}) {
+  const [items, setItems] = useState<HistoryItem[]>([]);
+
+  useEffect(() => {
+    fetch(`http://${API_HOST}/api/tasks`)
+      .then(r => r.json())
+      .then(d => setItems(d.tasks || []))
+      .catch(() => {});
+  }, [currentId]); // 切换 session 后刷新列表
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* 新建按钮 */}
+      <button
+        onClick={onNew}
+        style={{
+          margin: open ? "12px 12px 8px" : "8px 4px",
+          padding: open ? "8px 12px" : "8px",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border-2)",
+          background: "transparent",
+          color: "var(--text-2)",
+          fontSize: open ? 13 : 16,
+          cursor: "pointer",
+          transition: "all 0.2s",
+          textAlign: "center",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-2)"; e.currentTarget.style.color = "var(--text-2)"; }}
+      >
+        {open ? "+ 新对话" : "+"}
+      </button>
+
+      {/* 历史列表 */}
+      {open && (
+        <div style={{ flex: 1, overflow: "auto", padding: "0 8px" }}>
+          <div style={{ padding: "8px 8px 4px", fontSize: 10, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+            历史
+          </div>
+          {items.map(item => (
+            <div
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              style={{
+                padding: "8px 10px",
+                marginBottom: 2,
+                borderRadius: "var(--radius-sm)",
+                cursor: "pointer",
+                background: item.id === currentId ? "var(--accent-dim)" : "transparent",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={e => { if (item.id !== currentId) e.currentTarget.style.background = "var(--surface-2)"; }}
+              onMouseLeave={e => { if (item.id !== currentId) e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ fontSize: 12, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {item.type === "code" ? "🔨 " : "💬 "}{item.title}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
+                {item.event_count}条 · {formatRelativeTime(item.updated_at)}
+              </div>
+            </div>
+          ))}
+          {items.length === 0 && (
+            <div style={{ padding: "16px 8px", fontSize: 12, color: "var(--text-3)", textAlign: "center" }}>
+              暂无历史
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatRelativeTime(ts: number): string {
+  if (!ts) return "";
+  const diff = Date.now() / 1000 - ts;
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+  return `${Math.floor(diff / 86400)}天前`;
+}
+
 // ═══ 知识管理面板 ═══
 
-function KnowledgePanel() {
+function KnowledgePanel({ onRefresh }: { onRefresh?: () => void }) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
     fetch(`http://${API_HOST}/api/knowledge`)
       .then(r => r.json())
       .then(d => { setEntries(d.entries || []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  };
 
-  if (loading) return <div style={{ color: "var(--text-3)", fontSize: 13 }}>加载中...</div>;
-  if (entries.length === 0) return <div style={{ color: "var(--text-3)", fontSize: 13 }}>暂无记忆。通过对话告诉我你的偏好，我会记住。</div>;
+  useEffect(() => { load(); }, []);
+
+  const handleDelete = async (entryId: string) => {
+    try {
+      await fetch(`http://${API_HOST}/api/knowledge/${entryId}`, { method: "DELETE" });
+      load();
+    } catch {}
+  };
+
+  if (loading) return <div style={{ color: "var(--text-3)", fontSize: 13, padding: 8 }}>加载中...</div>;
+  if (entries.length === 0) return (
+    <div style={{ color: "var(--text-3)", fontSize: 13, padding: 8, lineHeight: 1.6 }}>
+      暂无记忆。<br/>通过对话告诉我你的偏好，我会记住。
+    </div>
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {entries.map((e: any, i: number) => (
-        <div key={i} style={{
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {entries.map((e: any) => (
+        <div key={e.id} style={{
           padding: "12px 14px", borderRadius: "var(--radius-sm)",
           background: "var(--surface-2)", border: "1px solid var(--border-0)",
         }}>
-          <div style={{ fontSize: 13, color: "var(--text-0)", marginBottom: 4 }}>{e.preview}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", display: "flex", gap: 8 }}>
-            <span>{e.domain || "通用"}</span>
-            <span>·</span>
-            <span>{e.source === "user" ? "🟢 用户" : e.source === "auto" ? "🔵 系统" : e.source}</span>
-            <span>·</span>
-            <span>{e.maturity}</span>
+          <div style={{ fontSize: 13, color: "var(--text-0)", marginBottom: 6, lineHeight: 1.5 }}>{e.preview}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 11, color: "var(--text-3)", display: "flex", gap: 6, alignItems: "center" }}>
+              <span>{e.domain || "通用"}</span>
+              <span style={{ opacity: 0.3 }}>·</span>
+              <span style={{ color: e.source === "user" ? "var(--pass)" : "var(--accent)" }}>
+                {e.source === "user" ? "用户" : "系统"}
+              </span>
+              <span style={{ opacity: 0.3 }}>·</span>
+              <span>{e.maturity}</span>
+            </div>
+            <button
+              onClick={() => handleDelete(e.id)}
+              style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 12, padding: "2px 6px", borderRadius: 4, transition: "all 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--fail)"; e.currentTarget.style.background = "var(--fail-dim)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "var(--text-3)"; e.currentTarget.style.background = "none"; }}
+            >删除</button>
           </div>
         </div>
       ))}
@@ -80,42 +199,30 @@ function EventRenderer({ event }: { event: AppEvent }) {
     case "transcript":
       return (
         <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: "var(--text-2)" }}>
-            {event.phase && `[${event.phase}] `}{event.content}
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, opacity: 0.6 }} />
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+            {event.content}
           </span>
           {event.elapsed > 0 && (
-            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>{event.elapsed}s</span>
+            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto", opacity: 0.5 }}>{event.elapsed}s</span>
           )}
         </div>
       );
 
-    case "action_confirm": {
-      // 历史中的确认卡片：检查后面是否有 user_confirm（已完成）
-      // 如果已完成，显示为精简的状态条
-      const isCompleted = false; // 实际判断需要看后续 events，这里简化为始终显示精简版
+    case "action_confirm":
       return (
         <div className="status-bar" style={{ marginBottom: 12 }}>
-          ⏳ 待确认：{(event.actions || []).map((a: any) => a.display).join("、")}
+          ⏳ {(event.actions || []).map((a: any) => a.display).join("、")}
         </div>
       );
-    }
 
     case "user_confirm":
-      // 不单独渲染——确认结果已通过 action_executed 展示
       return null;
 
     case "action_executed":
       return (
         <div className={`status-bar ${event.success ? "status-bar-success" : "status-bar-error"}`} style={{ marginBottom: 12 }}>
           {event.success ? "✅" : "❌"} {event.result?.slice(0, 100)}
-        </div>
-      );
-
-    case "knowledge_change":
-      return (
-        <div className="status-bar" style={{ marginBottom: 12 }}>
-          🧠 {event.op === "add" ? "已记住" : event.op === "delete" ? "已删除" : event.op}: {event.content}
         </div>
       );
 
@@ -160,7 +267,6 @@ export default function Home() {
 
   // ── WebSocket ──
   useEffect(() => {
-    // 持久化 session_id（刷新后恢复同一 session）
     let sid = localStorage.getItem("educe_session_id");
     if (!sid) {
       sid = crypto.randomUUID?.() ?? Date.now().toString(36);
@@ -177,7 +283,6 @@ export default function Home() {
       }).catch(() => {});
     });
     ws.onDisconnect(() => dispatch({ type: "SET_CONNECTED", value: false }));
-
     ws.onMessage((msg: ServerMessage) => {
       const actions = mapWsMessage(msg);
       if (!actions) return;
@@ -188,30 +293,13 @@ export default function Home() {
     return () => { ws.close(); };
   }, []);
 
-  // ── 自动滚动 ──
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [events.length, stream.thinking]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events.length, stream.thinking]);
+  useEffect(() => { if (!isThinking) return; const t = setInterval(() => dispatch({ type: "TICK_THINKING" }), 1000); return () => clearInterval(t); }, [isThinking]);
+  useEffect(() => { if (!isBuilding) return; const t = setInterval(() => dispatch({ type: "TICK_BUILD" }), 1000); return () => clearInterval(t); }, [isBuilding]);
 
-  // ── 思考计时器 ──
-  useEffect(() => {
-    if (!isThinking) return;
-    const t = setInterval(() => dispatch({ type: "TICK_THINKING" }), 1000);
-    return () => clearInterval(t);
-  }, [isThinking]);
-
-  // ── 构建计时器 ──
-  useEffect(() => {
-    if (!isBuilding) return;
-    const t = setInterval(() => dispatch({ type: "TICK_BUILD" }), 1000);
-    return () => clearInterval(t);
-  }, [isBuilding]);
-
-  // ── 发送消息 ──
   function send(text: string) {
     if (!text.trim()) return;
-    const event: AppEvent = { type: "user_input", ts: Date.now() / 1000, content: text.trim() };
-    dispatch({ type: "APPEND_EVENT", event });
+    dispatch({ type: "APPEND_EVENT", event: { type: "user_input", ts: Date.now() / 1000, content: text.trim() } });
     wsRef.current?.send(text.trim());
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -228,17 +316,25 @@ export default function Home() {
     dispatch({ type: "ACTION_CONFIRMED" });
   }
 
+  function handleNewChat() {
+    const newSid = crypto.randomUUID?.() ?? Date.now().toString(36);
+    localStorage.setItem("educe_session_id", newSid);
+    window.location.reload();
+  }
+
+  function handleSelectSession(id: string) {
+    localStorage.setItem("educe_session_id", id);
+    window.location.reload();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send(e.currentTarget.value);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e.currentTarget.value); }
   }
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "var(--bg)" }}>
 
-      {/* ── 侧边栏（窄） ── */}
+      {/* ── 侧边栏 ── */}
       <div style={{
         width: state.sidebarOpen ? "var(--sidebar-width-open)" : "var(--sidebar-width)",
         background: "var(--bg)",
@@ -249,9 +345,10 @@ export default function Home() {
         flexDirection: "column",
         overflow: "hidden",
       }}>
+        {/* 折叠按钮 */}
         <button
           onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })}
-          style={{ width: 48, height: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", transition: "color 0.2s" }}
+          style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", transition: "color 0.2s", flexShrink: 0 }}
           onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
           onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
         >
@@ -261,23 +358,13 @@ export default function Home() {
             <rect x="2" y="11.5" width="10" height="1.5" rx="0.75" fill="currentColor" opacity="0.3"/>
           </svg>
         </button>
-        {/* 新建对话按钮 */}
-        <button
-          onClick={() => {
-            const newSid = crypto.randomUUID?.() ?? Date.now().toString(36);
-            localStorage.setItem("educe_session_id", newSid);
-            window.location.reload();
-          }}
-          style={{ width: 48, height: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 18, transition: "color 0.2s" }}
-          onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
-          onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
-          title="新建对话"
-        >+</button>
-        {state.sidebarOpen && (
-          <div style={{ padding: "12px 16px", fontSize: 11, color: "var(--text-3)", fontWeight: 500, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-            历史
-          </div>
-        )}
+
+        <HistorySidebar
+          open={state.sidebarOpen}
+          currentId={state.sessionId}
+          onSelect={handleSelectSession}
+          onNew={handleNewChat}
+        />
       </div>
 
       {/* ── 主内容区 ── */}
@@ -285,75 +372,44 @@ export default function Home() {
 
         {/* 顶栏 */}
         <div style={{
-          height: 52,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 24px",
-          borderBottom: "1px solid var(--border-1)",
-          flexShrink: 0,
-          background: "var(--surface-1)",
+          height: 52, display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 24px", borderBottom: "1px solid var(--border-1)", flexShrink: 0, background: "var(--surface-1)",
         }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)", letterSpacing: "-0.3px" }}><LogoMark size={18} /></span>
+          <LogoMark size={18} />
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {connected && (
-              <span
-                onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
+              <span onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
                 style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", transition: "color 0.2s" }}
                 onMouseEnter={e => (e.currentTarget.style.color = "var(--text-0)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
-              >
+                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pass)" }} />
                 {model}
               </span>
             )}
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
+            <button onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
               style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
               onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
-              title="知识管理"
-            >🧠</button>
+              title="知识管理">🧠</button>
           </div>
         </div>
 
         {/* 事件流 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 100px" }}>
           <div style={{ maxWidth: 720, margin: "0 auto" }}>
-
             {events.length === 0 && !isThinking && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "20vh", position: "relative" }}>
-                {/* 背景光晕 */}
-                <div style={{
-                  position: "absolute",
-                  top: "18vh",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: 320,
-                  height: 180,
-                  background: "radial-gradient(ellipse at center, rgba(167,139,250,0.06) 0%, transparent 70%)",
-                  pointerEvents: "none",
-                }} />
+                <div style={{ position: "absolute", top: "18vh", left: "50%", transform: "translateX(-50%)", width: 320, height: 180, background: "radial-gradient(ellipse at center, rgba(167,139,250,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
                 <LogoMark size={48} />
-                <div style={{
-                  fontSize: 28,
-                  color: "var(--text-3)",
-                  fontWeight: 300,
-                  marginTop: 28,
-                  letterSpacing: "0.1em",
-                  fontFamily: "'Geist', sans-serif",
-                  opacity: 0.6,
-                }}>Think it. Build it.</div>
+                <div style={{ fontSize: 28, color: "var(--text-3)", fontWeight: 300, marginTop: 28, letterSpacing: "0.1em", fontFamily: "'Geist', sans-serif", opacity: 0.6 }}>Think it. Build it.</div>
               </div>
             )}
 
             {events.map((event, i) => {
-              // 跳过最后一个 action_confirm（如果 pendingConfirm 正在展示实时版本）
-              if (event.type === "action_confirm" && pendingConfirm && i === events.length - 1) return null;
+              if (event.type === "action_confirm" && pendingConfirm && i >= events.length - 2) return null;
               return <EventRenderer key={`${event.type}-${i}`} event={event} />;
             })}
 
-            {/* 待确认卡片（实时，非 event 中的） */}
             {pendingConfirm && (
               <div className="confirm-card" style={{ marginBottom: 16 }}>
                 <div className="confirm-card-title">确认执行</div>
@@ -362,26 +418,20 @@ export default function Home() {
                     {a.type === "build" ? "🔨 " : "🧠 "}{a.display}
                   </div>
                 ))}
-                <textarea
-                  className="confirm-card-input"
-                  placeholder="补充你的想法（可选）"
-                  rows={2}
-                />
+                <textarea className="confirm-card-input" placeholder="补充你的想法（可选）" rows={2} />
                 <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                  <button className="btn-primary" onClick={handleConfirm}>确认开始</button>
+                  <button className="btn-primary" onClick={handleConfirm}>确认</button>
                   <button className="btn-ghost" onClick={handleCancel}>取消</button>
                 </div>
               </div>
             )}
 
-            {/* 思考中 */}
             {isThinking && (
               <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
                 <div className="thinking-dots"><span /><span /><span /></div>
                 <span style={{ fontSize: 12, color: "var(--text-3)" }}>思考中 · {stream.thinkingElapsed}s</span>
               </div>
             )}
-
             <div ref={chatEndRef} />
           </div>
         </div>
@@ -389,65 +439,35 @@ export default function Home() {
         {/* 输入框 */}
         <div style={{ padding: "12px 28px 20px", flexShrink: 0 }}>
           <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
-            <textarea
-              ref={inputRef}
-              className="main-input"
-              placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."}
-              onKeyDown={handleKeyDown}
-              rows={1}
-            />
-            <button
-              onClick={() => inputRef.current && send(inputRef.current.value)}
-              style={{
-                position: "absolute",
-                right: 12,
-                bottom: 12,
-                background: "none",
-                border: "none",
-                color: "var(--accent)",
-                cursor: "pointer",
-                fontSize: 18,
-              }}
-            >➤</button>
+            <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."} onKeyDown={handleKeyDown} rows={1} />
+            <button onClick={() => inputRef.current && send(inputRef.current.value)}
+              style={{ position: "absolute", right: 12, bottom: 12, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 18 }}>➤</button>
           </div>
         </div>
       </div>
 
-      {/* ── 画中画（构建中 — 迷你态） ── */}
+      {/* ── 画中画 ── */}
       {isBuilding && !state.buildExpanded && (
         <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })}>
-          <div className="pip-dot" />
-          <span>构建中... {stream.buildElapsed}s</span>
-          <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 4 }}>点击展开</span>
+          <div className="pip-dot" /><span>构建中... {stream.buildElapsed}s</span>
         </div>
       )}
-
-      {/* ── 画中画（构建中 — 展开态） ── */}
       {isBuilding && state.buildExpanded && (
-        <div style={{
-          position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh",
-          background: "var(--surface-1)", borderTopLeftRadius: 16,
-          border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)",
-          zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden",
-        }}>
+        <div style={{ position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh", background: "var(--surface-1)", borderTopLeftRadius: 16, border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-0)" }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)" }}>🔨 构建中... {stream.buildElapsed}s</span>
-            <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14 }}>收起 ↓</button>
+            <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>收起 ↓</button>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
             {stream.code ? (
-              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                {stream.code}
-              </pre>
+              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{stream.code}</pre>
             ) : (
               <div style={{ color: "var(--text-3)", fontSize: 13 }}>等待代码生成...</div>
             )}
           </div>
         </div>
       )}
-
-      {/* ── 画中画（构建完成 — 迷你态） ── */}
-      {phase === "complete" && stream.code && (
+      {phase === "complete" && stream.code && !state.buildExpanded && (
         <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "var(--surface-1)" }}>
           <span style={{ color: "var(--pass)" }}>✅</span>
           <span>{stream.fileName || "产物"} · {Math.round(stream.code.length / 1024)}KB</span>
@@ -456,28 +476,14 @@ export default function Home() {
 
       {/* ── 设置弹窗 ── */}
       {state.showSettings && (
-        <SettingsModal
-          open={true}
-          onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-          model={model}
-          onModelChange={m => dispatch({ type: "SET_MODEL", value: m })}
-        />
+        <SettingsModal open={true} onClose={() => dispatch({ type: "TOGGLE_SETTINGS" })} model={model} onModelChange={m => dispatch({ type: "SET_MODEL", value: m })} />
       )}
 
-      {/* ── 知识管理面板（右侧滑出） ── */}
+      {/* ── 知识管理面板 ── */}
       {state.knowledgeOpen && (
         <>
-          <div
-            onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200 }}
-          />
-          <div style={{
-            position: "fixed", top: 0, right: 0, bottom: 0, width: 360,
-            background: "var(--surface-1)", borderLeft: "1px solid var(--border-1)",
-            zIndex: 201, display: "flex", flexDirection: "column",
-            boxShadow: "var(--shadow-md)",
-            animation: "slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-          }}>
+          <div onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 200 }} />
+          <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 360, background: "var(--surface-1)", borderLeft: "1px solid var(--border-1)", zIndex: 201, display: "flex", flexDirection: "column", boxShadow: "var(--shadow-md)", animation: "slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--border-0)" }}>
               <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-0)" }}>🧠 知识管理</span>
               <button onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16 }}>✕</button>
