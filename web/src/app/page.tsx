@@ -296,9 +296,11 @@ export default function Home() {
               </div>
             )}
 
-            {events.map((event, i) => (
-              <EventRenderer key={`${event.type}-${i}`} event={event} />
-            ))}
+            {events.map((event, i) => {
+              // 跳过最后一个 action_confirm（如果 pendingConfirm 正在展示实时版本）
+              if (event.type === "action_confirm" && pendingConfirm && i === events.length - 1) return null;
+              return <EventRenderer key={`${event.type}-${i}`} event={event} />;
+            })}
 
             {/* 待确认卡片（实时，非 event 中的） */}
             {pendingConfirm && (
@@ -360,11 +362,44 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── 画中画（构建中） ── */}
+      {/* ── 画中画（构建中 — 迷你态） ── */}
       {isBuilding && !state.buildExpanded && (
         <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })}>
           <div className="pip-dot" />
           <span>构建中... {stream.buildElapsed}s</span>
+          <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 4 }}>点击展开</span>
+        </div>
+      )}
+
+      {/* ── 画中画（构建中 — 展开态） ── */}
+      {isBuilding && state.buildExpanded && (
+        <div style={{
+          position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh",
+          background: "var(--surface-1)", borderTopLeftRadius: 16,
+          border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)",
+          zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-0)" }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)" }}>🔨 构建中... {stream.buildElapsed}s</span>
+            <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14 }}>收起 ↓</button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+            {stream.code ? (
+              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                {stream.code}
+              </pre>
+            ) : (
+              <div style={{ color: "var(--text-3)", fontSize: 13 }}>等待代码生成...</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 画中画（构建完成 — 迷你态） ── */}
+      {phase === "complete" && stream.code && (
+        <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "var(--surface-1)" }}>
+          <span style={{ color: "var(--pass)" }}>✅</span>
+          <span>{stream.fileName || "产物"} · {Math.round(stream.code.length / 1024)}KB</span>
         </div>
       )}
 

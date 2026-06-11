@@ -151,7 +151,7 @@ export function reducer(state: AppState, action: Action): AppState {
       const p = action.payload;
       return {
         ...state,
-        events: p.events || state.events,
+        // 不覆盖 events — events 通过实时 APPEND_EVENT 维护，state_sync 只同步元数据
         phase: mapPhase(p.phase) || state.phase,
         codeFiles: p.code_files || state.codeFiles,
         outputDir: p.output_dir || state.outputDir,
