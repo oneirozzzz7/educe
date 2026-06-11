@@ -438,6 +438,48 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             headers={"Content-Disposition": f"attachment; filename=educe-{session_id[:8]}.zip"},
         )
 
+    @app.post("/api/run/{session_id}")
+    async def run_file(session_id: str):
+        """Execute the main output file for a session and return stdout/stderr."""
+        import subprocess
+
+        output_dir = Path(".deepforge/output") / session_id[:16]
+        if not output_dir.exists():
+            return {"success": False, "output": "Session output not found"}
+
+        # Find the main executable file
+        candidates = list(output_dir.glob("*.py")) + list(output_dir.glob("*.js")) + list(output_dir.glob("*.sh"))
+        if not candidates:
+            return {"success": False, "output": "No executable file found"}
+
+        target = candidates[0]
+        ext = target.suffix
+
+        if ext == ".py":
+            cmd = ["python3", target.name]
+        elif ext == ".js":
+            cmd = ["node", target.name]
+        elif ext == ".sh":
+            cmd = ["bash", target.name]
+        else:
+            return {"success": False, "output": f"Unsupported file type: {ext}"}
+
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15, cwd=str(output_dir)
+            )
+            output = result.stdout + (("\n[stderr]\n" + result.stderr) if result.stderr else "")
+            return {
+                "success": result.returncode == 0,
+                "output": output[:5000],
+                "file": target.name,
+                "returncode": result.returncode,
+            }
+        except subprocess.TimeoutExpired:
+            return {"success": False, "output": "执行超时 (15s)"}
+        except Exception as e:
+            return {"success": False, "output": str(e)}
+
     @app.get("/api/versions/{session_id}")
     async def list_versions(session_id: str):
         versions_dir = Path(".deepforge/output") / session_id[:16] / "versions"

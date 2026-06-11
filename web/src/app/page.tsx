@@ -14,19 +14,42 @@ function stripActionPrefix(code: string): string {
   return code.replace(/^```action:\w+\n(?:[\w_]+:.*\n)*---\n/gm, "").replace(/```\s*$/g, "").trim();
 }
 
-function CodePreviewPanel({ fileUrl, runOutput, cachedCode }: { fileUrl: string; runOutput: string; cachedCode: string }) {
+function CodePreviewPanel({ fileUrl, runOutput, cachedCode, sessionId }: { fileUrl: string; runOutput: string; cachedCode: string; sessionId: string }) {
   const [code, setCode] = useState("");
+  const [output, setOutput] = useState(runOutput);
+  const [running, setRunning] = useState(false);
+
   useEffect(() => {
     if (cachedCode) { setCode(stripActionPrefix(cachedCode)); return; }
     fetch(fileUrl).then(r => r.text()).then(setCode).catch(() => setCode("// 加载失败"));
   }, [fileUrl, cachedCode]);
 
+  useEffect(() => { if (runOutput) setOutput(runOutput); }, [runOutput]);
+
+  async function handleRun() {
+    setRunning(true);
+    try {
+      const res = await fetch(`http://${API_HOST}/api/run/${sessionId}`, { method: "POST" });
+      const data = await res.json();
+      setOutput(data.output || "（无输出）");
+    } catch (e) {
+      setOutput("请求失败");
+    }
+    setRunning(false);
+  }
+
   return (
     <div style={{ flex: 1, overflow: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-      {runOutput && (
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button onClick={handleRun} disabled={running}
+          style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid var(--border-1)", background: running ? "var(--surface-2)" : "var(--accent-dim)", color: "var(--accent)", fontSize: 12, cursor: running ? "wait" : "pointer", fontWeight: 500 }}>
+          {running ? "运行中..." : "▶ 运行"}
+        </button>
+        {output && <span style={{ fontSize: 11, color: "var(--text-3)" }}>↓ 输出</span>}
+      </div>
+      {output && (
         <div style={{ background: "var(--surface-0)", border: "1px solid var(--border-0)", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>执行输出</div>
-          <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--pass)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", margin: 0 }}>{runOutput}</pre>
+          <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--pass)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", margin: 0 }}>{output}</pre>
         </div>
       )}
       <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0 }}>{code || "加载中..."}</pre>
@@ -526,6 +549,7 @@ export default function Home() {
               fileUrl={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
               runOutput={stream.runOutput}
               cachedCode={stream.code}
+              sessionId={state.sessionId}
             />
           )}
         </div>
