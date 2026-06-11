@@ -61,7 +61,8 @@ export interface AppState {
   sidebarOpen: boolean;
   knowledgeOpen: boolean;
   showSettings: boolean;
-  buildExpanded: boolean;  // 画中画是否展开
+  buildExpanded: boolean;
+  previewFile: string | null;
 }
 
 // ═══ 初始状态 ═══
@@ -91,6 +92,7 @@ export const INITIAL_STATE: AppState = {
   knowledgeOpen: false,
   showSettings: false,
   buildExpanded: false,
+  previewFile: null,
 };
 
 // ═══ Actions ═══
@@ -129,6 +131,8 @@ export type Action =
   | { type: "TOGGLE_KNOWLEDGE" }
   | { type: "TOGGLE_SETTINGS" }
   | { type: "TOGGLE_BUILD_EXPANDED" }
+  | { type: "OPEN_PREVIEW"; file: string }
+  | { type: "CLOSE_PREVIEW" }
   ;
 
 // ═══ Reducer ═══
@@ -287,6 +291,10 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, showSettings: !state.showSettings };
     case "TOGGLE_BUILD_EXPANDED":
       return { ...state, buildExpanded: !state.buildExpanded };
+    case "OPEN_PREVIEW":
+      return { ...state, buildExpanded: true, previewFile: action.file };
+    case "CLOSE_PREVIEW":
+      return { ...state, buildExpanded: false, previewFile: null };
 
     default:
       return state;

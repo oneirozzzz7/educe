@@ -215,13 +215,13 @@ function KnowledgePanel({ onRefresh }: { onRefresh?: () => void }) {
 
 // ═══ 事件渲染器 ═══
 
-function EventRenderer({ event, sessionId }: { event: AppEvent; sessionId?: string }) {
+function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; sessionId?: string; onOpenPreview?: (file: string) => void }) {
   switch (event.type) {
     case "user_input":
       return (
-        <div style={{ textAlign: "right", marginBottom: 16 }}>
+        <div style={{ textAlign: "right", marginBottom: 10 }}>
           <span className="user-msg">{event.content}</span>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
+          <div style={{ fontSize: 9, color: "var(--text-3)", marginTop: 3 }}>
             {new Date(event.ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
           </div>
         </div>
@@ -230,13 +230,13 @@ function EventRenderer({ event, sessionId }: { event: AppEvent; sessionId?: stri
     case "ai_reply":
     case "ai_reply_streaming":
       return (
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 10 }}>
           <div className="ai-reply">
-            <div className="ai-reply-bar" style={{ minHeight: 20 }} />
+            <div className="ai-reply-bar" style={{ minHeight: 16 }} />
             <div className="ai-reply-content md" dangerouslySetInnerHTML={{ __html: marked.parse(event.content || "") as string }} />
           </div>
           {event.type === "ai_reply" && (
-            <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
+            <div style={{ fontSize: 9, color: "var(--text-3)", marginTop: 3 }}>
               {new Date(event.ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
             </div>
           )}
@@ -244,67 +244,43 @@ function EventRenderer({ event, sessionId }: { event: AppEvent; sessionId?: stri
       );
 
     case "transcript":
-      return (
-        <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", flexShrink: 0, opacity: 0.6 }} />
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
-            {event.content}
-          </span>
-          {event.elapsed > 0 && (
-            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto", opacity: 0.5 }}>{event.elapsed}s</span>
-          )}
-        </div>
-      );
+      return null; // handled by BuildProcessLine aggregation
 
     case "action_confirm":
-      return (
-        <div className="status-bar" style={{ marginBottom: 12 }}>
-          ⏳ {(event.actions || []).map((a: any) => a.display).join("、")}
-        </div>
-      );
+      return null; // handled inline by pendingConfirm
 
     case "user_confirm":
       return (
-        <div className={`status-bar ${event.decision === "confirm" ? "status-bar-success" : ""}`} style={{ marginBottom: 12 }}>
+        <div className={`status-bar ${event.decision === "confirm" ? "status-bar-success" : ""}`} style={{ marginBottom: 8 }}>
           {event.decision === "confirm" ? "✅ 已确认" : "⊘ 已取消"}
           {event.note && ` · 补充：${event.note}`}
         </div>
       );
 
     case "action_executed":
-      return (
-        <div className={`status-bar ${event.success ? "status-bar-success" : "status-bar-error"}`} style={{ marginBottom: 12 }}>
-          {event.success ? "✅" : "❌"} {event.result?.slice(0, 100)}
-        </div>
-      );
+      return null; // absorbed into build process
 
     case "build_start":
-      return (
-        <div className="status-bar" style={{ marginBottom: 12 }}>
-          🔨 开始构建...
-        </div>
-      );
+      return null; // absorbed into build process
 
     case "build_complete":
+      if (!event.success || !event.files?.length || !sessionId) {
+        return event.success ? null : (
+          <div className="status-bar status-bar-error" style={{ marginBottom: 8 }}>❌ 构建失败</div>
+        );
+      }
       return (
-        <div className={`status-bar ${event.success ? "status-bar-success" : "status-bar-error"}`} style={{ marginBottom: 12 }}>
-          {event.success ? "✅" : "❌"} 构建{event.success ? "完成" : "失败"}
-          {event.success && event.files?.length > 0 && sessionId && (
-            <span> · {event.files.map((f: string, i: number) => (
-              <span key={i}>
-                {i > 0 && ", "}
-                <a href={`http://${API_HOST}/preview/${sessionId.slice(0, 16)}/${f}`} target="_blank" rel="noopener"
-                  style={{ color: "var(--accent)", textDecoration: "underline", cursor: "pointer" }}>{f}</a>
-              </span>
-            ))}</span>
-          )}
-          {!event.success && event.files?.length > 0 && ` · ${event.files.join(", ")}`}
-        </div>
+        <ArtifactCard
+          file={event.files[0]}
+          sessionId={sessionId}
+          version={event.version || 1}
+          onOpen={() => onOpenPreview?.(event.files[0])}
+        />
       );
 
     case "error":
       return (
-        <div className="status-bar status-bar-error" style={{ marginBottom: 12 }}>
+        <div className="status-bar status-bar-error" style={{ marginBottom: 8 }}>
           ❌ {event.content}
         </div>
       );
@@ -312,6 +288,79 @@ function EventRenderer({ event, sessionId }: { event: AppEvent; sessionId?: stri
     default:
       return null;
   }
+}
+
+// ═══ 构建过程聚合行 ═══
+
+function BuildProcessLine({ events, startIdx }: { events: AppEvent[]; startIdx: number }) {
+  const steps: string[] = [];
+  for (let i = startIdx; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === "transcript" && e.content) {
+      steps.push(e.content);
+    } else if (e.type === "build_start") {
+      continue;
+    } else if (e.type === "action_executed") {
+      continue;
+    } else {
+      break;
+    }
+  }
+  if (steps.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 8, fontSize: 10, color: "var(--pass)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+      {steps.map((s, i) => (
+        <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {i > 0 && <span style={{ color: "var(--text-3)" }}>→</span>}
+          <span>✓ {s}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ═══ 产物卡片 ═══
+
+function ArtifactCard({ file, sessionId, version, onOpen, active }: {
+  file: string; sessionId: string; version?: number; onOpen: () => void; active?: boolean;
+}) {
+  const isHtml = /\.(html?|svg)$/i.test(file);
+  const ext = file.split(".").pop()?.toUpperCase() || "";
+  return (
+    <div
+      onClick={onOpen}
+      style={{
+        margin: "6px 0 14px", border: `1px solid ${active ? "var(--accent)" : "var(--border-1)"}`,
+        borderRadius: 10, background: "var(--surface-1)", display: "flex", cursor: "pointer",
+        maxWidth: 560, height: 72, overflow: "hidden", transition: "all 0.2s",
+        boxShadow: active ? "0 0 0 1px var(--accent), 0 4px 12px rgba(167,139,250,0.1)" : "none",
+      }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = "var(--border-1)"; e.currentTarget.style.transform = "none"; } }}
+    >
+      {isHtml ? (
+        <div style={{ width: 90, flexShrink: 0, background: "white", borderRight: "1px solid var(--border-0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ transform: "scale(0.3)", transformOrigin: "center", textAlign: "center", color: "#1d1d1f", fontFamily: "-apple-system, sans-serif" }}>
+            <div style={{ width: 10, height: 10, background: "#ff6b6b", borderRadius: "50%", margin: "2px auto" }} />
+            <div style={{ fontSize: 28, fontWeight: 200 }}>25:00</div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ width: 90, flexShrink: 0, background: "var(--surface-0)", borderRight: "1px solid var(--border-0)", fontFamily: "'SF Mono', monospace", fontSize: 6.5, color: "var(--text-3)", lineHeight: 1.3, padding: 6, overflow: "hidden", whiteSpace: "pre" }}>
+          {`import time\ndef countdown():\n    count = 10\n    while True:\n        print(count)\n        if count == 0:\n            break\n        time.sleep(1)\n        count -= 1`}
+        </div>
+      )}
+      <div style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-0)", display: "flex", alignItems: "center", gap: 6 }}>
+          {file}
+          {version && <span style={{ fontSize: 8, padding: "1px 5px", borderRadius: 3, background: "rgba(110,231,183,0.08)", color: "var(--pass)", border: "1px solid rgba(110,231,183,0.1)" }}>v{version}</span>}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--text-3)" }}>
+          {ext} {!isHtml && <span style={{ color: "var(--pass)" }}>· ▶ 可运行</span>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ═══ 主页面 ═══
@@ -433,31 +482,37 @@ export default function Home() {
 
         {/* 顶栏 */}
         <div style={{
-          height: 52, display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 24px", borderBottom: "1px solid var(--border-1)", flexShrink: 0, background: "var(--surface-1)",
+          height: 44, display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 20px", borderBottom: "1px solid var(--border-0)", flexShrink: 0, background: "var(--surface-0)",
         }}>
-          <LogoMark size={18} />
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <LogoMark size={15} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {connected && (
               <span onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-                style={{ fontSize: 11, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", transition: "color 0.2s" }}
+                style={{ fontSize: 10, color: "var(--text-2)", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", transition: "color 0.2s" }}
                 onMouseEnter={e => (e.currentTarget.style.color = "var(--text-0)")}
                 onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pass)" }} />
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--pass)" }} />
                 {model}
               </span>
             )}
             <button onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
-              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
+              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14, padding: 4, transition: "color 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
               onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
               title="知识管理">🧠</button>
           </div>
         </div>
 
+        {/* 内容 = 对话 + 右侧预览面板 */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+          {/* 对话区 */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+
         {/* 事件流 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 100px" }}>
-          <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 0 100px" }}>
+          <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 32px" }}>
             {events.length === 0 && !isThinking && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "20vh", position: "relative" }}>
                 <div style={{ position: "absolute", top: "18vh", left: "50%", transform: "translateX(-50%)", width: 320, height: 180, background: "radial-gradient(ellipse at center, rgba(167,139,250,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
@@ -466,10 +521,41 @@ export default function Home() {
               </div>
             )}
 
-            {events.map((event, i) => {
-              if (event.type === "action_confirm" && pendingConfirm && i >= events.length - 2) return null;
-              return <EventRenderer key={`${event.type}-${i}`} event={event} sessionId={state.sessionId} />;
-            })}
+            {(() => {
+              const rendered: React.ReactNode[] = [];
+              let i = 0;
+              while (i < events.length) {
+                const event = events[i];
+                // Aggregate build process lines
+                if (event.type === "build_start" || (event.type === "transcript" && i > 0 && (events[i-1]?.type === "user_confirm" || events[i-1]?.type === "build_start" || events[i-1]?.type === "transcript" || events[i-1]?.type === "action_executed"))) {
+                  const startIdx = event.type === "build_start" ? i + 1 : i;
+                  let endIdx = startIdx;
+                  while (endIdx < events.length && (events[endIdx].type === "transcript" || events[endIdx].type === "action_executed" || events[endIdx].type === "build_start")) {
+                    endIdx++;
+                  }
+                  if (endIdx > startIdx) {
+                    rendered.push(<BuildProcessLine key={`bp-${i}`} events={events} startIdx={startIdx} />);
+                    i = endIdx;
+                    continue;
+                  }
+                }
+                // Skip action_confirm if pendingConfirm is active
+                if (event.type === "action_confirm" && pendingConfirm && i >= events.length - 2) {
+                  i++;
+                  continue;
+                }
+                rendered.push(
+                  <EventRenderer
+                    key={`${event.type}-${i}`}
+                    event={event}
+                    sessionId={state.sessionId}
+                    onOpenPreview={(file) => dispatch({ type: "OPEN_PREVIEW", file })}
+                  />
+                );
+                i++;
+              }
+              return rendered;
+            })()}
 
             {pendingConfirm && (
               <div className="confirm-card" style={{ marginBottom: 16 }}>
@@ -498,55 +584,52 @@ export default function Home() {
         </div>
 
         {/* 输入框 */}
-        <div style={{ padding: "12px 28px 20px", flexShrink: 0 }}>
-          <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
+        <div style={{ padding: "12px 32px 20px", flexShrink: 0 }}>
+          <div style={{ maxWidth: 960, margin: "0 auto", position: "relative" }}>
             <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."} onKeyDown={handleKeyDown} rows={1} />
             <button onClick={() => inputRef.current && send(inputRef.current.value)}
               style={{ position: "absolute", right: 12, bottom: 12, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 18 }}>➤</button>
           </div>
         </div>
-      </div>
+        </div>{/* 关闭对话区 flex-col */}
 
-      {/* ── 画中画 ── */}
-      {isBuilding && !state.buildExpanded && (
-        <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })}>
-          <div className="pip-dot" /><span>构建中... {stream.buildElapsed}s</span>
-        </div>
-      )}
-      {isBuilding && state.buildExpanded && (
-        <div style={{ position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh", background: "var(--surface-1)", borderTopLeftRadius: 16, border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-0)" }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)" }}>🔨 构建中... {stream.buildElapsed}s</span>
-            <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>收起 ↓</button>
-          </div>
-          <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-            {stream.code ? (
-              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{stripActionPrefix(stream.code)}</pre>
-            ) : (
-              <div style={{ color: "var(--text-3)", fontSize: 13 }}>等待代码生成...</div>
-            )}
-          </div>
-        </div>
-      )}
-      {!isBuilding && state.buildExpanded && state.codeFiles.length > 0 && (
-        <div style={{ position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh", background: "var(--surface-1)", borderTopLeftRadius: 16, border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-0)" }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)" }}>✅ {state.codeFiles[0]}</span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <a href={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`} target="_blank" rel="noopener"
-                style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}>新标签打开 ↗</a>
-              <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>收起 ↓</button>
+      {/* ── 右侧预览面板 ── */}
+      {state.buildExpanded && (state.previewFile || state.codeFiles.length > 0 || isBuilding) && (
+        <div style={{ width: "50%", borderLeft: "1px solid var(--border-1)", background: "var(--surface-0)", display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.3s cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid var(--border-0)", flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>
+              {isBuilding ? `🔨 构建中... ${stream.buildElapsed}s` : `✅ ${state.previewFile || state.codeFiles[0] || ""}`}
+            </span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {!isBuilding && (state.previewFile || state.codeFiles[0]) && (
+                <>
+                  <a href={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.previewFile || state.codeFiles[0]}`} target="_blank" rel="noopener"
+                    style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", padding: "3px 8px", borderRadius: 5, background: "rgba(167,139,250,0.08)" }}>新标签 ↗</a>
+                </>
+              )}
+              <button onClick={() => dispatch({ type: "CLOSE_PREVIEW" })}
+                style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6 }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-2)"; e.currentTarget.style.color = "var(--text-0)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--text-3)"; }}>×</button>
             </div>
           </div>
-          {state.codeFiles[0]?.match(/\.(html?|svg)$/) ? (
+          {isBuilding ? (
+            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+              {stream.code ? (
+                <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{stripActionPrefix(stream.code)}</pre>
+              ) : (
+                <div style={{ color: "var(--text-3)", fontSize: 13 }}>等待代码生成...</div>
+              )}
+            </div>
+          ) : (state.previewFile || state.codeFiles[0])?.match(/\.(html?|svg)$/) ? (
             <iframe
-              src={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
-              style={{ flex: 1, border: "none", width: "100%", borderRadius: "0 0 0 16px" }}
+              src={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.previewFile || state.codeFiles[0]}`}
+              style={{ flex: 1, border: "none", width: "100%", margin: 10, borderRadius: 10 }}
               sandbox="allow-scripts allow-same-origin"
             />
           ) : (
             <CodePreviewPanel
-              fileUrl={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
+              fileUrl={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.previewFile || state.codeFiles[0]}`}
               runOutput={stream.runOutput}
               cachedCode={stream.code}
               sessionId={state.sessionId}
@@ -554,12 +637,9 @@ export default function Home() {
           )}
         </div>
       )}
-      {(phase === "complete" || (phase === "idle" && state.codeFiles.length > 0)) && !state.buildExpanded && (
-        <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "var(--surface-1)" }}>
-          <span style={{ color: "var(--pass)" }}>✅</span>
-          <span>{state.codeFiles[0] || stream.fileName || "产物"}</span>
-        </div>
-      )}
+
+      </div>{/* 关闭 content flex-row */}
+      </div>{/* 关闭 main flex-col */}
 
       {/* ── 设置弹窗 ── */}
       {state.showSettings && (
