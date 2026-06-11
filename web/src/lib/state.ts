@@ -36,7 +36,7 @@ export interface AppState {
   // 统一事件流（所有交互记录）
   events: AppEvent[];
 
-  // 实时流（构建中/思考中的临时状态）
+  // 实时流
   stream: {
     thinking: boolean;
     thinkingElapsed: number;
@@ -45,6 +45,7 @@ export interface AppState {
     fileName: string;
     fileSize: number;
     buildElapsed: number;
+    runOutput: string;
   };
 
   // 待确认操作
@@ -79,6 +80,7 @@ export const INITIAL_STATE: AppState = {
     fileName: "",
     fileSize: 0,
     buildElapsed: 0,
+    runOutput: "",
   },
   pendingConfirm: null,
   codeFiles: [],
@@ -110,6 +112,7 @@ export type Action =
   | { type: "STREAM_CHUNK"; content: string }
   | { type: "STREAM_CODE_UPDATE"; code: string }
   | { type: "STREAM_HTML"; html: string }
+  | { type: "STREAM_RUN_OUTPUT"; output: string }
   | { type: "FILE_WRITTEN"; fileName: string; size: number }
   | { type: "VERSION_SAVED"; version: number }
   | { type: "IDLE" }
@@ -211,6 +214,9 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "STREAM_HTML":
       return { ...state, stream: { ...state.stream, html: action.html } };
+
+    case "STREAM_RUN_OUTPUT":
+      return { ...state, stream: { ...state.stream, runOutput: state.stream.runOutput + action.output + "\n" } };
 
     case "FILE_WRITTEN":
       return { ...state, stream: { ...state.stream, fileName: action.fileName, fileSize: action.size } };

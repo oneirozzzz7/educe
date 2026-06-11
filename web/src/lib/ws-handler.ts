@@ -79,6 +79,19 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "FILE_WRITTEN", fileName: evt.file, size: evt.size || 0 };
     }
 
+    if (evt.event === "run_result") {
+      const event: AppEvent = {
+        type: "transcript",
+        ts: Date.now() / 1000,
+        content: evt.success ? `验证通过` : `验证失败: ${evt.output?.slice(0, 100) || ""}`,
+        elapsed: 0,
+      };
+      return [
+        { type: "APPEND_EVENT", event },
+        ...(evt.output ? [{ type: "STREAM_RUN_OUTPUT" as const, output: evt.output }] : []),
+      ];
+    }
+
     if (evt.event === "step_plan" && evt.steps) {
       const event: AppEvent = {
         type: "transcript",

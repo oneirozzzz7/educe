@@ -14,6 +14,26 @@ function stripActionPrefix(code: string): string {
   return code.replace(/^```action:\w+\n(?:[\w_]+:.*\n)*---\n/gm, "").replace(/```\s*$/g, "").trim();
 }
 
+function CodePreviewPanel({ fileUrl, runOutput, cachedCode }: { fileUrl: string; runOutput: string; cachedCode: string }) {
+  const [code, setCode] = useState("");
+  useEffect(() => {
+    if (cachedCode) { setCode(stripActionPrefix(cachedCode)); return; }
+    fetch(fileUrl).then(r => r.text()).then(setCode).catch(() => setCode("// 加载失败"));
+  }, [fileUrl, cachedCode]);
+
+  return (
+    <div style={{ flex: 1, overflow: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      {runOutput && (
+        <div style={{ background: "var(--surface-0)", border: "1px solid var(--border-0)", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>执行输出</div>
+          <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--pass)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", margin: 0 }}>{runOutput}</pre>
+        </div>
+      )}
+      <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0 }}>{code || "加载中..."}</pre>
+    </div>
+  );
+}
+
 // ═══ 历史列表项 ═══
 
 interface HistoryItem {
@@ -495,11 +515,19 @@ export default function Home() {
               <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>收起 ↓</button>
             </div>
           </div>
-          <iframe
-            src={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
-            style={{ flex: 1, border: "none", width: "100%", borderRadius: "0 0 0 16px" }}
-            sandbox="allow-scripts allow-same-origin"
-          />
+          {state.codeFiles[0]?.match(/\.(html?|svg)$/) ? (
+            <iframe
+              src={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
+              style={{ flex: 1, border: "none", width: "100%", borderRadius: "0 0 0 16px" }}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          ) : (
+            <CodePreviewPanel
+              fileUrl={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
+              runOutput={stream.runOutput}
+              cachedCode={stream.code}
+            />
+          )}
         </div>
       )}
       {(phase === "complete" || (phase === "idle" && state.codeFiles.length > 0)) && !state.buildExpanded && (
