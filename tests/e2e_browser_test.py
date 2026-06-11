@@ -7,7 +7,7 @@ import tempfile
 import os
 from playwright.async_api import async_playwright
 
-URL = "http://localhost:3333"
+URL = "http://localhost:3001"
 RESULTS = []
 
 

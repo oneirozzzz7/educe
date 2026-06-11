@@ -10,6 +10,10 @@ import { LogoMark } from "@/components/logo";
 
 marked.setOptions({ gfm: true, breaks: true });
 
+function stripActionPrefix(code: string): string {
+  return code.replace(/^```action:\w+\n(?:[\w_]+:.*\n)*---\n/gm, "").replace(/```\s*$/g, "").trim();
+}
+
 // ═══ 历史列表项 ═══
 
 interface HistoryItem {
@@ -168,7 +172,7 @@ function KnowledgePanel({ onRefresh }: { onRefresh?: () => void }) {
 
 // ═══ 事件渲染器 ═══
 
-function EventRenderer({ event }: { event: AppEvent }) {
+function EventRenderer({ event, sessionId }: { event: AppEvent; sessionId?: string }) {
   switch (event.type) {
     case "user_input":
       return (
@@ -242,7 +246,16 @@ function EventRenderer({ event }: { event: AppEvent }) {
       return (
         <div className={`status-bar ${event.success ? "status-bar-success" : "status-bar-error"}`} style={{ marginBottom: 12 }}>
           {event.success ? "✅" : "❌"} 构建{event.success ? "完成" : "失败"}
-          {event.files?.length > 0 && ` · ${event.files.join(", ")}`}
+          {event.success && event.files?.length > 0 && sessionId && (
+            <span> · {event.files.map((f: string, i: number) => (
+              <span key={i}>
+                {i > 0 && ", "}
+                <a href={`http://${API_HOST}/preview/${sessionId.slice(0, 16)}/${f}`} target="_blank" rel="noopener"
+                  style={{ color: "var(--accent)", textDecoration: "underline", cursor: "pointer" }}>{f}</a>
+              </span>
+            ))}</span>
+          )}
+          {!event.success && event.files?.length > 0 && ` · ${event.files.join(", ")}`}
         </div>
       );
 
@@ -412,7 +425,7 @@ export default function Home() {
 
             {events.map((event, i) => {
               if (event.type === "action_confirm" && pendingConfirm && i >= events.length - 2) return null;
-              return <EventRenderer key={`${event.type}-${i}`} event={event} />;
+              return <EventRenderer key={`${event.type}-${i}`} event={event} sessionId={state.sessionId} />;
             })}
 
             {pendingConfirm && (
@@ -465,17 +478,34 @@ export default function Home() {
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
             {stream.code ? (
-              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{stream.code}</pre>
+              <pre style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-1)", fontFamily: "'Geist Mono', monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{stripActionPrefix(stream.code)}</pre>
             ) : (
               <div style={{ color: "var(--text-3)", fontSize: 13 }}>等待代码生成...</div>
             )}
           </div>
         </div>
       )}
-      {phase === "complete" && stream.code && !state.buildExpanded && (
+      {!isBuilding && state.buildExpanded && state.codeFiles.length > 0 && (
+        <div style={{ position: "fixed", bottom: 0, right: 0, width: "50vw", height: "60vh", background: "var(--surface-1)", borderTopLeftRadius: 16, border: "1px solid var(--border-1)", boxShadow: "var(--shadow-md)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-0)" }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-0)" }}>✅ {state.codeFiles[0]}</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <a href={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`} target="_blank" rel="noopener"
+                style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none" }}>新标签打开 ↗</a>
+              <button onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>收起 ↓</button>
+            </div>
+          </div>
+          <iframe
+            src={`http://${API_HOST}/preview/${state.sessionId.slice(0, 16)}/${state.codeFiles[0]}`}
+            style={{ flex: 1, border: "none", width: "100%", borderRadius: "0 0 0 16px" }}
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      )}
+      {(phase === "complete" || (phase === "idle" && state.codeFiles.length > 0)) && !state.buildExpanded && (
         <div className="pip" onClick={() => dispatch({ type: "TOGGLE_BUILD_EXPANDED" })} style={{ background: "var(--surface-1)" }}>
           <span style={{ color: "var(--pass)" }}>✅</span>
-          <span>{stream.fileName || "产物"} · {Math.round(stream.code.length / 1024)}KB</span>
+          <span>{state.codeFiles[0] || stream.fileName || "产物"}</span>
         </div>
       )}
 

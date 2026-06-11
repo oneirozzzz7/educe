@@ -186,6 +186,7 @@ export function reducer(state: AppState, action: Action): AppState {
         phase: "building",
         stream: { ...INITIAL_STATE.stream, buildElapsed: 0 },
         pendingConfirm: null,
+        buildExpanded: true,
       };
 
     case "STREAM_CHUNK":
