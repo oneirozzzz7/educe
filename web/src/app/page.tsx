@@ -385,7 +385,7 @@ export default function Home() {
             <textarea
               ref={inputRef}
               className="main-input"
-              placeholder={isBuilding ? "构建中... 可以补充想法" : "描述你想做的东西..."}
+              placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."}
               onKeyDown={handleKeyDown}
               rows={1}
             />
