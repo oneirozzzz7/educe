@@ -253,16 +253,16 @@ export default function Home() {
             )}
             <button
               onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
-              style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
+              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
               title="知识管理"
             >🧠</button>
             <button
               onClick={() => dispatch({ type: "TOGGLE_SETTINGS" })}
-              style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-1)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-3)")}
+              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 16, padding: 4, transition: "color 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "var(--text-0)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
               title="设置"
             >⚙</button>
           </div>
