@@ -343,11 +343,7 @@ class Orchestrator:
             # 需要确认的 action → 暂存，发确认请求给前端，返回等待
             if pending_actions:
                 import json as _json
-                # 推送模型的文字回复（如果有的话）
-                if reply_text:
-                    for i in range(0, len(reply_text), 20):
-                        self._notify_chunk("assistant", reply_text[i:i+20])
-                    self.conversation.add_assistant(reply_text)
+                # 不推送 reply_text — 等确认后再展示结果，避免"先说已记住再让用户确认"的矛盾
 
                 # 构造待确认的 action 列表
                 confirm_items = []

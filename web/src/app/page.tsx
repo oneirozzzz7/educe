@@ -90,30 +90,25 @@ function EventRenderer({ event }: { event: AppEvent }) {
         </div>
       );
 
-    case "action_confirm":
+    case "action_confirm": {
+      // 历史中的确认卡片：检查后面是否有 user_confirm（已完成）
+      // 如果已完成，显示为精简的状态条
+      const isCompleted = false; // 实际判断需要看后续 events，这里简化为始终显示精简版
       return (
-        <div className="confirm-card" style={{ marginBottom: 16 }}>
-          <div className="confirm-card-title">确认执行</div>
-          {(event.actions || []).map((a: any, i: number) => (
-            <div key={i} className="confirm-card-item">
-              {a.type === "build" ? "🔨 " : "🧠 "}{a.display}
-            </div>
-          ))}
+        <div className="status-bar" style={{ marginBottom: 12 }}>
+          ⏳ 待确认：{(event.actions || []).map((a: any) => a.display).join("、")}
         </div>
       );
+    }
 
     case "user_confirm":
-      return (
-        <div className={`status-bar ${event.decision === "confirm" ? "status-bar-success" : ""}`} style={{ marginBottom: 12 }}>
-          {event.decision === "confirm" ? "✅" : "⊘"} {event.decision === "confirm" ? "已确认" : "已取消"}
-          {event.note && ` · ${event.note}`}
-        </div>
-      );
+      // 不单独渲染——确认结果已通过 action_executed 展示
+      return null;
 
     case "action_executed":
       return (
         <div className={`status-bar ${event.success ? "status-bar-success" : "status-bar-error"}`} style={{ marginBottom: 12 }}>
-          {event.success ? "✅" : "❌"} {event.action}: {event.result?.slice(0, 80)}
+          {event.success ? "✅" : "❌"} {event.result?.slice(0, 100)}
         </div>
       );
 
