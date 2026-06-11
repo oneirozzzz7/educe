@@ -141,8 +141,9 @@ class ActivationEngine:
 
     def build_activation_prompt(self, user_input: str,
                                  domain_context: str = "",
-                                 l1_compiled: list[str] | None = None) -> str:
-        """生成激发prompt——领域级最优seed + 薄弱领域自动补充"""
+                                 l1_compiled: list[str] | None = None,
+                                 inject_chain: bool = True) -> str:
+        """生成激发prompt——领域级最优seed + 推理链 + 薄弱领域自动补充"""
         extra_parts = []
         if domain_context:
             extra_parts.append(domain_context)
@@ -152,6 +153,13 @@ class ActivationEngine:
         domain_hint = self._get_domain_hint(user_input)
         if domain_hint:
             extra_parts.append(domain_hint)
+
+        # 注入推理链（根据检测到的领域）
+        if inject_chain:
+            detected = self._detect_domain_for_seed(user_input)
+            domain_key = next((k for k, v in DOMAIN_LABELS.items() if v == detected), "general")
+            chain = REASONING_CHAINS.get(domain_key, REASONING_CHAINS["general"])
+            extra_parts.append(f"\n## 推理路径\n按此路径展开分析：{chain}")
 
         extra_context = "\n".join(extra_parts)
 
