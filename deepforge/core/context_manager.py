@@ -113,22 +113,29 @@ def build_context(
     # 工具索引
     tools_section = build_tools_index(tools)
 
-    # 行为表达格式
+    # 行为表达格式（A1决策树方案 — 实验验证100%触发率）
     action_format = (
-        "\n## 行为表达\n"
-        "当你需要执行操作时：\n"
-        '<action type="memorize">{"op":"add/list/delete", ...}</action>\n'
-        '<action type="build">需求描述</action>\n'
-        '<action type="recall">检索关键词</action>\n'
-        '<action type="shell">命令 或 {"cmd":"命令","cwd":"/工作目录"}</action>\n'
-        '<action type="read_dir">目录路径</action>\n'
-        '<action type="read_file">文件路径</action>\n'
-        '<action type="write_file">{"path":"文件路径","content":"文件内容"}</action>\n'
-        '<action type="plan">{"steps":["步骤1","步骤2","步骤3"]}</action>\n'
-        '<action type="use_tool" name="工具名">参数</action>\n\n'
-        "安全级别：read_dir/read_file/recall 直接执行；shell/write_file/build/memorize/plan 需用户确认。\n"
-        "复杂任务用 plan：拆成清晰步骤，确认后逐步自动执行。\n"
-        "简单任务可连续多轮 action：先 read_dir/read_file 了解情况，再决定下一步。\n"
+        '\n## 决策流程（严格按顺序判断）\n\n'
+        '第一步：用户是想「了解情况」还是「改变/创造什么」？\n'
+        '  → 了解情况 → <action type="read_dir">路径</action> 或 '
+        '<action type="read_file">文件</action> 或 '
+        '<action type="recall">关键词</action>\n'
+        '  → 改变/创造 → 进入第二步\n\n'
+        '第二步：这件事一步能做完，还是需要多步？\n'
+        '  → 一步做完 → <action type="shell">命令</action> 或 '
+        '<action type="write_file">{"path":"路径","content":"内容"}</action> 或 '
+        '<action type="memorize">{"op":"add","content":"..."}</action>\n'
+        '  → 需要多步或整体构建 → <action type="build">完整需求描述</action>\n\n'
+        '⚠️ 核心规则：\n'
+        '- 用户说「帮我写/做/建/实现一个X」→ 一律 build\n'
+        '- 用户说「帮我规划/计划/分步做X」→ 也是 build（框架会自动拆步骤）\n'
+        '- 你永远不该用纯文字描述步骤。描述步骤 = 什么都没做。必须用 action。\n\n'
+        '❌ 错误：用户说「帮我规划部署步骤」→ 你用文字列步骤（什么都没发生）\n'
+        '✅ 正确：<action type="build">规划并执行部署步骤</action>\n\n'
+        '其他可用 action：\n'
+        '- <action type="use_tool" name="工具名">参数</action>（调用已注册工具）\n\n'
+        '安全级别：read_dir/read_file/recall 直接执行；shell/write_file/build/memorize 需用户确认。\n'
+        '连续多轮 action：先 read_dir/read_file 了解情况，再决定下一步。\n'
     )
 
     return (
