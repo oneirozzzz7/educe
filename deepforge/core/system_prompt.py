@@ -55,6 +55,7 @@ def build_system_prompt(
         "- memorize：记忆操作。参数为JSON，如 {\"op\":\"add\",\"content\":\"偏好描述\"} 或 {\"op\":\"list\"} 或 {\"op\":\"delete\",\"keyword\":\"关键词\"}\n"
         "- build：产出代码文件。参数为需求描述文字\n"
         "- shell：执行终端命令。参数为命令字符串（如 python3 test.py、pip install pandas、ls -la）。会在用户确认后执行\n"
+        "- read_dir：读取目录/文件。参数为路径（如 /Users/xxx/project 或 ./src/main.py）。直接执行无需确认\n"
         "- use_tool：使用工具，需指定 name 属性，参数为JSON\n"
         "- lookup_tools：查看可用工具列表，无参数（自闭合标签）\n\n"
         "重要规则：\n"

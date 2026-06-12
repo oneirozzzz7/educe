@@ -419,6 +419,9 @@ class Orchestrator:
         elif action.type == "shell":
             return await self._exec_shell(action, _sid)
 
+        elif action.type == "read_dir":
+            return await self._exec_read_dir(action)
+
         elif action.type == "recall":
             return await self._exec_recall(action, _sid)
 
@@ -506,6 +509,74 @@ class Orchestrator:
             return {"success": False, "output": f"$ {cmd}\n执行超时 (15s限制)"}
         except Exception as e:
             return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
+
+    async def _exec_read_dir(self, action) -> dict:
+        """读取目录结构，返回文件树 + 关键文件摘要"""
+        from pathlib import Path
+        import os
+
+        target = action.params.strip()
+        if not target:
+            return {"success": False, "output": "未指定目录路径"}
+
+        target_path = Path(target).expanduser()
+        if not target_path.exists():
+            return {"success": False, "output": f"目录不存在: {target}"}
+        if not target_path.is_dir():
+            # Single file — read it
+            try:
+                content = target_path.read_text(encoding="utf-8", errors="ignore")[:5000]
+                return {"success": True, "output": f"文件 {target_path.name}:\n```\n{content}\n```"}
+            except Exception as e:
+                return {"success": False, "output": f"读取失败: {e}"}
+
+        # Build file tree
+        IGNORE = {".git", "node_modules", "__pycache__", ".next", ".deepforge", "venv", ".venv", "dist", "build"}
+        CODE_EXTS = {".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".java", ".go", ".rs", ".rb", ".sh"}
+
+        lines = []
+        key_files = []
+        file_count = 0
+
+        for root, dirs, files in os.walk(str(target_path)):
+            dirs[:] = [d for d in dirs if d not in IGNORE and not d.startswith(".")]
+            rel = Path(root).relative_to(target_path)
+            depth = len(rel.parts)
+            if depth > 4:
+                continue
+
+            indent = "  " * depth
+            if depth > 0:
+                lines.append(f"{indent}{rel.name}/")
+
+            for f in sorted(files)[:30]:
+                fp = Path(root) / f
+                ext = fp.suffix.lower()
+                size = fp.stat().st_size
+                lines.append(f"{indent}  {f} ({size}B)")
+                file_count += 1
+
+                if ext in CODE_EXTS and size < 10000 and len(key_files) < 5:
+                    try:
+                        content = fp.read_text(encoding="utf-8", errors="ignore")[:2000]
+                        key_files.append(f"### {fp.relative_to(target_path)}\n```\n{content}\n```")
+                    except Exception:
+                        pass
+
+            if file_count > 100:
+                lines.append("  ... (超过100个文件，已截断)")
+                break
+
+        tree = "\n".join(lines[:80])
+        summaries = "\n\n".join(key_files)
+        output = f"目录: {target_path}\n文件数: {file_count}\n\n## 结构\n{tree}"
+        if summaries:
+            output += f"\n\n## 关键文件内容\n{summaries}"
+
+        # Inject into context for follow-up questions
+        self.context.metadata["_project_context"] = output[:8000]
+
+        return {"success": True, "output": output[:4000]}
 
     async def _exec_memorize(self, action, session_id: str) -> dict:
         """执行记忆操作"""
