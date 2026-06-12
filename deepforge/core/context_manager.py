@@ -120,12 +120,13 @@ def build_context(
         '<action type="memorize">{"op":"add/list/delete", ...}</action>\n'
         '<action type="build">需求描述</action>\n'
         '<action type="recall">检索关键词</action>\n'
-        '<action type="shell">要执行的命令</action>\n'
+        '<action type="shell">命令 或 {"cmd":"命令","cwd":"/工作目录"}</action>\n'
         '<action type="read_dir">目录路径</action>\n'
+        '<action type="read_file">文件路径</action>\n'
+        '<action type="write_file">{"path":"文件路径","content":"文件内容"}</action>\n'
         '<action type="use_tool" name="工具名">参数</action>\n\n'
-        "不需要操作时直接回复用户。\n"
-        "shell 命令会在用户确认后执行。用于安装依赖、运行脚本、查看文件等。\n"
-        "read_dir 可读取目录结构和关键文件内容，用于分析项目。\n"
+        "安全级别：read_dir/read_file/recall 直接执行；shell/write_file/build/memorize 需用户确认。\n"
+        "复杂任务可连续多轮 action：先 read_dir/read_file 了解情况，再决定下一步。\n"
     )
 
     return (

@@ -311,7 +311,7 @@ class Orchestrator:
                 break
 
             # 需要用户确认的 action 类型
-            needs_confirm = {"memorize", "build", "shell"}
+            needs_confirm = {"memorize", "build", "shell", "write_file"}
 
             # 检查是否有需要确认的 action
             pending_actions = [a for a in actions if a.type in needs_confirm]
@@ -368,6 +368,12 @@ class Orchestrator:
                         item["display"] = f"构建：{a.params[:100]}"
                     elif a.type == "shell":
                         item["display"] = f"执行命令：{a.params[:120]}"
+                    elif a.type == "write_file":
+                        try:
+                            parsed = _json.loads(a.params)
+                            item["display"] = f"写入文件：{parsed.get('path', a.params[:60])}"
+                        except Exception:
+                            item["display"] = f"写入文件：{a.params[:60]}"
                     confirm_items.append(item)
 
                 # 暂存到 context，等用户确认
@@ -422,6 +428,12 @@ class Orchestrator:
         elif action.type == "read_dir":
             return await self._exec_read_dir(action)
 
+        elif action.type == "read_file":
+            return await self._exec_read_file(action)
+
+        elif action.type == "write_file":
+            return await self._exec_write_file(action)
+
         elif action.type == "recall":
             return await self._exec_recall(action, _sid)
 
@@ -467,12 +479,22 @@ class Orchestrator:
         return {"success": True, "output": f"找到 {len(results)} 条相关记忆：\n{lines}"}
 
     async def _exec_shell(self, action, session_id: str) -> dict:
-        """执行 shell 命令（带安全检查）"""
+        """执行 shell 命令（带安全检查 + 智能工作目录 + 环境检测）"""
         import subprocess
+        import json as _json_sh
 
-        cmd = action.params.strip()
-        if not cmd:
+        raw = action.params.strip()
+        if not raw:
             return {"success": False, "output": "命令为空"}
+
+        # Parse params: support both plain string and JSON {"cmd": "...", "cwd": "..."}
+        cwd_override = None
+        try:
+            parsed = _json_sh.loads(raw)
+            cmd = parsed.get("cmd", raw)
+            cwd_override = parsed.get("cwd")
+        except (ValueError, TypeError):
+            cmd = raw
 
         # Safety: block dangerous commands
         BLOCKED = ["rm -rf /", "rm -rf /*", "mkfs", "dd if=", ":(){", "sudo rm",
@@ -482,33 +504,103 @@ class Orchestrator:
             if blocked in cmd_lower:
                 return {"success": False, "output": f"安全限制：禁止执行危险命令 ({blocked})"}
 
-        # Execute in project output directory
+        # Determine working directory (priority: explicit cwd > project context > output dir)
         from pathlib import Path
-        work_dir = Path(".deepforge/output") / session_id[:16]
+        if cwd_override:
+            work_dir = Path(cwd_override).expanduser()
+        elif self.context.metadata.get("_project_context_path"):
+            work_dir = Path(self.context.metadata["_project_context_path"])
+        else:
+            work_dir = Path(".deepforge/output") / session_id[:16]
         work_dir.mkdir(parents=True, exist_ok=True)
 
         try:
+            import os
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True,
-                timeout=15, cwd=str(work_dir),
-                env={**__import__("os").environ, "PATH": __import__("os").environ.get("PATH", "")}
+                timeout=30, cwd=str(work_dir),
+                env={**os.environ, "PATH": os.environ.get("PATH", "")}
             )
             output = result.stdout
             if result.stderr:
                 output += ("\n[stderr]\n" + result.stderr) if output else result.stderr
-            output = output[:3000] or "（无输出）"
+            output = output[:5000] or "（无输出）"
 
             log_activity(session_id, "shell_exec", cmd=cmd[:100],
                         success=result.returncode == 0, exit_code=result.returncode)
 
+            # Auto-detect missing packages
+            if result.returncode != 0 and ("ModuleNotFoundError" in result.stderr or "No module named" in result.stderr):
+                import re
+                match = re.search(r"No module named ['\"]?(\w+)", result.stderr)
+                if match:
+                    pkg = match.group(1)
+                    output += f"\n\n💡 检测到缺失模块: {pkg}\n建议执行: pip install {pkg}"
+
             return {
                 "success": result.returncode == 0,
-                "output": f"$ {cmd}\n{output}\n[exit: {result.returncode}]",
+                "output": f"$ {cmd}\n[cwd: {work_dir}]\n{output}\n[exit: {result.returncode}]",
             }
         except subprocess.TimeoutExpired:
-            return {"success": False, "output": f"$ {cmd}\n执行超时 (15s限制)"}
+            return {"success": False, "output": f"$ {cmd}\n执行超时 (30s限制)"}
         except Exception as e:
             return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
+
+    async def _exec_read_file(self, action) -> dict:
+        """读取指定文件内容"""
+        from pathlib import Path
+
+        target = action.params.strip()
+        if not target:
+            return {"success": False, "output": "未指定文件路径"}
+
+        path = Path(target).expanduser()
+        if not path.exists():
+            return {"success": False, "output": f"文件不存在: {target}"}
+        if not path.is_file():
+            return {"success": False, "output": f"不是文件: {target}（如果是目录请用 read_dir）"}
+        if path.stat().st_size > 100_000:
+            return {"success": False, "output": f"文件过大 ({path.stat().st_size}B)，最大支持 100KB"}
+
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")[:10000]
+            lines = len(content.split("\n"))
+            return {"success": True, "output": f"文件: {path.name} ({lines}行, {len(content)}字符)\n```\n{content}\n```"}
+        except Exception as e:
+            return {"success": False, "output": f"读取失败: {e}"}
+
+    async def _exec_write_file(self, action) -> dict:
+        """写入/修改指定文件"""
+        import json as _json_wf
+        from pathlib import Path
+
+        try:
+            params = _json_wf.loads(action.params)
+            file_path = params.get("path", "")
+            content = params.get("content", "")
+        except (ValueError, TypeError):
+            return {"success": False, "output": "参数格式错误，需要 JSON: {\"path\": \"...\", \"content\": \"...\"}"}
+
+        if not file_path:
+            return {"success": False, "output": "未指定文件路径"}
+        if not content:
+            return {"success": False, "output": "内容为空"}
+
+        path = Path(file_path).expanduser()
+
+        # Safety: don't write to system directories
+        str_path = str(path)
+        if any(str_path.startswith(d) for d in ["/etc", "/usr", "/bin", "/sbin", "/System"]):
+            return {"success": False, "output": f"安全限制：禁止写入系统目录 ({path.parent})"}
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            existed = path.exists()
+            path.write_text(content, encoding="utf-8")
+            action_word = "修改" if existed else "创建"
+            return {"success": True, "output": f"✅ {action_word}文件: {path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
+        except Exception as e:
+            return {"success": False, "output": f"写入失败: {e}"}
 
     async def _exec_read_dir(self, action) -> dict:
         """读取目录结构，返回文件树 + 关键文件摘要"""
@@ -575,6 +667,7 @@ class Orchestrator:
 
         # Inject into context for follow-up questions
         self.context.metadata["_project_context"] = output[:8000]
+        self.context.metadata["_project_context_path"] = str(target_path)
 
         return {"success": True, "output": output[:4000]}
 
