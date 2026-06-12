@@ -92,6 +92,19 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       ];
     }
 
+    if (evt.event === "build_complete") {
+      const event: AppEvent = {
+        type: "build_complete",
+        ts: Date.now() / 1000,
+        files: evt.files || [],
+        success: evt.success ?? true,
+      };
+      return [
+        { type: "APPEND_EVENT", event },
+        { type: "IDLE" },
+      ];
+    }
+
     if (evt.event === "step_plan" && evt.steps) {
       const event: AppEvent = {
         type: "transcript",

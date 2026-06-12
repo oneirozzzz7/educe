@@ -897,6 +897,17 @@ class Orchestrator:
         if hasattr(self, 'state'):
             code_files = self.context.artifacts.get("code_files", [])
             self.state.add_build_complete(code_files, success=has_output)
+            # 推送 build_complete 给前端
+            import json as _json_bc
+            from pathlib import Path as _Path_bc
+            bc_event = {
+                "event": "build_complete",
+                "success": has_output,
+                "files": [_Path_bc(f).name for f in code_files],
+            }
+            bc_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                           content="__TOOL_EVENT__" + _json_bc.dumps(bc_event, ensure_ascii=False))
+            self._notify(bc_msg)
 
         # 采集 SessionSignal 到统一知识系统
         if self.unified_store:
