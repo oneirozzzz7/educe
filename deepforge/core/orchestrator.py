@@ -311,7 +311,7 @@ class Orchestrator:
                 break
 
             # 需要用户确认的 action 类型
-            needs_confirm = {"memorize", "build"}
+            needs_confirm = {"memorize", "build", "shell"}
 
             # 检查是否有需要确认的 action
             pending_actions = [a for a in actions if a.type in needs_confirm]
@@ -366,6 +366,8 @@ class Orchestrator:
                             item["display"] = f"记忆操作：{a.params[:60]}"
                     elif a.type == "build":
                         item["display"] = f"构建：{a.params[:100]}"
+                    elif a.type == "shell":
+                        item["display"] = f"执行命令：{a.params[:120]}"
                     confirm_items.append(item)
 
                 # 暂存到 context，等用户确认
@@ -414,6 +416,9 @@ class Orchestrator:
             await self._run_build(user_input)
             return {"success": True, "output": "构建完成"}
 
+        elif action.type == "shell":
+            return await self._exec_shell(action, _sid)
+
         elif action.type == "recall":
             return await self._exec_recall(action, _sid)
 
@@ -457,6 +462,50 @@ class Orchestrator:
 
         lines = "\n".join(f"- {r}" for r in results[:5])
         return {"success": True, "output": f"找到 {len(results)} 条相关记忆：\n{lines}"}
+
+    async def _exec_shell(self, action, session_id: str) -> dict:
+        """执行 shell 命令（带安全检查）"""
+        import subprocess
+
+        cmd = action.params.strip()
+        if not cmd:
+            return {"success": False, "output": "命令为空"}
+
+        # Safety: block dangerous commands
+        BLOCKED = ["rm -rf /", "rm -rf /*", "mkfs", "dd if=", ":(){", "sudo rm",
+                   "chmod -R 777 /", "> /dev/sda", "shutdown", "reboot", "init 0"]
+        cmd_lower = cmd.lower()
+        for blocked in BLOCKED:
+            if blocked in cmd_lower:
+                return {"success": False, "output": f"安全限制：禁止执行危险命令 ({blocked})"}
+
+        # Execute in project output directory
+        from pathlib import Path
+        work_dir = Path(".deepforge/output") / session_id[:16]
+        work_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True,
+                timeout=15, cwd=str(work_dir),
+                env={**__import__("os").environ, "PATH": __import__("os").environ.get("PATH", "")}
+            )
+            output = result.stdout
+            if result.stderr:
+                output += ("\n[stderr]\n" + result.stderr) if output else result.stderr
+            output = output[:3000] or "（无输出）"
+
+            log_activity(session_id, "shell_exec", cmd=cmd[:100],
+                        success=result.returncode == 0, exit_code=result.returncode)
+
+            return {
+                "success": result.returncode == 0,
+                "output": f"$ {cmd}\n{output}\n[exit: {result.returncode}]",
+            }
+        except subprocess.TimeoutExpired:
+            return {"success": False, "output": f"$ {cmd}\n执行超时 (15s限制)"}
+        except Exception as e:
+            return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
 
     async def _exec_memorize(self, action, session_id: str) -> dict:
         """执行记忆操作"""

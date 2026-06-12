@@ -120,8 +120,10 @@ def build_context(
         '<action type="memorize">{"op":"add/list/delete", ...}</action>\n'
         '<action type="build">需求描述</action>\n'
         '<action type="recall">检索关键词</action>\n'
+        '<action type="shell">要执行的命令</action>\n'
         '<action type="use_tool" name="工具名">参数</action>\n\n'
         "不需要操作时直接回复用户。\n"
+        "shell 命令会在用户确认后执行。用于安装依赖、运行脚本、查看文件等。\n"
     )
 
     return (
