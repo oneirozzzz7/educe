@@ -15,7 +15,7 @@ from deepforge.memory.store import MemoryStore
 from deepforge.skills.registry import SkillRegistry
 
 try:
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Request
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse, FileResponse
     from fastapi.middleware.cors import CORSMiddleware
@@ -126,6 +126,30 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             "has_api_key": bool(config.default_model.api_key),
             "evolution": config.evolution.enabled,
         }
+
+    @app.get("/api/tools")
+    async def list_tools():
+        from deepforge.core.tool_registry import ToolRegistry
+        registry = ToolRegistry()
+        registry.load_from_config(Path(".deepforge/tools.json"))
+        return {"tools": [{"name": t.name, "description": t.description, "type": t.type} for t in registry.list_all()]}
+
+    @app.post("/api/tools")
+    async def register_tool(request: Request):
+        data = await request.json()
+        tools_path = Path(".deepforge/tools.json")
+        existing = []
+        if tools_path.exists():
+            try:
+                existing = json.loads(tools_path.read_text())
+                if isinstance(existing, dict):
+                    existing = existing.get("tools", [])
+            except Exception:
+                existing = []
+        existing.append(data)
+        tools_path.parent.mkdir(parents=True, exist_ok=True)
+        tools_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2))
+        return {"status": "ok", "total": len(existing)}
 
     @app.get("/api/knowledge")
     async def get_knowledge():

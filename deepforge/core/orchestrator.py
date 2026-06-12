@@ -260,6 +260,7 @@ class Orchestrator:
         system = build_context(
             session_memory=session_memory,
             catalog=catalog,
+            tools=[{"name": t.name, "description": t.description} for t in self._get_tool_registry().list_all()],
             seed=seed,
         )
 
@@ -799,8 +800,8 @@ class Orchestrator:
             return {"success": True, "output": f"已记住：{content}"}
 
     async def _exec_use_tool(self, action) -> dict:
-        """执行外部工具调用"""
-        return {"success": False, "output": f"工具 {action.name} 尚未注册"}
+        """执行外部工具调用（通过统一工具注册表）"""
+        return await self._get_tool_registry().execute(action.name, action.params)
 
     async def _handle_action_confirm(self, user_input: str, pending: list) -> "WorkContext":
         """处理用户对待确认 action 的回应（确认/补充/取消）"""
@@ -914,7 +915,15 @@ class Orchestrator:
 
     def _get_tool_descriptions(self) -> str:
         """返回当前可用工具的描述"""
-        return "暂无外部工具注册。你可以使用内置能力：记忆、构建。"
+        return self._get_tool_registry().get_descriptions()
+
+    def _get_tool_registry(self):
+        if not hasattr(self, '_tool_registry'):
+            from deepforge.core.tool_registry import ToolRegistry
+            self._tool_registry = ToolRegistry()
+            from pathlib import Path
+            self._tool_registry.load_from_config(Path(".deepforge/tools.json"))
+        return self._tool_registry
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
