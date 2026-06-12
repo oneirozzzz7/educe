@@ -62,8 +62,10 @@ def build_system_prompt(
         "- 记忆的增删查必须用 <action type=\"memorize\"> 标签，你不能自己假装执行\n"
         "- 生成代码文件必须用 <action type=\"build\"> 标签，不要直接在回复中写代码\n"
         "- 执行命令必须用 <action type=\"shell\"> 标签，命令会经用户确认后真正执行\n"
+        "- 分析项目/文件用 <action type=\"read_dir\"> 标签，会直接执行并返回结果给你\n"
         "- 不需要操作时直接回复用户，不加任何标签\n"
         "- 你可以在标签前后写自然语言给用户看\n"
+        "- 复杂任务：你可以连续多轮使用 action。例如先 read_dir 了解项目结构，再根据结果决定下一步操作\n"
     )
 
     return identity + seed_section + knowledge_section + tools_section + context_section + action_format
