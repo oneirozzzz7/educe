@@ -74,6 +74,7 @@ def build_context(
     catalog: list[dict] | None = None,
     tools: list[dict] | None = None,
     seed: str = "",
+    connectors_summary: str = "",
 ) -> str:
     """构建完整的 system prompt context。
 
@@ -145,6 +146,11 @@ def build_context(
         '连续多轮：先 read_dir/read_file 了解，再决定下一步。\n'
     )
 
+    # 连接器概要（Level 1）
+    connectors_section = ""
+    if connectors_summary:
+        connectors_section = f"\n## 可用连接器\n{connectors_summary}\n"
+
     return (
         identity
         + seed_section
@@ -152,5 +158,6 @@ def build_context(
         + pattern_section
         + knowledge_index
         + tools_section
+        + connectors_section
         + action_format
     )

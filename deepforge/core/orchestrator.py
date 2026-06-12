@@ -257,11 +257,15 @@ class Orchestrator:
         if file_context:
             session_memory.add(f"用户上传了文件（{len(file_context)}字符）")
 
+        # 获取 connector Level 1 描述
+        connector_summary = self._get_connector_registry().get_level1_descriptions()
+
         system = build_context(
             session_memory=session_memory,
             catalog=catalog,
             tools=[{"name": t.name, "description": t.description} for t in self._get_tool_registry().list_all()],
             seed=seed,
+            connectors_summary=connector_summary,
         )
 
         # 构建对话历史
@@ -812,8 +816,8 @@ class Orchestrator:
             return {"success": True, "output": f"已记住：{content}"}
 
     async def _exec_use_tool(self, action) -> dict:
-        """执行外部工具调用（通过统一工具注册表）"""
-        return await self._get_tool_registry().execute(action.name, action.params)
+        """执行外部工具调用（通过 ConnectorRegistry 路由）"""
+        return await self._get_connector_registry().invoke(action.name, action.params)
 
     async def _handle_action_confirm(self, user_input: str, pending: list) -> "WorkContext":
         """处理用户对待确认 action 的回应（确认/补充/取消）"""
@@ -936,6 +940,24 @@ class Orchestrator:
             from pathlib import Path
             self._tool_registry.load_from_config(Path(".deepforge/tools.json"))
         return self._tool_registry
+
+    def _get_connector_registry(self):
+        """获取 ConnectorRegistry（包含 builtin tools + MCP servers）"""
+        if not hasattr(self, '_connector_registry'):
+            from deepforge.core.connector import ConnectorRegistry
+            from deepforge.core.connectors.builtin import BuiltinConnector
+            from deepforge.core.connectors.mcp import load_mcp_connectors
+            from pathlib import Path
+
+            registry = ConnectorRegistry()
+            # 包装现有 ToolRegistry
+            registry.register(BuiltinConnector(self._get_tool_registry()))
+            # 加载 MCP 连接器
+            for mcp in load_mcp_connectors(Path(".deepforge/mcp.json")):
+                registry.register(mcp)
+
+            self._connector_registry = registry
+        return self._connector_registry
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
