@@ -291,8 +291,10 @@ class Orchestrator:
                     max_tokens=self.config.default_model.max_tokens,
                 )
             except Exception as e:
-                log.error("_action_loop | model call failed: %s", str(e)[:100])
+                log.error("_action_loop | round %d model call failed: %s", round_idx, str(e)[:100])
                 raw = ""
+
+            log.info("_action_loop | round=%d raw_len=%d", round_idx, len(raw) if raw else 0)
 
             # 解析 action
             reply_text, actions = parse_actions(raw)
@@ -304,11 +306,21 @@ class Orchestrator:
 
             if not actions:
                 # 无 action = 纯回复，流式推送给用户，循环结束
-                for i in range(0, len(raw), 20):
-                    self._notify_chunk("assistant", raw[i:i+20])
-                final_reply = raw
-                if hasattr(self, 'state'):
-                    self.state.add_ai_reply(raw)
+                if not raw or not raw.strip():
+                    log.warning("_action_loop | round %d empty response, messages=%d",
+                                round_idx, len(messages))
+                    if round_idx > 0:
+                        fallback = "（分析完成，但生成回复时出现异常，请重试）"
+                        self._notify_chunk("assistant", fallback)
+                        final_reply = fallback
+                        if hasattr(self, 'state'):
+                            self.state.add_ai_reply(fallback)
+                else:
+                    for i in range(0, len(raw), 20):
+                        self._notify_chunk("assistant", raw[i:i+20])
+                    final_reply = raw
+                    if hasattr(self, 'state'):
+                        self.state.add_ai_reply(raw)
                 break
 
             # 需要用户确认的 action 类型

@@ -631,8 +631,9 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                     step_desc = step_match.group(1)
                     await websocket.send_json({"type": "build_progress", "step": step_desc})
                     accumulated_chunks["text"] = accumulated_chunks["text"].split(step_match.group(0))[-1]
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("deepforge.ws").warning("send_chunk failed: %s", str(e)[:80])
 
         orchestrator.on_chunk(lambda a, c: asyncio.ensure_future(send_chunk(a, c)))
 
