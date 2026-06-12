@@ -53,6 +53,7 @@ export interface AppState {
 
   // 产物
   codeFiles: string[];
+  buildingFiles: string[];  // 构建中临时文件列表（只在 building 阶段有效）
   currentVersion: number;
   versions: { version: number; files: string[]; timestamp: number }[];
   outputDir: string;
@@ -85,6 +86,7 @@ export const INITIAL_STATE: AppState = {
   },
   pendingConfirm: null,
   codeFiles: [],
+  buildingFiles: [],
   currentVersion: 0,
   versions: [],
   outputDir: "",
@@ -168,6 +170,7 @@ export function reducer(state: AppState, action: Action): AppState {
         outputDir: p.output_dir || state.outputDir,
         currentVersion: p.current_version ?? state.currentVersion,
         versions: p.versions || state.versions,
+        buildingFiles: [],
       };
     }
 
@@ -194,6 +197,7 @@ export function reducer(state: AppState, action: Action): AppState {
         stream: { ...INITIAL_STATE.stream, buildElapsed: 0 },
         pendingConfirm: null,
         buildExpanded: true,
+        buildingFiles: [],
       };
 
     case "STREAM_CHUNK":
@@ -223,7 +227,13 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, stream: { ...state.stream, runOutput: state.stream.runOutput + action.output + "\n" } };
 
     case "FILE_WRITTEN":
-      return { ...state, stream: { ...state.stream, fileName: action.fileName, fileSize: action.size } };
+      return {
+        ...state,
+        stream: { ...state.stream, fileName: action.fileName, fileSize: action.size },
+        buildingFiles: state.buildingFiles.includes(action.fileName)
+          ? state.buildingFiles
+          : [...state.buildingFiles, action.fileName],
+      };
 
     case "VERSION_SAVED":
       return { ...state, currentVersion: action.version };
@@ -238,6 +248,7 @@ export function reducer(state: AppState, action: Action): AppState {
         events: finalEvents,
         phase: state.phase === "building" ? "complete" : "idle",
         stream: { ...state.stream, thinking: false },
+        buildingFiles: [],
       };
 
     case "TICK_THINKING":

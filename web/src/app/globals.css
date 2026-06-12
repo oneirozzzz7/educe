@@ -267,3 +267,13 @@ body {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
+
+/* ═══ 构建中卡片动效 ═══ */
+@keyframes artifactPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(167,139,250,0.15); }
+  50% { box-shadow: 0 0 0 4px rgba(167,139,250,0.08); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

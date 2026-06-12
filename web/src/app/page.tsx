@@ -354,6 +354,39 @@ function ArtifactCard({ file, sessionId, version, onOpen, active }: {
   );
 }
 
+// ═══ 产物卡片（构建中） ═══
+
+function ArtifactCardBuilding({ file, fileCount, elapsed }: {
+  file: string; fileCount: number; elapsed: number;
+}) {
+  const ext = file.split(".").pop()?.toUpperCase() || "";
+  return (
+    <div
+      className="artifact-building"
+      style={{
+        margin: "6px 0 14px", border: "1px solid var(--accent)",
+        borderRadius: 10, background: "var(--surface-1)", display: "flex",
+        maxWidth: 560, height: 72, overflow: "hidden", opacity: 0.85,
+        animation: "artifactPulse 2s ease-in-out infinite",
+      }}
+    >
+      <div style={{ width: 90, flexShrink: 0, background: "var(--surface-0)", borderRight: "1px solid var(--border-0)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 24, height: 24, border: "2px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      </div>
+      <div style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2 }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-0)", display: "flex", alignItems: "center", gap: 6 }}>
+          {file}
+          {fileCount > 1 && <span style={{ fontSize: 8, padding: "1px 5px", borderRadius: 3, background: "rgba(167,139,250,0.08)", color: "var(--accent)", border: "1px solid rgba(167,139,250,0.15)" }}>{fileCount} files</span>}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span>{ext}</span>
+          <span style={{ color: "var(--accent)" }}>构建中... {elapsed}s</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ 主页面 ═══
 
 export default function Home() {
@@ -548,8 +581,17 @@ export default function Home() {
               return rendered;
             })()}
 
-            {/* ArtifactCard: always show when build complete and has files */}
-            {(phase === "complete" || (phase === "idle" && state.codeFiles.length > 0)) && state.codeFiles.length > 0 && (
+            {/* ArtifactCardBuilding: show during build when files are being written */}
+            {phase === "building" && state.buildingFiles.length > 0 && (
+              <ArtifactCardBuilding
+                file={state.buildingFiles[state.buildingFiles.length - 1]}
+                fileCount={state.buildingFiles.length}
+                elapsed={state.stream.buildElapsed}
+              />
+            )}
+
+            {/* ArtifactCard: show after build complete */}
+            {phase !== "building" && state.codeFiles.length > 0 && (
               <ArtifactCard
                 file={state.codeFiles[0]}
                 sessionId={state.sessionId}
