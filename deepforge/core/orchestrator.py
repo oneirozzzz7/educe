@@ -311,7 +311,7 @@ class Orchestrator:
                 break
 
             # 需要用户确认的 action 类型
-            needs_confirm = {"memorize", "build", "shell", "write_file"}
+            needs_confirm = {"memorize", "build", "shell", "write_file", "plan"}
 
             # 检查是否有需要确认的 action
             pending_actions = [a for a in actions if a.type in needs_confirm]
@@ -374,6 +374,13 @@ class Orchestrator:
                             item["display"] = f"写入文件：{parsed.get('path', a.params[:60])}"
                         except Exception:
                             item["display"] = f"写入文件：{a.params[:60]}"
+                    elif a.type == "plan":
+                        try:
+                            parsed = _json.loads(a.params)
+                            steps = parsed.get("steps", [])
+                            item["display"] = f"执行计划（{len(steps)}步）：{' → '.join(s[:15] for s in steps[:4])}"
+                        except Exception:
+                            item["display"] = f"执行计划：{a.params[:80]}"
                     confirm_items.append(item)
 
                 # 暂存到 context，等用户确认
@@ -433,6 +440,9 @@ class Orchestrator:
 
         elif action.type == "write_file":
             return await self._exec_write_file(action)
+
+        elif action.type == "plan":
+            return await self._exec_plan(action, _sid)
 
         elif action.type == "recall":
             return await self._exec_recall(action, _sid)
@@ -601,6 +611,78 @@ class Orchestrator:
             return {"success": True, "output": f"✅ {action_word}文件: {path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
         except Exception as e:
             return {"success": False, "output": f"写入失败: {e}"}
+
+    async def _exec_plan(self, action, session_id: str) -> dict:
+        """执行多步计划——逐步执行每个步骤，反馈结果"""
+        import json as _json_plan
+
+        try:
+            params = _json_plan.loads(action.params)
+            steps = params.get("steps", [])
+        except (ValueError, TypeError):
+            steps = [action.params.strip()]
+
+        if not steps:
+            return {"success": False, "output": "计划为空"}
+
+        # Get model client
+        client = self._get_client()
+        if not client:
+            return {"success": False, "output": "模型未配置"}
+
+        results = []
+        context_so_far = ""
+
+        # Notify frontend about plan start
+        if hasattr(self, 'state'):
+            self.state.add_event("plan_start", steps=steps, total=len(steps))
+
+        notify_fn = self.context.metadata.get("_notify_fn")
+
+        for i, step in enumerate(steps):
+            # Notify progress
+            if hasattr(self, 'state'):
+                self.state.add_event("transcript", content=f"步骤 {i+1}/{len(steps)}: {step}")
+            if notify_fn:
+                progress_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                    content=f"__TOOL_EVENT__" + _json_plan.dumps({
+                        "event": "transcript", "phase": "plan", "role": "system",
+                        "content": f"📋 步骤 {i+1}/{len(steps)}: {step}", "elapsed": 0
+                    }, ensure_ascii=False))
+                notify_fn(progress_msg)
+
+            # Ask model to execute this step
+            step_prompt = (
+                f"你正在执行一个多步计划。\n"
+                f"当前是第 {i+1}/{len(steps)} 步：{step}\n"
+            )
+            if context_so_far:
+                step_prompt += f"\n之前步骤的结果：\n{context_so_far[-2000:]}\n"
+            step_prompt += "\n请执行这一步。可以使用 read_dir/read_file/shell 等 action，也可以直接给出分析。"
+
+            try:
+                response = await client.chat(
+                    messages=[
+                        {"role": "system", "content": "你是 Educe Agent，正在逐步执行用户的计划。每步只做一件事，简洁输出结果。"},
+                        {"role": "user", "content": step_prompt},
+                    ],
+                    model=self.config.default_model.model,
+                    max_tokens=1500,
+                )
+                step_result = response or "(无输出)"
+            except Exception as e:
+                step_result = f"(步骤失败: {str(e)[:100]})"
+
+            results.append(f"步骤{i+1} [{step}]: {step_result[:300]}")
+            context_so_far += f"\n步骤{i+1}: {step_result[:500]}"
+
+        # Summary
+        output = f"✅ 计划执行完成 ({len(steps)}步)\n\n" + "\n".join(results)
+
+        if hasattr(self, 'state'):
+            self.state.add_event("transcript", content=f"计划执行完成 ({len(steps)}步)")
+
+        return {"success": True, "output": output[:4000]}
 
     async def _exec_read_dir(self, action) -> dict:
         """读取目录结构，返回文件树 + 关键文件摘要"""

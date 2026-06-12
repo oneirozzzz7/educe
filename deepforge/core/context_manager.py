@@ -124,9 +124,11 @@ def build_context(
         '<action type="read_dir">目录路径</action>\n'
         '<action type="read_file">文件路径</action>\n'
         '<action type="write_file">{"path":"文件路径","content":"文件内容"}</action>\n'
+        '<action type="plan">{"steps":["步骤1","步骤2","步骤3"]}</action>\n'
         '<action type="use_tool" name="工具名">参数</action>\n\n'
-        "安全级别：read_dir/read_file/recall 直接执行；shell/write_file/build/memorize 需用户确认。\n"
-        "复杂任务可连续多轮 action：先 read_dir/read_file 了解情况，再决定下一步。\n"
+        "安全级别：read_dir/read_file/recall 直接执行；shell/write_file/build/memorize/plan 需用户确认。\n"
+        "复杂任务用 plan：拆成清晰步骤，确认后逐步自动执行。\n"
+        "简单任务可连续多轮 action：先 read_dir/read_file 了解情况，再决定下一步。\n"
     )
 
     return (
