@@ -157,6 +157,9 @@ class UnifiedKnowledgeStore:
             scope: str = "session", category: str = "insight", domain: str = "",
             tags: list[str] | None = None, conditions: list[dict] | None = None,
             prompt_template: str | None = None, session_id: str = "") -> str:
+        # Dedup: skip if very similar entry already exists
+        if self._is_duplicate(content):
+            return ""
         entry = KnowledgeEntry(
             id=_gen_id(),
             content=KnowledgeContent(body=content, prompt_template=prompt_template),
@@ -201,6 +204,24 @@ class UnifiedKnowledgeStore:
         self._update_catalog_entry(entry)
         self._save_catalog()
         return entry.version
+
+    def _is_duplicate(self, content: str, threshold: float = 0.75) -> bool:
+        """Check if content is too similar to an existing entry."""
+        content_lower = content.lower().strip()
+        content_words = set(content_lower.split())
+        if not content_words:
+            return False
+        for entry_data in self._catalog:
+            existing = entry_data.get("preview", "").lower().strip()
+            existing_words = set(existing.split())
+            if not existing_words:
+                continue
+            intersection = content_words & existing_words
+            union = content_words | existing_words
+            jaccard = len(intersection) / len(union) if union else 0
+            if jaccard > threshold:
+                return True
+        return False
 
     def record_usage(self, entry_id: str, success: bool):
         entry = self.get_entry(entry_id)
