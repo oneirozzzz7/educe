@@ -264,19 +264,10 @@ function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; s
       return null; // absorbed into build process
 
     case "build_complete":
-      if (!event.success || !event.files?.length || !sessionId) {
-        return event.success ? null : (
-          <div className="status-bar status-bar-error" style={{ marginBottom: 8 }}>❌ 构建失败</div>
-        );
+      if (!event.success) {
+        return <div className="status-bar status-bar-error" style={{ marginBottom: 8 }}>❌ 构建失败</div>;
       }
-      return (
-        <ArtifactCard
-          file={event.files[0]}
-          sessionId={sessionId}
-          version={event.version || 1}
-          onOpen={() => onOpenPreview?.(event.files[0])}
-        />
-      );
+      return null; // ArtifactCard rendered separately below events list
 
     case "error":
       return (
@@ -556,6 +547,17 @@ export default function Home() {
               }
               return rendered;
             })()}
+
+            {/* ArtifactCard: always show when build complete and has files */}
+            {(phase === "complete" || (phase === "idle" && state.codeFiles.length > 0)) && state.codeFiles.length > 0 && (
+              <ArtifactCard
+                file={state.codeFiles[0]}
+                sessionId={state.sessionId}
+                version={state.currentVersion || 1}
+                onOpen={() => dispatch({ type: "OPEN_PREVIEW", file: state.codeFiles[0] })}
+                active={state.buildExpanded && state.previewFile === state.codeFiles[0]}
+              />
+            )}
 
             {pendingConfirm && (
               <div className="confirm-card" style={{ marginBottom: 16 }}>

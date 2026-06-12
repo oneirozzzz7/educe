@@ -747,6 +747,16 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                     if hasattr(orchestrator, 'state'):
                                         orchestrator.state.add_action_executed(a.type, "构建完成", True)
 
+                                # Push build_complete event directly to frontend
+                                if hasattr(orchestrator, 'state') and orchestrator.state.code_files:
+                                    from pathlib import Path as _PBC
+                                    await websocket.send_json({
+                                        "type": "tool_event",
+                                        "event": "build_complete",
+                                        "success": True,
+                                        "files": [_PBC(f).name for f in orchestrator.state.code_files],
+                                    })
+
                             if hasattr(orchestrator, 'state'):
                                 orchestrator.state.save()
                                 try:
