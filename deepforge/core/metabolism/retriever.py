@@ -36,17 +36,21 @@ class CausalRetriever:
         if not records:
             return ""
 
-        # 策略1：找相同 action_type 的失败教训
+        # 策略1：失败教训（有成功对照时给正确做法）
         failure_lessons = self._extract_failure_lessons(records)
 
-        # 策略2：找相似 user_input 的成功路径
+        # 策略2：失败热区警告（没有成功对照，但高频失败）
+        hotspot_warnings = self._extract_hotspot_warnings(records, user_input)
+
+        # 策略3：成功模式
         success_patterns = self._extract_success_patterns(records, user_input)
 
         hints = []
-        # 失败教训优先（避免重蹈覆辙）
         for lesson in failure_lessons[:2]:
             hints.append(lesson)
-        # 成功模式补充
+        for warning in hotspot_warnings[:2]:
+            if warning not in hints:
+                hints.append(warning)
         for pattern in success_patterns[:1]:
             hints.append(pattern)
 
@@ -122,3 +126,47 @@ class CausalRetriever:
             patterns.append(f"类似请求成功用了 {cap}('{params}')，耗时 {latency}s")
 
         return patterns
+
+    def _extract_hotspot_warnings(self, records: list[ConsequenceRecord], user_input: str) -> list[str]:
+        """从高频失败区域提取警告（即使没有成功对照）"""
+        warnings = []
+        keywords = set(user_input.replace("，", " ").replace("。", " ").split())
+        keywords = {k for k in keywords if len(k) > 1}
+
+        # 按 pitfall_trigger 聚合失败（利用 context_snapshot 里的 pitfall 信息）
+        pitfall_groups: dict[str, list[ConsequenceRecord]] = {}
+        for r in records:
+            if r.outcome_type not in (OutcomeType.FAILURE, OutcomeType.TIMEOUT):
+                continue
+            trigger = r.context_snapshot.get("pitfall_trigger", "")
+            if not trigger:
+                trigger = r.context_snapshot.get("user_input", "")[:30]
+            pitfall_groups.setdefault(trigger, []).append(r)
+
+        for trigger, fails in pitfall_groups.items():
+            if len(fails) < 3:
+                continue  # 不够频繁，不警告
+
+            # 检查是否与当前请求相关
+            trigger_keywords = set(trigger.replace("，", " ").replace("。", " ").split())
+            overlap = keywords & trigger_keywords
+            if not overlap and not any(k in user_input for k in trigger.split()[:2] if len(k) > 1):
+                continue
+
+            # 找最常见的失败 action
+            action_counts: dict[str, int] = {}
+            for f in fails:
+                action_key = f"{f.decision_point}:{f.action_taken.get('params', '')[:30]}"
+                action_counts[action_key] = action_counts.get(action_key, 0) + 1
+
+            if action_counts:
+                most_common = max(action_counts, key=action_counts.get)
+                count = action_counts[most_common]
+                # 看是否有 correct_action 提示
+                correct = fails[0].outcome_detail.get("correct_action", "")
+                if correct:
+                    warnings.append(f"⚠️ 「{trigger}」经常失败({count}次)。正确做法：{correct}")
+                else:
+                    warnings.append(f"⚠️ 「{trigger}」用 {most_common} 经常失败({count}次)，注意检查")
+
+        return warnings
