@@ -357,7 +357,21 @@ class Orchestrator:
             if immediate_actions:
                 messages.append({"role": "assistant", "content": raw})
             for action in immediate_actions:
-                result = await self._execute_action(action, user_input, transcript)
+                # 阶段0: 通过 OutcomeCapturer 执行并记录因果
+                capturer = self._get_outcome_capturer()
+                action_meta = {"capability": action.name or action.type, "params": action.params[:200]}
+                capture_context = {"user_input": user_input[:200], "phase": "action_loop", "round": round_idx}
+
+                result = await capturer.capture(
+                    session_id=_sid,
+                    seed_id="default",
+                    round_idx=round_idx,
+                    decision_point=action.type,
+                    context=capture_context,
+                    action_meta=action_meta,
+                    action_fn=lambda a=action: self._execute_action(a, user_input, transcript),
+                )
+
                 log_activity(_sid, "action_executed",
                             type=action.type,
                             success=result.get("success", False),
@@ -993,6 +1007,16 @@ class Orchestrator:
 
             self._connector_registry = registry
         return self._connector_registry
+
+    def _get_outcome_capturer(self):
+        """获取 OutcomeCapturer（因果账本写入器）"""
+        if not hasattr(self, '_outcome_capturer'):
+            from deepforge.core.metabolism.ledger import LedgerStore
+            from deepforge.core.metabolism.capturer import OutcomeCapturer
+            from pathlib import Path
+            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            self._outcome_capturer = OutcomeCapturer(ledger)
+        return self._outcome_capturer
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
