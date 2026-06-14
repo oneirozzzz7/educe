@@ -257,8 +257,15 @@ class Orchestrator:
         if file_context:
             session_memory.add(f"用户上传了文件（{len(file_context)}字符）")
 
-        # 获取 connector Level 1 描述
-        connector_summary = self._get_connector_registry().get_level1_descriptions()
+        # 获取 connector Level 1 描述（预加载 MCP capabilities）
+        cr = self._get_connector_registry()
+        if not hasattr(self, '_connectors_preloaded'):
+            try:
+                await cr.preload_capabilities()
+                self._connectors_preloaded = True
+            except Exception:
+                self._connectors_preloaded = True  # 不阻塞，标记已尝试
+        connector_summary = cr.get_level1_descriptions()
 
         system = build_context(
             session_memory=session_memory,
@@ -465,8 +472,13 @@ class Orchestrator:
             return await self._exec_recall(action, _sid)
 
         elif action.type == "lookup_tools":
-            tools = self._get_tool_descriptions()
-            return {"success": True, "output": f"可用工具：\n{tools}"}
+            connector_name = action.params.strip() if action.params else ""
+            if connector_name:
+                detail = await self._get_connector_registry().get_level2_description(connector_name)
+                return {"success": True, "output": detail}
+            else:
+                summary = self._get_connector_registry().get_level1_descriptions()
+                return {"success": True, "output": f"可用连接器：\n{summary}"}
 
         elif action.type == "use_tool":
             return await self._exec_use_tool(action)

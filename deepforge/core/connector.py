@@ -74,11 +74,25 @@ class ConnectorRegistry:
         return list(self._connectors.values())
 
     def get_level1_descriptions(self) -> str:
-        """Level 1: 精简清单，常驻 system prompt"""
+        """Level 1: 精简清单，常驻 system prompt。含 capability 名称供模型直接调用。"""
         if not self._connectors:
             return ""
-        lines = [f"- {c.name}: {c.summary}" for c in self._connectors.values()]
+        lines = []
+        for c in self._connectors.values():
+            if hasattr(c, '_capabilities') and c._capabilities:
+                cap_names = [cap.name for cap in c._capabilities[:8]]
+                lines.append(f"- {c.name}: {c.summary}（可用: {', '.join(cap_names)}）")
+            else:
+                lines.append(f"- {c.name}: {c.summary}")
         return "\n".join(lines)
+
+    async def preload_capabilities(self) -> None:
+        """预加载所有 connector 的 capabilities（用于首次 prompt 构建前）"""
+        for c in self._connectors.values():
+            try:
+                await c.capabilities()
+            except Exception as e:
+                log.warning("Preload %s capabilities failed: %s", c.name, e)
 
     async def get_level2_description(self, connector_name: str) -> str:
         """Level 2: 某个 connector 的详细能力（按需）"""

@@ -149,7 +149,12 @@ def build_context(
     # 连接器概要（Level 1）
     connectors_section = ""
     if connectors_summary:
-        connectors_section = f"\n## 可用连接器\n{connectors_summary}\n"
+        connectors_section = (
+            '\n## 可用连接器\n'
+            f'{connectors_summary}\n\n'
+            '调用连接器工具：<action type="use_tool" name="connector名.工具名">{"参数":"值"}</action>\n'
+            '例如：<action type="use_tool" name="filesystem.search_files">{"path":".","pattern":"关键词"}</action>\n'
+        )
 
     return (
         identity
