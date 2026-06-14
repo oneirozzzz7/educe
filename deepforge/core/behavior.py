@@ -1,0 +1,279 @@
+"""
+Behavior Manifest — Agent 行为的一等公民
+
+核心理念：Agent 的"聪明"不是一段 prompt，而是一组可版本化的行为规则。
+每条规则有明确的触发条件、行为指令、学习出处、置信度。
+
+设计原则：
+- 可序列化（YAML/JSON 存盘）
+- 可 diff（unit 级别的增删改）
+- 可恢复（加载后行为可复现）
+- 可传递（clone/push/pull 到其他 Agent）
+- 可审计（每条规则有 evidence 溯源）
+"""
+from __future__ import annotations
+
+import json
+import logging
+import time
+import uuid
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+log = logging.getLogger("educe.behavior")
+
+
+class UnitStatus(str, Enum):
+    STAGED = "staged"      # 刚学到，未验证
+    ACTIVE = "active"      # 验证通过，生效中
+    ARCHIVED = "archived"  # 被淘汰/手动归档
+
+
+@dataclass
+class BehaviorUnit:
+    """一条行为规则 — Agent 行为的原子单位"""
+
+    id: str                          # 唯一标识
+    trigger: str                     # 什么情况下激活（自然语言条件）
+    directive: str                   # 激活后做什么（自然语言指令）
+    evidence: list[str] = field(default_factory=list)  # 学习出处（episode ids）
+    weight: float = 0.5             # 置信度 [0, 1]，高=更可靠
+    status: UnitStatus = UnitStatus.STAGED
+
+    # 元数据
+    created_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=time.time)
+    hit_count: int = 0              # 被触发次数
+    success_count: int = 0          # 触发后下游成功次数
+    fail_count: int = 0             # 触发后下游失败次数
+    parent_id: Optional[str] = None # 由哪条 unit 演化来的
+    conflicts_with: list[str] = field(default_factory=list)  # 冲突的 unit ids
+
+    @property
+    def success_rate(self) -> float:
+        total = self.success_count + self.fail_count
+        return self.success_count / total if total > 0 else 0.0
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["status"] = self.status.value
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BehaviorUnit":
+        d["status"] = UnitStatus(d.get("status", "staged"))
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class BehaviorCommit:
+    """一次行为变更的快照 — 等价于 git commit"""
+
+    commit_id: str
+    message: str                     # 自动生成的变更摘要（"learned: X"）
+    timestamp: float
+    parent_id: Optional[str] = None  # 前一个 commit
+    diff: list[dict] = field(default_factory=list)  # 变更列表 [{op, unit_id, before, after}]
+    manifest_snapshot_hash: str = "" # 对应的 manifest 状态哈希
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "BehaviorCommit":
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class BehaviorManifest:
+    """Agent 的完整行为描述 — 等价于 git 仓库的工作区状态"""
+
+    agent_id: str
+    base_seed: str                   # 基础人格/能力描述（unit 列表的兜底）
+    units: list[BehaviorUnit] = field(default_factory=list)
+    commits: list[BehaviorCommit] = field(default_factory=list)
+    version: int = 0
+
+    # ═══ 读取行为 ═══
+
+    def active_units(self) -> list[BehaviorUnit]:
+        """获取所有生效中的行为规则"""
+        return [u for u in self.units if u.status == UnitStatus.ACTIVE]
+
+    def staged_units(self) -> list[BehaviorUnit]:
+        """获取待验证的行为规则"""
+        return [u for u in self.units if u.status == UnitStatus.STAGED]
+
+    def get_unit(self, unit_id: str) -> Optional[BehaviorUnit]:
+        for u in self.units:
+            if u.id == unit_id:
+                return u
+        return None
+
+    def match_units(self, context: str) -> list[BehaviorUnit]:
+        """根据当前上下文匹配相关的行为规则（简单关键词匹配，后续可升级）"""
+        matched = []
+        context_lower = context.lower()
+        for u in self.active_units():
+            trigger_keywords = set(u.trigger.lower().split())
+            if len(trigger_keywords) <= 2:
+                # 短 trigger 要求完全包含
+                if all(kw in context_lower for kw in trigger_keywords if len(kw) > 1):
+                    matched.append(u)
+            else:
+                # 长 trigger 用关键词重叠度
+                overlap = sum(1 for kw in trigger_keywords if kw in context_lower and len(kw) > 1)
+                if overlap >= len(trigger_keywords) * 0.5:
+                    matched.append(u)
+        # 按 weight 排序
+        matched.sort(key=lambda u: u.weight, reverse=True)
+        return matched
+
+    def render_for_prompt(self, context: str = "") -> str:
+        """将行为规则渲染为注入 prompt 的文本"""
+        parts = [self.base_seed]
+
+        if context:
+            matched = self.match_units(context)
+        else:
+            matched = self.active_units()
+
+        if matched:
+            parts.append("\n## 你学到的行为规则（请遵循）")
+            for u in matched[:10]:  # 限制注入数量，避免淹没 context
+                parts.append(f"- 当{u.trigger}时：{u.directive}")
+
+        return "\n".join(parts)
+
+    # ═══ 写入行为 ═══
+
+    def add_unit(self, unit: BehaviorUnit, message: str = "") -> BehaviorCommit:
+        """添加一条新行为规则并生成 commit"""
+        self.units.append(unit)
+        self.version += 1
+
+        commit = BehaviorCommit(
+            commit_id=uuid.uuid4().hex[:8],
+            message=message or f"learn: {unit.trigger[:50]}",
+            timestamp=time.time(),
+            parent_id=self.commits[-1].commit_id if self.commits else None,
+            diff=[{"op": "add", "unit_id": unit.id, "after": unit.to_dict()}],
+        )
+        self.commits.append(commit)
+        log.info("Commit %s: %s", commit.commit_id, commit.message)
+        return commit
+
+    def update_unit(self, unit_id: str, **kwargs) -> Optional[BehaviorCommit]:
+        """更新一条行为规则"""
+        unit = self.get_unit(unit_id)
+        if not unit:
+            return None
+
+        before = unit.to_dict()
+        for k, v in kwargs.items():
+            if hasattr(unit, k):
+                setattr(unit, k, v)
+        unit.updated_at = time.time()
+        after = unit.to_dict()
+
+        self.version += 1
+        commit = BehaviorCommit(
+            commit_id=uuid.uuid4().hex[:8],
+            message=f"update: {unit.trigger[:40]}",
+            timestamp=time.time(),
+            parent_id=self.commits[-1].commit_id if self.commits else None,
+            diff=[{"op": "update", "unit_id": unit_id, "before": before, "after": after}],
+        )
+        self.commits.append(commit)
+        return commit
+
+    def archive_unit(self, unit_id: str, reason: str = "") -> Optional[BehaviorCommit]:
+        """归档（淘汰）一条行为规则"""
+        return self.update_unit(unit_id, status=UnitStatus.ARCHIVED)
+
+    # ═══ 版本控制操作 ═══
+
+    def log(self, n: int = 20) -> list[BehaviorCommit]:
+        """查看最近 N 条 commit"""
+        return self.commits[-n:]
+
+    def diff(self, commit_a_id: str, commit_b_id: str) -> list[dict]:
+        """比较两个 commit 之间的差异"""
+        # 收集两个 commit 之间所有 diff
+        diffs = []
+        in_range = False
+        for c in self.commits:
+            if c.commit_id == commit_a_id:
+                in_range = True
+                continue
+            if in_range:
+                diffs.extend(c.diff)
+            if c.commit_id == commit_b_id:
+                break
+        return diffs
+
+    def checkout(self, commit_id: str) -> "BehaviorManifest":
+        """回到某个 commit 的状态（返回新 manifest，不修改当前）"""
+        # 从头重放 commit 到目标点
+        fresh = BehaviorManifest(
+            agent_id=self.agent_id,
+            base_seed=self.base_seed,
+        )
+        for c in self.commits:
+            for d in c.diff:
+                if d["op"] == "add":
+                    fresh.units.append(BehaviorUnit.from_dict(d["after"]))
+                elif d["op"] == "update":
+                    unit = fresh.get_unit(d["unit_id"])
+                    if unit:
+                        for k, v in d["after"].items():
+                            if hasattr(unit, k) and k != "id":
+                                setattr(unit, k, v)
+                elif d["op"] == "remove":
+                    fresh.units = [u for u in fresh.units if u.id != d["unit_id"]]
+            fresh.commits.append(c)
+            if c.commit_id == commit_id:
+                break
+        return fresh
+
+    # ═══ 持久化 ═══
+
+    def save(self, path: Path) -> None:
+        """保存到磁盘"""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "agent_id": self.agent_id,
+            "base_seed": self.base_seed,
+            "version": self.version,
+            "units": [u.to_dict() for u in self.units],
+            "commits": [c.to_dict() for c in self.commits],
+        }
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: Path) -> "BehaviorManifest":
+        """从磁盘加载"""
+        data = json.loads(path.read_text(encoding="utf-8"))
+        manifest = cls(
+            agent_id=data["agent_id"],
+            base_seed=data["base_seed"],
+            version=data.get("version", 0),
+        )
+        manifest.units = [BehaviorUnit.from_dict(u) for u in data.get("units", [])]
+        manifest.commits = [BehaviorCommit.from_dict(c) for c in data.get("commits", [])]
+        return manifest
+
+    # ═══ 统计 ═══
+
+    def stats(self) -> dict:
+        return {
+            "agent_id": self.agent_id,
+            "total_units": len(self.units),
+            "active": len(self.active_units()),
+            "staged": len(self.staged_units()),
+            "archived": sum(1 for u in self.units if u.status == UnitStatus.ARCHIVED),
+            "commits": len(self.commits),
+            "version": self.version,
+        }
