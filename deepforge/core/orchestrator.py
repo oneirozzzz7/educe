@@ -474,10 +474,22 @@ class Orchestrator:
         return self.context
 
     async def _execute_action(self, action, user_input: str, transcript) -> dict:
-        """执行单个 action，返回结果 dict。"""
+        """执行单个 action，返回结果 dict。Guardian 在此拦截/改写。"""
         from deepforge.core.action_executor import ParsedAction
         import json as _json
         _sid = self.context.metadata.get("session_id", "")
+
+        # 执行层守卫：检查并可能改写 action
+        guardian = self._get_guardian()
+        guard_result = guardian.check(action.type, action.params)
+        if guard_result.action == "rewrite":
+            action = ParsedAction(
+                type=guard_result.new_type,
+                params=guard_result.new_params,
+                name=action.name,
+            )
+        elif guard_result.action == "block":
+            return {"success": False, "output": f"[Guardian 拦截] {guard_result.reason}"}
 
         if action.type == "memorize":
             result = await self._exec_memorize(action, _sid)
@@ -1032,6 +1044,16 @@ class Orchestrator:
             ledger = LedgerStore(Path(".deepforge/metabolism"))
             self._causal_retriever = CausalRetriever(ledger)
         return self._causal_retriever
+
+    def _get_guardian(self):
+        """获取执行层守卫"""
+        if not hasattr(self, '_guardian'):
+            from deepforge.core.metabolism.guardian import ActionGuardian
+            from deepforge.core.metabolism.ledger import LedgerStore
+            from pathlib import Path
+            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            self._guardian = ActionGuardian(ledger)
+        return self._guardian
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
