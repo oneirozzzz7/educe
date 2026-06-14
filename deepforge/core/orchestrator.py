@@ -1155,6 +1155,13 @@ class Orchestrator:
                 f"请逐项实现以上所有功能，确保每项都能正常工作。"
             )
 
+        # ═══ 注入 seed 到 build 上下文（激发引擎核心链路）═══
+        build_seed = ""
+        if self.unified_store:
+            build_seed = self.unified_store.get_seed_text("build", "general")
+        if build_seed:
+            self.context.metadata["_build_seed"] = build_seed
+
         # ═══ 执行构建 ═══
         await self._run_agent("builder", build_input, "user", timeout=900)
 

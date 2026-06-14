@@ -29,13 +29,19 @@ class BaseAgent(abc.ABC):
         yield  # type: ignore
 
     def build_system_prompt(self, context: WorkContext) -> str:
+        # 激发引擎 seed 注入（如果有）
+        seed_section = ""
+        build_seed = context.metadata.get("_build_seed", "")
+        if build_seed:
+            seed_section = f"\n\n## 思维引导\n{build_seed}"
+
         return f"""你是 {self.role}。
 {self.description}
 
 ## 当前项目信息
 - 项目名称: {context.project_name}
 - 当前阶段: {context.current_phase}
-- 用户原始需求: {context.user_request}
+- 用户原始需求: {context.user_request}{seed_section}
 
 ## 工作要求
 1. 输出必须结构化、清晰、可执行
