@@ -275,6 +275,11 @@ class Orchestrator:
             connectors_summary=connector_summary,
         )
 
+        # 阶段1: 决策前因果检索 — 从账本中提取相关经验注入 prompt
+        causal_experience = await self._get_causal_retriever().retrieve_experience(user_input)
+        if causal_experience:
+            system += causal_experience
+
         # 构建对话历史
         history = self.conversation.get_history_for_llm()
         cleaned = []
@@ -1017,6 +1022,16 @@ class Orchestrator:
             ledger = LedgerStore(Path(".deepforge/metabolism"))
             self._outcome_capturer = OutcomeCapturer(ledger)
         return self._outcome_capturer
+
+    def _get_causal_retriever(self):
+        """获取因果检索器（决策前检索历史经验）"""
+        if not hasattr(self, '_causal_retriever'):
+            from deepforge.core.metabolism.retriever import CausalRetriever
+            from deepforge.core.metabolism.ledger import LedgerStore
+            from pathlib import Path
+            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            self._causal_retriever = CausalRetriever(ledger)
+        return self._causal_retriever
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
