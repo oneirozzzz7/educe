@@ -337,9 +337,21 @@ class Orchestrator:
             # 需要用户确认的 action 类型
             needs_confirm = {"memorize", "build", "shell", "write_file", "plan"}
 
+            # 检查 use_tool 是否调用危险能力
+            def _is_dangerous_use_tool(action) -> bool:
+                if action.type != "use_tool":
+                    return False
+                tool_name = action.name or ""
+                if "." in tool_name:
+                    connector_name, capability_name = tool_name.split(".", 1)
+                    connector = self._get_connector_registry().get(connector_name)
+                    if connector and hasattr(connector, 'is_dangerous'):
+                        return connector.is_dangerous(capability_name)
+                return False
+
             # 检查是否有需要确认的 action
-            pending_actions = [a for a in actions if a.type in needs_confirm]
-            immediate_actions = [a for a in actions if a.type not in needs_confirm]
+            pending_actions = [a for a in actions if a.type in needs_confirm or _is_dangerous_use_tool(a)]
+            immediate_actions = [a for a in actions if a not in pending_actions]
 
             # 立即执行不需要确认的（recall、lookup_tools、use_tool）
             if immediate_actions:
@@ -353,6 +365,17 @@ class Orchestrator:
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
+                # P0-4: 推送 tool_event 让前端显示调用详情
+                tool_desc = f"{action.type}"
+                if action.type == "use_tool" and action.name:
+                    tool_desc = f"use_tool: {action.name}"
+                success_icon = "✓" if result.get("success") else "✗"
+                self._notify(Message(
+                    type=MessageType.RESULT, sender="system", receiver="user",
+                    content=f"{success_icon} {tool_desc}",
+                    metadata={"event": "tool_event", "tool_type": action.type,
+                              "tool_name": action.name, "success": result.get("success", False)}
+                ))
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
 
