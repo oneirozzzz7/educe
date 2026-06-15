@@ -63,7 +63,7 @@ class BehaviorLearner:
 
     PROMOTE_MIN_HITS = 3      # 至少被触发 N 次才考虑晋升
     ARCHIVE_MIN_HITS = 5      # 至少被触发 N 次才考虑归档
-    MAX_ACTIVE_UNITS = 12     # active 上限（token 预算约束，不是越多越好）
+    MAX_ACTIVE_UNITS = 7      # active 上限（注意力预算约束，不是越多越好）
     DECAY_HALF_LIFE_DAYS = 7  # 权重半衰期
 
     def __init__(self, manifest: BehaviorManifest, persist_path: Path):

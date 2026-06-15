@@ -179,7 +179,7 @@ class BehaviorManifest:
         return matched
 
     def render_for_prompt(self, context: str = "", max_tokens: int = 300) -> str:
-        """将行为规则渲染为注入 prompt 的文本（有 token 预算约束）"""
+        """将行为规则渲染为注入 prompt 的文本（有 token 预算约束 + 冲突过滤）"""
         parts = [self.base_seed]
 
         active = self.active_units()
@@ -193,15 +193,46 @@ class BehaviorManifest:
         if matched:
             parts.append("\n## 经验教训（供参考，你有权根据具体情况判断是否适用）")
             budget_used = 0
+            injected_directives: list[str] = []
             for u in matched:
+                # 冲突检测：如果新规则和已注入的规则有明显冲突，跳过低优先级的
+                if self._conflicts_with_injected(u.directive, injected_directives):
+                    continue
                 line = f"- 当{u.trigger}时：{u.directive}"
-                line_tokens = len(line) // 2  # 粗估：中文 2 字符 ≈ 1 token
+                line_tokens = len(line) // 2
                 if budget_used + line_tokens > max_tokens:
                     break
                 parts.append(line)
+                injected_directives.append(u.directive)
                 budget_used += line_tokens
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _conflicts_with_injected(new_directive: str, existing: list[str]) -> bool:
+        """粗粒度冲突检测：检查新规则是否和已注入的规则在关键维度矛盾"""
+        if not existing:
+            return False
+
+        # 长度相关冲突
+        length_increase = any(w in new_directive for w in ["详细", "完整", "展开", "深入"])
+        length_decrease = any(w in new_directive for w in ["简短", "简洁", "字以内", "精简"])
+        for ex in existing:
+            if length_increase and any(w in ex for w in ["简短", "简洁", "字以内", "精简"]):
+                return True
+            if length_decrease and any(w in ex for w in ["详细", "完整", "展开", "深入"]):
+                return True
+
+        # 语言冲突
+        force_chinese = any(w in new_directive for w in ["中文", "全中文"])
+        force_english = any(w in new_directive for w in ["英文", "English", "全英文"])
+        for ex in existing:
+            if force_chinese and any(w in ex for w in ["英文", "English"]):
+                return True
+            if force_english and any(w in ex for w in ["中文"]):
+                return True
+
+        return False
 
     # ═══ 写入行为 ═══
 
