@@ -43,7 +43,7 @@ OUTPUT_DIR = Path(".deepforge/experiments/marginal_data")
 # ═══════════════════════════════════════
 
 def check_short(resp: str) -> bool:
-    return len(resp) < 300
+    return len(resp) < 600  # 中文200字 ≈ 600 chars
 
 def check_no_emoji(resp: str) -> bool:
     return not bool(re.search(r'[\U0001F600-\U0001FAFF\U00002600-\U000027BF]', resp))

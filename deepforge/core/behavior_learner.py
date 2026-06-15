@@ -213,6 +213,7 @@ class BehaviorLearner:
         """决定是否对该 unit 做静默对照（不注入）
 
         自适应频率：
+        - hit_count < 2: 永不withhold（先让规则跑几轮建立 inject 数据）
         - baseline_tests < 5: 每3次命中withhold 1次（需要数据）
         - baseline_tests 5-15: 每5次1次
         - baseline_tests > 15: 每8次1次
@@ -220,6 +221,10 @@ class BehaviorLearner:
         """
         unit = self.manifest.get_unit(unit_id)
         if not unit:
+            return False
+
+        # 前几次总是 inject（需要先积累 inject 数据才有对比意义）
+        if unit.hit_count < 2:
             return False
 
         # 已证明高价值且数据充足 → 不再 withhold
