@@ -545,6 +545,9 @@ class Orchestrator:
         if final_reply:
             self.conversation.add_assistant(final_reply)
 
+            # Output-Metric Attribution: 记录输出特征到对应 units
+            self._record_output_metrics(final_reply)
+
         return self.context
 
     async def _execute_action(self, action, user_input: str, transcript) -> dict:
@@ -1202,6 +1205,28 @@ class Orchestrator:
                             source="retry")
         except Exception as e:
             log.warning("_learn_from_retry failed: %s", str(e)[:100])
+
+    def _record_output_metrics(self, response: str):
+        """计算回复特征并记录到对应 units（Output-Metric Attribution）"""
+        try:
+            from deepforge.core.response_features import compute_response_features
+            features = compute_response_features(response)
+
+            manifest = self._get_behavior_manifest()
+            injected_ids = self.context.metadata.get("_matched_behavior_units", [])
+            withheld_ids = self.context.metadata.get("_withheld_behavior_units", [])
+
+            for uid in injected_ids:
+                unit = manifest.get_unit(uid)
+                if unit and unit.effect_dimension and unit.effect_dimension in features:
+                    unit.record_metric_sample(features[unit.effect_dimension], injected=True)
+
+            for uid in withheld_ids:
+                unit = manifest.get_unit(uid)
+                if unit and unit.effect_dimension and unit.effect_dimension in features:
+                    unit.record_metric_sample(features[unit.effect_dimension], injected=False)
+        except Exception as e:
+            log.debug("_record_output_metrics: %s", str(e)[:80])
 
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）

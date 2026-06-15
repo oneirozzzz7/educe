@@ -56,6 +56,14 @@ class BehaviorUnit:
     baseline_tests: int = 0         # 静默对照次数（匹配但未注入）
     baseline_passes: int = 0        # 静默对照中模型自主遵守的次数
 
+    # Output-Metric Attribution（分布式归因）
+    effect_dimension: Optional[str] = None   # 影响的输出维度（length/emoji_count/...）
+    effect_direction: int = -1               # -1=规则应减少该维度, +1=应增加
+    inject_samples: list[float] = field(default_factory=list)   # 注入时的度量采样
+    withhold_samples: list[float] = field(default_factory=list) # 未注入时的度量采样
+
+    MAX_SAMPLES = 30  # 每组最多保留 30 个样本（ring buffer）
+
     @property
     def success_rate(self) -> float:
         total = self.success_count + self.fail_count
@@ -63,10 +71,42 @@ class BehaviorUnit:
 
     @property
     def marginal_value(self) -> float:
-        """边际价值：注入规则比不注入多带来多少遵守率提升
+        """边际价值：规则注入对输出的因果效应
 
-        Bayesian smoothed: prior = 0.3 (assume weak positive), strength = 3
+        优先使用 output-metric（分布对比 Cohen's d），
+        fallback 到 binary user-signal 方法。
         """
+        # 方法1：Output-Metric（有 effect_dimension 且样本充足）
+        if self.effect_dimension and len(self.inject_samples) >= 5 and len(self.withhold_samples) >= 5:
+            return self._metric_marginal_value()
+
+        # 方法2：Binary user-signal fallback
+        return self._signal_marginal_value()
+
+    def _metric_marginal_value(self) -> float:
+        """基于输出度量的分布对比（Cohen's d）"""
+        inject_mean = sum(self.inject_samples) / len(self.inject_samples)
+        withhold_mean = sum(self.withhold_samples) / len(self.withhold_samples)
+
+        # Pooled standard deviation
+        n1, n2 = len(self.inject_samples), len(self.withhold_samples)
+        var1 = sum((x - inject_mean) ** 2 for x in self.inject_samples) / max(1, n1 - 1)
+        var2 = sum((x - withhold_mean) ** 2 for x in self.withhold_samples) / max(1, n2 - 1)
+        pooled_var = ((n1 - 1) * var1 + (n2 - 1) * var2) / max(1, n1 + n2 - 2)
+        pooled_std = pooled_var ** 0.5
+
+        if pooled_std < 1e-6:
+            return 0.0
+
+        # effect_direction=-1: 规则应减少该值 → inject < withhold = 好
+        # effect_direction=+1: 规则应增加该值 → inject > withhold = 好
+        raw_d = (inject_mean - withhold_mean) * self.effect_direction / pooled_std
+
+        # Normalize: d=0.5 (medium effect) → mv≈0.5, d>=1.0 → mv=1.0
+        return max(0.0, min(1.0, raw_d))
+
+    def _signal_marginal_value(self) -> float:
+        """Bayesian binary 方法（fallback，用于无法度量的规则）"""
         PRIOR_STRENGTH = 3
         PRIOR_MEAN = 0.3
 
@@ -86,6 +126,17 @@ class BehaviorUnit:
             p_baseline = (bp + PRIOR_STRENGTH * PRIOR_MEAN) / (bt + PRIOR_STRENGTH)
 
         return max(0.0, min(1.0, p_inject - p_baseline))
+
+    def record_metric_sample(self, value: float, injected: bool) -> None:
+        """记录一次输出度量采样"""
+        if injected:
+            self.inject_samples.append(value)
+            if len(self.inject_samples) > self.MAX_SAMPLES:
+                self.inject_samples = self.inject_samples[-self.MAX_SAMPLES:]
+        else:
+            self.withhold_samples.append(value)
+            if len(self.withhold_samples) > self.MAX_SAMPLES:
+                self.withhold_samples = self.withhold_samples[-self.MAX_SAMPLES:]
 
     @property
     def effective_weight(self) -> float:

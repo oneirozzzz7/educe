@@ -110,12 +110,20 @@ class BehaviorLearner:
             trigger=trigger,
             directive=directive,
             evidence=[f"correction:{user_correction[:100]}"],
-            weight=confidence * 0.5,  # 初始权重打折，验证后再升
+            weight=confidence * 0.5,
             status=UnitStatus.STAGED,
         )
+        # 自动推断 effect_dimension
+        from deepforge.core.response_features import infer_effect_dimension
+        dim, direction = infer_effect_dimension(directive)
+        if dim:
+            unit.effect_dimension = dim
+            unit.effect_direction = direction
+
         commit = self.manifest.add_unit(unit, message=f"learn(correction): {trigger[:40]}")
         self._persist()
-        log.info("Learned from correction: %s → %s [%s]", trigger[:40], directive[:40], commit.commit_id)
+        log.info("Learned from correction: %s → %s [dim=%s] [%s]",
+                 trigger[:40], directive[:40], dim or "none", commit.commit_id)
         return unit
 
     async def learn_from_retry(
