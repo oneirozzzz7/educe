@@ -49,8 +49,18 @@ _CODE_ONLY_LANGS = {
 
 # 合法的 action type（用于二次验证）
 _VALID_ACTION_TYPES = {
-    "shell", "read_dir", "read_file", "write_file",
-    "memorize", "build", "plan", "recall", "use_tool",
+    "shell", "read_dir", "read_file", "write_file", "edit_file",
+    "create_file", "run", "exec",
+    "memorize", "build", "plan", "recall", "search", "use_tool",
+}
+
+# 别名映射：模型可能使用的变体 → 规范 type
+_ACTION_ALIASES = {
+    "edit_file": "write_file",
+    "create_file": "write_file",
+    "run": "shell",
+    "exec": "shell",
+    "search": "recall",
 }
 
 # ═══ 旧 XML 格式（向后兼容）═══
@@ -79,12 +89,14 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
         if lang.startswith("tool:"):
             actions.append(ParsedAction(type="use_tool", params=body, name=lang[5:]))
         elif lang in _VALID_ACTION_TYPES:
-            actions.append(ParsedAction(type=lang, params=body, name=""))
+            canonical = _ACTION_ALIASES.get(lang, lang)
+            actions.append(ParsedAction(type=canonical, params=body, name=""))
         # 兼容 AgenticLoop 的 action:xxx 格式
         elif lang.startswith("action:"):
             atype = lang[7:]
             if atype in _VALID_ACTION_TYPES:
-                actions.append(ParsedAction(type=atype, params=body, name=""))
+                canonical = _ACTION_ALIASES.get(atype, atype)
+                actions.append(ParsedAction(type=canonical, params=body, name=""))
 
     # Fallback：旧 XML 格式（向后兼容）
     if not actions:
