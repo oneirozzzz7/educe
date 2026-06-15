@@ -902,26 +902,31 @@ class Orchestrator:
         if not path.is_absolute():
             path = base / path
         else:
-            # 绝对路径：如果不在 output_dir 内，提取文件名部分重定向到 output_dir
+            # 绝对路径：提取项目相关部分，忽略系统前缀
             try:
                 path.relative_to(base.resolve())
             except ValueError:
-                # 绝对路径不在沙箱内 — 提取有意义的相对部分
-                # 例如 /Users/.../bookmarks-cli/db.py → bookmarks-cli/db.py
-                parts = path.parts
-                # 找到和 cwd 路径分叉的部分作为相对路径
-                cwd_parts = Path.cwd().parts
-                common_len = 0
-                for i, (a, b) in enumerate(zip(parts, cwd_parts)):
-                    if a == b:
-                        common_len = i + 1
-                    else:
+                # 去掉常见系统前缀，保留项目路径
+                str_p = str(path)
+                strip_prefixes = ["/tmp/", "/private/tmp/", "/home/user/", "/root/"]
+                stripped = ""
+                for prefix in strip_prefixes:
+                    if str_p.startswith(prefix):
+                        stripped = str_p[len(prefix):]
                         break
-                relative_parts = parts[common_len:]
-                if relative_parts:
-                    path = base / Path(*relative_parts)
-                else:
-                    path = base / path.name
+                if not stripped:
+                    # 非系统前缀 — 提取 cwd 之后的部分
+                    parts = path.parts
+                    cwd_parts = Path.cwd().parts
+                    common_len = 0
+                    for i, (a, b) in enumerate(zip(parts, cwd_parts)):
+                        if a == b:
+                            common_len = i + 1
+                        else:
+                            break
+                    relative_parts = parts[common_len:]
+                    stripped = str(Path(*relative_parts)) if relative_parts else path.name
+                path = base / stripped
 
         # Safety: don't write to system directories
         str_path = str(path)
