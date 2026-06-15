@@ -166,8 +166,27 @@ class Orchestrator:
                                 signal=signal, ids=prev_recalled,
                                 success=is_positive)
 
+            # ═══ BehaviorLearner: 从纠正中学习 ═══
+            if signal in ("error", "unsatisfied") and prev_assistant:
+                asyncio.create_task(self._learn_from_correction(prev_assistant, user_input))
+            # ═══ BehaviorLearner: match成功后强化/惩罚 ═══
+            matched_unit_ids = self.context.metadata.get("_matched_behavior_units", [])
+            if matched_unit_ids:
+                learner = self._get_behavior_learner()
+                is_positive = signal in ("grateful", "engaged")
+                is_negative = signal in ("error", "unsatisfied")
+                if is_positive:
+                    for uid in matched_unit_ids:
+                        learner.reinforce(uid)
+                elif is_negative:
+                    for uid in matched_unit_ids:
+                        learner.penalize(uid)
+                learner.lifecycle_check()
+
         # ═══ 清除上一轮状态 ═══
         self.context.metadata.pop("_recalled_knowledge_ids", None)
+        self.context.metadata.pop("_matched_behavior_units", None)
+        self.context.metadata.pop("_failed_actions", None)
         self.context.metadata.pop("domain_knowledge", None)
 
         self.conversation.add_user(user_input, file_content)
@@ -274,6 +293,19 @@ class Orchestrator:
             seed=seed,
             connectors_summary=connector_summary,
         )
+
+        # BehaviorManifest 注入 action loop prompt
+        manifest = self._get_behavior_manifest()
+        if manifest:
+            behavior_rules = manifest.render_for_prompt(user_input)
+            if behavior_rules and behavior_rules != manifest.base_seed:
+                system += f"\n{behavior_rules}"
+            # 记录本轮匹配到的 unit IDs（用于后续反馈强化/惩罚）
+            matched = manifest.match_units(user_input)
+            if matched:
+                self.context.metadata["_matched_behavior_units"] = [u.id for u in matched]
+            else:
+                self.context.metadata.pop("_matched_behavior_units", None)
 
         # 阶段1: 决策前因果检索 — 从账本中提取相关经验注入 prompt
         causal_experience = await self._get_causal_retriever().retrieve_experience(user_input)
@@ -384,6 +416,22 @@ class Orchestrator:
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
+
+                # BehaviorLearner: 检测失败→重试成功模式
+                if not result.get("success"):
+                    self.context.metadata.setdefault("_failed_actions", []).append({
+                        "type": action.type, "params": action.params[:200],
+                        "reason": result.get("output", "")[:200], "round": round_idx,
+                    })
+                elif self.context.metadata.get("_failed_actions"):
+                    failed = self.context.metadata["_failed_actions"][-1]
+                    asyncio.create_task(self._learn_from_retry(
+                        failed_action=f"{failed['type']}:{failed['params']}",
+                        failure_reason=failed["reason"],
+                        success_action=f"{action.type}:{action.params[:200]}",
+                        context=user_input,
+                    ))
+                    self.context.metadata.pop("_failed_actions", None)
                 # P0-4: 推送 tool_event 让前端显示调用详情
                 tool_desc = f"{action.type}"
                 if action.type == "use_tool" and action.name:
@@ -1055,6 +1103,80 @@ class Orchestrator:
             self._guardian = ActionGuardian(ledger)
         return self._guardian
 
+    def _get_behavior_manifest(self):
+        """获取 BehaviorManifest（Agent 行为仓库）"""
+        if not hasattr(self, '_behavior_manifest'):
+            from deepforge.core.behavior import BehaviorManifest
+            from pathlib import Path
+            manifest_path = Path(".deepforge/behavior/manifest.json")
+            if manifest_path.exists():
+                self._behavior_manifest = BehaviorManifest.load(manifest_path)
+            else:
+                self._behavior_manifest = BehaviorManifest(
+                    agent_id="default",
+                    base_seed="",
+                )
+        return self._behavior_manifest
+
+    def _get_behavior_learner(self):
+        """获取 BehaviorLearner（行为学习器）"""
+        if not hasattr(self, '_behavior_learner'):
+            from deepforge.core.behavior_learner import BehaviorLearner
+            from pathlib import Path
+            manifest = self._get_behavior_manifest()
+            self._behavior_learner = BehaviorLearner(
+                manifest=manifest,
+                persist_path=Path(".deepforge/behavior/manifest.json"),
+            )
+        return self._behavior_learner
+
+    async def _learn_from_correction(self, prev_response: str, user_correction: str):
+        """后台异步：从用户纠正中提取行为规则"""
+        try:
+            client = self._get_client()
+            if not client:
+                return
+            learner = self._get_behavior_learner()
+            unit = await learner.learn_from_correction(
+                prev_response=prev_response,
+                user_correction=user_correction,
+                client=client,
+                model=self.config.default_model.model,
+            )
+            if unit:
+                _sid = self.context.metadata.get("session_id", "")
+                log_activity(_sid, "behavior_learned",
+                            trigger=unit.trigger[:60],
+                            directive=unit.directive[:60],
+                            source="correction")
+        except Exception as e:
+            log.warning("_learn_from_correction failed: %s", str(e)[:100])
+
+    async def _learn_from_retry(self, failed_action: str, failure_reason: str,
+                                success_action: str, context: str):
+        """后台异步：从失败→成功模式中提取行为规则"""
+        try:
+            client = self._get_client()
+            if not client:
+                return
+            learner = self._get_behavior_learner()
+            unit = await learner.learn_from_retry(
+                failed_action=failed_action,
+                failure_reason=failure_reason,
+                success_action=success_action,
+                context=context,
+                client=client,
+                model=self.config.default_model.model,
+            )
+            if unit:
+                _sid = self.context.metadata.get("session_id", "")
+                log_activity(_sid, "behavior_learned",
+                            trigger=unit.trigger[:60],
+                            directive=unit.directive[:60],
+                            source="retry")
+        except Exception as e:
+            log.warning("_learn_from_retry failed: %s", str(e)[:100])
+
     # ═══════════════════════════════════════
     #  Builder → Tester → 循环（优化版）
     # ═══════════════════════════════════════
@@ -1161,6 +1283,11 @@ class Orchestrator:
             build_seed = self.unified_store.get_seed_text("build", "general")
         if build_seed:
             self.context.metadata["_build_seed"] = build_seed
+
+        # ═══ 注入 BehaviorManifest（Git for Agent Behavior）═══
+        manifest = self._get_behavior_manifest()
+        if manifest and manifest.active_units():
+            self.context.metadata["_behavior_manifest"] = manifest
 
         # ═══ 执行构建 ═══
         await self._run_agent("builder", build_input, "user", timeout=900)

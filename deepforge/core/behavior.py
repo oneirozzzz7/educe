@@ -135,14 +135,18 @@ class BehaviorManifest:
         """将行为规则渲染为注入 prompt 的文本"""
         parts = [self.base_seed]
 
+        active = self.active_units()
         if context:
             matched = self.match_units(context)
+            # fallback: active units 少时全量注入（初期不浪费已学到的规则）
+            if not matched and len(active) <= 10:
+                matched = active
         else:
-            matched = self.active_units()
+            matched = active
 
         if matched:
             parts.append("\n## 你学到的行为规则（请遵循）")
-            for u in matched[:10]:  # 限制注入数量，避免淹没 context
+            for u in matched[:10]:
                 parts.append(f"- 当{u.trigger}时：{u.directive}")
 
         return "\n".join(parts)
