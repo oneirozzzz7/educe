@@ -179,26 +179,31 @@ class BehaviorManifest:
         return matched
 
     def render_for_prompt(self, context: str = "", max_tokens: int = 300) -> str:
-        """将行为规则渲染为注入 prompt 的文本（有 token 预算约束 + 冲突过滤）"""
+        """将行为规则渲染为注入 prompt 的文本
+
+        设计哲学：全量注入 active rules，让模型自己做 NLI 判断适用性。
+        匹配问题消解为 lifecycle 问题（哪 7 条值得 active）。
+        仅做冲突过滤和 token 预算裁剪。
+        """
         parts = [self.base_seed]
 
+        # 全量注入 active（排序 by injection priority）
         active = self.active_units()
-        if context:
-            matched = self.match_units(context)
-            if not matched and len(active) <= 10:
-                matched = active
-        else:
-            matched = active
+        def _injection_priority(u):
+            mv = u.marginal_value
+            ew = u.effective_weight
+            token_eff = 1.0 / max(len(u.directive) / 20, 1.0)
+            return mv * ew * token_eff
+        active.sort(key=_injection_priority, reverse=True)
 
-        if matched:
+        if active:
             parts.append("\n## 经验教训（供参考，你有权根据具体情况判断是否适用）")
             budget_used = 0
             injected_directives: list[str] = []
-            for u in matched:
-                # 冲突检测：如果新规则和已注入的规则有明显冲突，跳过低优先级的
+            for u in active:
                 if self._conflicts_with_injected(u.directive, injected_directives):
                     continue
-                line = f"- 当{u.trigger}时：{u.directive}"
+                line = f"- {u.directive}"
                 line_tokens = len(line) // 2
                 if budget_used + line_tokens > max_tokens:
                     break

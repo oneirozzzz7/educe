@@ -303,30 +303,25 @@ class Orchestrator:
             connectors_summary=connector_summary,
         )
 
-        # BehaviorManifest 注入 action loop prompt（含静默对照）
+        # BehaviorManifest 注入：全量注入 active rules（模型自己做 NLI）
+        # 匹配问题已消解为 lifecycle 问题——哪 7 条值得 active 由 lifecycle 决定
         manifest = self._get_behavior_manifest()
         if manifest:
-            from deepforge.core.behavior import UnitStatus
             learner = self._get_behavior_learner()
-            matched = manifest.match_units(user_input)
+            active = manifest.active_units()
 
-            # 静默对照：部分匹配的 unit 不注入，用于积累 marginal_value 数据
+            # 静默对照：部分 unit 不注入，用于积累 marginal_value 数据
             injected_ids = []
             withheld_ids = []
-            for u in matched:
+            for u in active:
                 if learner.should_withhold(u.id):
                     withheld_ids.append(u.id)
                 else:
                     injected_ids.append(u.id)
 
-            # 只用 injected 的 units 渲染 prompt
+            # 渲染注入（排除 withheld 的）
             if injected_ids:
-                # 临时过滤 active_units 只保留 injected 的
-                original_units = manifest.units[:]
-                manifest.units = [u for u in manifest.units
-                                  if u.id in injected_ids or u.status != UnitStatus.ACTIVE]
-                behavior_rules = manifest.render_for_prompt(user_input)
-                manifest.units = original_units
+                behavior_rules = manifest.render_for_prompt("")  # 不传 context，全量注入
                 if behavior_rules and behavior_rules != manifest.base_seed:
                     system += f"\n{behavior_rules}"
 
