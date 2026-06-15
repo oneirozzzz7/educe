@@ -44,6 +44,7 @@ class ProcessSupervisor:
 
     MAX_PER_SESSION = 3
     GRACE_PERIOD = 5.0  # 5s 内退出视为正常命令
+    MAX_TTL = 600       # 后台进程最长存活 10 分钟
 
     def __init__(self):
         self._processes: dict[int, ProcessEntry] = {}
