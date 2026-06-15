@@ -181,26 +181,28 @@ class BehaviorManifest:
     def render_for_prompt(self, context: str = "", max_tokens: int = 300) -> str:
         """将行为规则渲染为注入 prompt 的文本
 
-        设计哲学：全量注入 active rules，让模型自己做 NLI 判断适用性。
-        匹配问题消解为 lifecycle 问题（哪 7 条值得 active）。
+        设计哲学：全量注入 active + staged 规则，让模型自己做 NLI 判断适用性。
+        staged 规则需要试用机会才能积累数据晋升。
         仅做冲突过滤和 token 预算裁剪。
         """
         parts = [self.base_seed]
 
-        # 全量注入 active（排序 by injection priority）
-        active = self.active_units()
+        # active 优先，staged 也参与（需要试用机会来积累 reinforce 数据）
+        candidates = self.active_units() + self.staged_units()
         def _injection_priority(u):
             mv = u.marginal_value
             ew = u.effective_weight
             token_eff = 1.0 / max(len(u.directive) / 20, 1.0)
-            return mv * ew * token_eff
-        active.sort(key=_injection_priority, reverse=True)
+            # staged 规则降权（给它试用机会但不抢 active 的位子）
+            status_factor = 1.0 if u.status == UnitStatus.ACTIVE else 0.5
+            return mv * ew * token_eff * status_factor
+        candidates.sort(key=_injection_priority, reverse=True)
 
-        if active:
+        if candidates:
             parts.append("\n## 经验教训（供参考，你有权根据具体情况判断是否适用）")
             budget_used = 0
             injected_directives: list[str] = []
-            for u in active:
+            for u in candidates:
                 if self._conflicts_with_injected(u.directive, injected_directives):
                     continue
                 line = f"- {u.directive}"

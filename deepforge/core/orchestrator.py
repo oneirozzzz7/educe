@@ -303,17 +303,17 @@ class Orchestrator:
             connectors_summary=connector_summary,
         )
 
-        # BehaviorManifest 注入：全量注入 active rules（模型自己做 NLI）
-        # 匹配问题已消解为 lifecycle 问题——哪 7 条值得 active 由 lifecycle 决定
+        # BehaviorManifest 注入：active + staged 全量注入（模型自己做 NLI）
+        # staged 需要试用机会才能积累数据晋升
         manifest = self._get_behavior_manifest()
         if manifest:
             learner = self._get_behavior_learner()
-            active = manifest.active_units()
+            candidates = manifest.active_units() + manifest.staged_units()
 
             # 静默对照：部分 unit 不注入，用于积累 marginal_value 数据
             injected_ids = []
             withheld_ids = []
-            for u in active:
+            for u in candidates:
                 if learner.should_withhold(u.id):
                     withheld_ids.append(u.id)
                 else:
