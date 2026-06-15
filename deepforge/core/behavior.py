@@ -52,10 +52,40 @@ class BehaviorUnit:
     parent_id: Optional[str] = None # 由哪条 unit 演化来的
     conflicts_with: list[str] = field(default_factory=list)  # 冲突的 unit ids
 
+    # 边际归因（Marginal Attribution）
+    baseline_tests: int = 0         # 静默对照次数（匹配但未注入）
+    baseline_passes: int = 0        # 静默对照中模型自主遵守的次数
+
     @property
     def success_rate(self) -> float:
         total = self.success_count + self.fail_count
         return self.success_count / total if total > 0 else 0.0
+
+    @property
+    def marginal_value(self) -> float:
+        """边际价值：注入规则比不注入多带来多少遵守率提升
+
+        Bayesian smoothed: prior = 0.3 (assume weak positive), strength = 3
+        """
+        PRIOR_STRENGTH = 3
+        PRIOR_MEAN = 0.3
+
+        inject_tests = self.success_count + self.fail_count
+        inject_passes = self.success_count
+        bt = self.baseline_tests
+        bp = self.baseline_passes
+
+        if inject_tests == 0:
+            p_inject = PRIOR_MEAN + 0.3
+        else:
+            p_inject = (inject_passes + PRIOR_STRENGTH * 0.6) / (inject_tests + PRIOR_STRENGTH)
+
+        if bt == 0:
+            p_baseline = PRIOR_MEAN
+        else:
+            p_baseline = (bp + PRIOR_STRENGTH * PRIOR_MEAN) / (bt + PRIOR_STRENGTH)
+
+        return max(0.0, min(1.0, p_inject - p_baseline))
 
     @property
     def effective_weight(self) -> float:
@@ -139,8 +169,13 @@ class BehaviorManifest:
                 overlap = sum(1 for kw in trigger_keywords if kw in context_lower and len(kw) > 1)
                 if overlap >= len(trigger_keywords) * 0.5:
                     matched.append(u)
-        # 按 effective_weight 排序（含时间衰减）
-        matched.sort(key=lambda u: u.effective_weight, reverse=True)
+        # 按注入优先级排序：marginal_value × effective_weight × token_efficiency
+        def _injection_priority(u):
+            mv = u.marginal_value
+            ew = u.effective_weight
+            token_eff = 1.0 / max(len(u.directive) / 20, 1.0)
+            return mv * ew * token_eff
+        matched.sort(key=_injection_priority, reverse=True)
         return matched
 
     def render_for_prompt(self, context: str = "", max_tokens: int = 300) -> str:

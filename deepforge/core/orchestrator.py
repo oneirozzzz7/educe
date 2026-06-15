@@ -183,9 +183,18 @@ class Orchestrator:
                     learner.penalize(matched_unit_ids[0])
                 learner.lifecycle_check()
 
+            # ═══ BehaviorLearner: 静默对照记录（withheld units 的 baseline）═══
+            withheld_ids = self.context.metadata.get("_withheld_behavior_units", [])
+            if withheld_ids:
+                learner = self._get_behavior_learner()
+                is_positive = signal in ("grateful", "engaged", "neutral")
+                for uid in withheld_ids:
+                    learner.record_baseline(uid, compliant=is_positive)
+
         # ═══ 清除上一轮状态 ═══
         self.context.metadata.pop("_recalled_knowledge_ids", None)
         self.context.metadata.pop("_matched_behavior_units", None)
+        self.context.metadata.pop("_withheld_behavior_units", None)
         self.context.metadata.pop("_failed_actions", None)
         self.context.metadata.pop("domain_knowledge", None)
 
@@ -294,18 +303,40 @@ class Orchestrator:
             connectors_summary=connector_summary,
         )
 
-        # BehaviorManifest 注入 action loop prompt
+        # BehaviorManifest 注入 action loop prompt（含静默对照）
         manifest = self._get_behavior_manifest()
         if manifest:
-            behavior_rules = manifest.render_for_prompt(user_input)
-            if behavior_rules and behavior_rules != manifest.base_seed:
-                system += f"\n{behavior_rules}"
-            # 记录本轮匹配到的 unit IDs（用于后续反馈强化/惩罚）
+            from deepforge.core.behavior import UnitStatus
+            learner = self._get_behavior_learner()
             matched = manifest.match_units(user_input)
-            if matched:
-                self.context.metadata["_matched_behavior_units"] = [u.id for u in matched]
+
+            # 静默对照：部分匹配的 unit 不注入，用于积累 marginal_value 数据
+            injected_ids = []
+            withheld_ids = []
+            for u in matched:
+                if learner.should_withhold(u.id):
+                    withheld_ids.append(u.id)
+                else:
+                    injected_ids.append(u.id)
+
+            # 只用 injected 的 units 渲染 prompt
+            if injected_ids:
+                # 临时过滤 active_units 只保留 injected 的
+                original_units = manifest.units[:]
+                manifest.units = [u for u in manifest.units
+                                  if u.id in injected_ids or u.status != UnitStatus.ACTIVE]
+                behavior_rules = manifest.render_for_prompt(user_input)
+                manifest.units = original_units
+                if behavior_rules and behavior_rules != manifest.base_seed:
+                    system += f"\n{behavior_rules}"
+
+            # 记录本轮状态
+            if injected_ids:
+                self.context.metadata["_matched_behavior_units"] = injected_ids
             else:
                 self.context.metadata.pop("_matched_behavior_units", None)
+            if withheld_ids:
+                self.context.metadata["_withheld_behavior_units"] = withheld_ids
 
         # 阶段1: 决策前因果检索 — 从账本中提取相关经验注入 prompt
         causal_experience = await self._get_causal_retriever().retrieve_experience(user_input)

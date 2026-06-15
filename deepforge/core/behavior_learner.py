@@ -168,20 +168,25 @@ class BehaviorLearner:
         return unit
 
     def reinforce(self, unit_id: str) -> None:
-        """规则被触发且下游成功 → 增强"""
+        """规则被注入且下游成功 → 增强（仅当有边际价值时）"""
         unit = self.manifest.get_unit(unit_id)
         if not unit:
             return
         unit.hit_count += 1
-        unit.success_count += 1
         unit.last_hit_at = time.time()
-        # 权重上调（衰减式增长，不超过 0.95）
+
+        # 反事实强化：如果边际价值太低（模型本来就会做），不增加 weight
+        if unit.baseline_tests >= 5 and unit.marginal_value < 0.15:
+            # 模型自主遵守率高 → 这次成功不归功于规则
+            return
+
+        unit.success_count += 1
         unit.weight = min(0.95, unit.weight + 0.05 * (1 - unit.weight))
         self._maybe_promote(unit)
         self._persist()
 
     def penalize(self, unit_id: str) -> None:
-        """规则被触发但下游失败 → 减弱"""
+        """规则被注入但下游失败 → 减弱"""
         unit = self.manifest.get_unit(unit_id)
         if not unit:
             return
@@ -192,6 +197,46 @@ class BehaviorLearner:
         unit.weight = max(0.05, unit.weight - 0.1)
         self._maybe_archive(unit)
         self._persist()
+
+    def record_baseline(self, unit_id: str, compliant: bool) -> None:
+        """静默对照：规则匹配但未注入，记录模型是否自主遵守"""
+        unit = self.manifest.get_unit(unit_id)
+        if not unit:
+            return
+        unit.baseline_tests += 1
+        if compliant:
+            unit.baseline_passes += 1
+        unit.last_hit_at = time.time()
+        self._persist()
+
+    def should_withhold(self, unit_id: str) -> bool:
+        """决定是否对该 unit 做静默对照（不注入）
+
+        自适应频率：
+        - baseline_tests < 5: 每3次命中withhold 1次（需要数据）
+        - baseline_tests 5-15: 每5次1次
+        - baseline_tests > 15: 每8次1次
+        - marginal_value > 0.8 且数据充足: 不再withhold
+        """
+        unit = self.manifest.get_unit(unit_id)
+        if not unit:
+            return False
+
+        # 已证明高价值且数据充足 → 不再 withhold
+        if unit.baseline_tests >= 10 and unit.marginal_value > 0.8:
+            return False
+
+        # 自适应频率
+        bt = unit.baseline_tests
+        if bt < 5:
+            rate = 3
+        elif bt < 15:
+            rate = 5
+        else:
+            rate = 8
+
+        # 确定性决策（基于 hit_count，可复现）
+        return (unit.hit_count % rate) == 0
 
     def lifecycle_check(self) -> dict:
         """定期检查所有 units 的生命周期状态，返回变更摘要
@@ -210,6 +255,11 @@ class BehaviorLearner:
             if unit.status in (UnitStatus.STAGED, UnitStatus.ACTIVE):
                 if unit.last_hit_at > 0 and unit.effective_weight < 0.03:
                     self.manifest.archive_unit(unit.id, reason="decayed")
+                    archived.append(unit.id)
+                    continue
+                # 冗余归档：baseline 数据充足且边际价值极低 → 规则无用
+                if unit.baseline_tests >= 8 and unit.marginal_value < 0.1:
+                    self.manifest.archive_unit(unit.id, reason="redundant (low marginal_value)")
                     archived.append(unit.id)
                     continue
 
@@ -266,9 +316,12 @@ class BehaviorLearner:
         return promote, archive
 
     def _should_promote(self, unit: BehaviorUnit, threshold: float) -> bool:
+        # 晋升条件：成功率达标 + 有边际价值（不是搭便车）
+        mv_ok = unit.baseline_tests < 3 or unit.marginal_value >= 0.2
         return (
             unit.hit_count >= self.PROMOTE_MIN_HITS
             and unit.success_rate >= threshold
+            and mv_ok
         )
 
     def _should_archive(self, unit: BehaviorUnit, threshold: float) -> bool:
