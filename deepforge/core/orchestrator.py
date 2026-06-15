@@ -169,18 +169,18 @@ class Orchestrator:
             # ═══ BehaviorLearner: 从纠正中学习 ═══
             if signal in ("error", "unsatisfied") and prev_assistant:
                 asyncio.create_task(self._learn_from_correction(prev_assistant, user_input))
-            # ═══ BehaviorLearner: match成功后强化/惩罚 ═══
+            # ═══ BehaviorLearner: match成功后强化/惩罚（信用分配：只作用最相关的1条）═══
             matched_unit_ids = self.context.metadata.get("_matched_behavior_units", [])
             if matched_unit_ids:
                 learner = self._get_behavior_learner()
                 is_positive = signal in ("grateful", "engaged")
                 is_negative = signal in ("error", "unsatisfied")
                 if is_positive:
-                    for uid in matched_unit_ids:
-                        learner.reinforce(uid)
+                    # 只强化排名第一的 unit（effective_weight 最高 = 最可能贡献的）
+                    learner.reinforce(matched_unit_ids[0])
                 elif is_negative:
-                    for uid in matched_unit_ids:
-                        learner.penalize(uid)
+                    # 惩罚也只作用最相关的那条，避免误伤
+                    learner.penalize(matched_unit_ids[0])
                 learner.lifecycle_check()
 
         # ═══ 清除上一轮状态 ═══

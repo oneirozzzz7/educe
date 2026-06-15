@@ -45,6 +45,7 @@ class BehaviorUnit:
     # 元数据
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    last_hit_at: float = 0.0        # 最后一次被触发的时间（0=从未触发）
     hit_count: int = 0              # 被触发次数
     success_count: int = 0          # 触发后下游成功次数
     fail_count: int = 0             # 触发后下游失败次数
@@ -55,6 +56,16 @@ class BehaviorUnit:
     def success_rate(self) -> float:
         total = self.success_count + self.fail_count
         return self.success_count / total if total > 0 else 0.0
+
+    @property
+    def effective_weight(self) -> float:
+        """时间衰减后的有效权重 — 不用的器官会萎缩"""
+        if self.last_hit_at <= 0:
+            return self.weight
+        idle_days = (time.time() - self.last_hit_at) / 86400
+        # 7 天半衰期：idle_days=7 → decay=0.5, idle_days=14 → decay=0.25
+        decay = 0.5 ** (idle_days / 7.0)
+        return self.weight * decay
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -117,37 +128,43 @@ class BehaviorManifest:
         matched = []
         context_lower = context.lower()
         for u in self.active_units():
+            # 时间衰减后权重过低的 unit 跳过（自然萎缩）
+            if u.effective_weight < 0.05:
+                continue
             trigger_keywords = set(u.trigger.lower().split())
             if len(trigger_keywords) <= 2:
-                # 短 trigger 要求完全包含
                 if all(kw in context_lower for kw in trigger_keywords if len(kw) > 1):
                     matched.append(u)
             else:
-                # 长 trigger 用关键词重叠度
                 overlap = sum(1 for kw in trigger_keywords if kw in context_lower and len(kw) > 1)
                 if overlap >= len(trigger_keywords) * 0.5:
                     matched.append(u)
-        # 按 weight 排序
-        matched.sort(key=lambda u: u.weight, reverse=True)
+        # 按 effective_weight 排序（含时间衰减）
+        matched.sort(key=lambda u: u.effective_weight, reverse=True)
         return matched
 
-    def render_for_prompt(self, context: str = "") -> str:
-        """将行为规则渲染为注入 prompt 的文本"""
+    def render_for_prompt(self, context: str = "", max_tokens: int = 300) -> str:
+        """将行为规则渲染为注入 prompt 的文本（有 token 预算约束）"""
         parts = [self.base_seed]
 
         active = self.active_units()
         if context:
             matched = self.match_units(context)
-            # fallback: active units 少时全量注入（初期不浪费已学到的规则）
             if not matched and len(active) <= 10:
                 matched = active
         else:
             matched = active
 
         if matched:
-            parts.append("\n## 你学到的行为规则（请遵循）")
-            for u in matched[:10]:
-                parts.append(f"- 当{u.trigger}时：{u.directive}")
+            parts.append("\n## 经验教训（供参考，你有权根据具体情况判断是否适用）")
+            budget_used = 0
+            for u in matched:
+                line = f"- 当{u.trigger}时：{u.directive}"
+                line_tokens = len(line) // 2  # 粗估：中文 2 字符 ≈ 1 token
+                if budget_used + line_tokens > max_tokens:
+                    break
+                parts.append(line)
+                budget_used += line_tokens
 
         return "\n".join(parts)
 

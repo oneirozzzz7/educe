@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -60,11 +61,10 @@ RETRY_EXTRACT_PROMPT = """\
 class BehaviorLearner:
     """从对话信号中提取行为规则并管理其生命周期"""
 
-    PROMOTE_THRESHOLD = 0.7   # staged → active 的成功率门槛
     PROMOTE_MIN_HITS = 3      # 至少被触发 N 次才考虑晋升
-    ARCHIVE_THRESHOLD = 0.3   # 成功率低于此则归档
     ARCHIVE_MIN_HITS = 5      # 至少被触发 N 次才考虑归档
-    MAX_ACTIVE_UNITS = 20     # 限制 active units 数量，避免淹没 prompt
+    MAX_ACTIVE_UNITS = 12     # active 上限（token 预算约束，不是越多越好）
+    DECAY_HALF_LIFE_DAYS = 7  # 权重半衰期
 
     def __init__(self, manifest: BehaviorManifest, persist_path: Path):
         self.manifest = manifest
@@ -174,6 +174,7 @@ class BehaviorLearner:
             return
         unit.hit_count += 1
         unit.success_count += 1
+        unit.last_hit_at = time.time()
         # 权重上调（衰减式增长，不超过 0.95）
         unit.weight = min(0.95, unit.weight + 0.05 * (1 - unit.weight))
         self._maybe_promote(unit)
@@ -186,33 +187,48 @@ class BehaviorLearner:
             return
         unit.hit_count += 1
         unit.fail_count += 1
+        unit.last_hit_at = time.time()
         # 权重下调
         unit.weight = max(0.05, unit.weight - 0.1)
         self._maybe_archive(unit)
         self._persist()
 
     def lifecycle_check(self) -> dict:
-        """定期检查所有 units 的生命周期状态，返回变更摘要"""
+        """定期检查所有 units 的生命周期状态，返回变更摘要
+
+        阈值是相对的：promote 门槛 = 群体 p75，archive 门槛 = 群体 p25。
+        时间衰减：effective_weight < 0.03 的直接归档（自然萎缩）。
+        """
         promoted = []
         archived = []
 
+        # 计算相对阈值
+        promote_threshold, archive_threshold = self._compute_thresholds()
+
         for unit in list(self.manifest.units):
+            # 时间衰减归档：长期未使用 → 自然死亡
+            if unit.status in (UnitStatus.STAGED, UnitStatus.ACTIVE):
+                if unit.last_hit_at > 0 and unit.effective_weight < 0.03:
+                    self.manifest.archive_unit(unit.id, reason="decayed")
+                    archived.append(unit.id)
+                    continue
+
             if unit.status == UnitStatus.STAGED:
-                if self._should_promote(unit):
+                if self._should_promote(unit, promote_threshold):
                     self.manifest.update_unit(unit.id, status=UnitStatus.ACTIVE)
                     promoted.append(unit.id)
-                elif self._should_archive(unit):
+                elif self._should_archive(unit, archive_threshold):
                     self.manifest.archive_unit(unit.id)
                     archived.append(unit.id)
             elif unit.status == UnitStatus.ACTIVE:
-                if self._should_archive(unit):
+                if self._should_archive(unit, archive_threshold):
                     self.manifest.archive_unit(unit.id)
                     archived.append(unit.id)
 
-        # 如果 active 超过上限，归档权重最低的
+        # 能量守恒：active 超过上限 → 淘汰 effective_weight 最低的
         active = self.manifest.active_units()
         if len(active) > self.MAX_ACTIVE_UNITS:
-            active.sort(key=lambda u: u.weight)
+            active.sort(key=lambda u: u.effective_weight)
             for u in active[: len(active) - self.MAX_ACTIVE_UNITS]:
                 self.manifest.archive_unit(u.id, reason="capacity overflow")
                 archived.append(u.id)
@@ -226,27 +242,54 @@ class BehaviorLearner:
         """获取当前上下文匹配的 units（用于后续 reinforce/penalize）"""
         return self.manifest.match_units(context)
 
-    def _should_promote(self, unit: BehaviorUnit) -> bool:
+    def _compute_thresholds(self) -> tuple[float, float]:
+        """从群体统计中计算相对阈值（不依赖 magic number）"""
+        active = self.manifest.active_units()
+        if len(active) < 3:
+            # 初期数据不足，用保守默认值
+            return 0.65, 0.25
+
+        rates = sorted(u.success_rate for u in active if u.hit_count >= 2)
+        if not rates:
+            return 0.65, 0.25
+
+        # promote = p75（优于群体 75% 才晋升）
+        p75_idx = int(len(rates) * 0.75)
+        promote = rates[min(p75_idx, len(rates) - 1)]
+        # archive = p25（劣于群体 75% 才淘汰）
+        p25_idx = int(len(rates) * 0.25)
+        archive = rates[min(p25_idx, len(rates) - 1)]
+
+        # 保底：promote 不低于 0.5，archive 不高于 0.4
+        promote = max(0.5, promote)
+        archive = min(0.4, archive)
+        return promote, archive
+
+    def _should_promote(self, unit: BehaviorUnit, threshold: float) -> bool:
         return (
             unit.hit_count >= self.PROMOTE_MIN_HITS
-            and unit.success_rate >= self.PROMOTE_THRESHOLD
+            and unit.success_rate >= threshold
         )
 
-    def _should_archive(self, unit: BehaviorUnit) -> bool:
+    def _should_archive(self, unit: BehaviorUnit, threshold: float) -> bool:
         return (
             unit.hit_count >= self.ARCHIVE_MIN_HITS
-            and unit.success_rate < self.ARCHIVE_THRESHOLD
+            and unit.success_rate < threshold
         )
 
     def _maybe_promote(self, unit: BehaviorUnit) -> None:
-        if unit.status == UnitStatus.STAGED and self._should_promote(unit):
+        threshold, _ = self._compute_thresholds()
+        if unit.status == UnitStatus.STAGED and self._should_promote(unit, threshold):
             self.manifest.update_unit(unit.id, status=UnitStatus.ACTIVE)
-            log.info("Promoted unit %s to ACTIVE (rate=%.2f)", unit.id, unit.success_rate)
+            log.info("Promoted unit %s to ACTIVE (rate=%.2f, threshold=%.2f)",
+                     unit.id, unit.success_rate, threshold)
 
     def _maybe_archive(self, unit: BehaviorUnit) -> None:
-        if self._should_archive(unit):
+        _, threshold = self._compute_thresholds()
+        if self._should_archive(unit, threshold):
             self.manifest.archive_unit(unit.id, reason="low success rate")
-            log.info("Archived unit %s (rate=%.2f)", unit.id, unit.success_rate)
+            log.info("Archived unit %s (rate=%.2f, threshold=%.2f)",
+                     unit.id, unit.success_rate, threshold)
 
     def _has_similar_unit(self, trigger: str) -> bool:
         """简单去重：trigger 关键词重叠度 > 70% 视为重复"""
