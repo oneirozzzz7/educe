@@ -891,14 +891,37 @@ class Orchestrator:
 
         path = Path(file_path).expanduser()
 
+        # 确定 session 工作目录
+        if self.context.metadata.get("_project_context_path"):
+            base = Path(self.context.metadata["_project_context_path"])
+        else:
+            base = Path(".deepforge/output") / session_id[:16]
+        base.mkdir(parents=True, exist_ok=True)
+
         # 相对路径基于 session output_dir 解析
         if not path.is_absolute():
-            if self.context.metadata.get("_project_context_path"):
-                base = Path(self.context.metadata["_project_context_path"])
-            else:
-                base = Path(".deepforge/output") / session_id[:16]
-            base.mkdir(parents=True, exist_ok=True)
             path = base / path
+        else:
+            # 绝对路径：如果不在 output_dir 内，提取文件名部分重定向到 output_dir
+            try:
+                path.relative_to(base.resolve())
+            except ValueError:
+                # 绝对路径不在沙箱内 — 提取有意义的相对部分
+                # 例如 /Users/.../bookmarks-cli/db.py → bookmarks-cli/db.py
+                parts = path.parts
+                # 找到和 cwd 路径分叉的部分作为相对路径
+                cwd_parts = Path.cwd().parts
+                common_len = 0
+                for i, (a, b) in enumerate(zip(parts, cwd_parts)):
+                    if a == b:
+                        common_len = i + 1
+                    else:
+                        break
+                relative_parts = parts[common_len:]
+                if relative_parts:
+                    path = base / Path(*relative_parts)
+                else:
+                    path = base / path.name
 
         # Safety: don't write to system directories
         str_path = str(path)
