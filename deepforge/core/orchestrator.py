@@ -507,6 +507,10 @@ class Orchestrator:
                     metadata={"event": "tool_event", "tool_type": action.type,
                               "tool_name": action.name, "success": result.get("success", False)}
                 ))
+                # 关键：shell/read_dir 的实际输出推送到前端，让用户看到"效果"
+                if action.type in ("shell", "read_dir") and result.get("output"):
+                    output_preview = result["output"][:2000]
+                    self._notify_chunk("assistant", f"\n```\n{output_preview}\n```\n")
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
 
