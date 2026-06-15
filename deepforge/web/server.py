@@ -757,12 +757,18 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                     orchestrator.conversation.add_assistant(f"[系统] {result_text}")
                                     if hasattr(orchestrator, 'state'):
                                         orchestrator.state.add_action_executed(a.type, result_text, result.get("success", False))
-                                    # 实时推送给前端
-                                    import json as _json2
+                                    # 推送完整输出到主聊天区
+                                    if result_text:
+                                        output_display = result_text[:2000]
+                                        if a.type in ("shell", "read_dir"):
+                                            await websocket.send_json({"type": "chunk", "sender": "assistant", "content": f"\n```\n{output_display}\n```\n"})
+                                        else:
+                                            await websocket.send_json({"type": "chunk", "sender": "assistant", "content": output_display})
+                                    # transcript 侧栏摘要
                                     await websocket.send_json({
                                         "type": "tool_event", "event": "transcript",
                                         "phase": "action", "role": "system",
-                                        "content": f"{'✅' if result.get('success') else '❌'} {result_text[:100]}",
+                                        "content": f"{'✅' if result.get('success') else '❌'} {a.type}: {result_text[:80]}",
                                         "elapsed": 0,
                                     })
 

@@ -1181,8 +1181,6 @@ class Orchestrator:
                         action.type, result.get("output", ""), result.get("success", False))
                 if result.get("output"):
                     output_text = result["output"][:2000]
-                    log.info("_handle_action_confirm pushing output: type=%s len=%d chunk_listeners=%d",
-                             action.type, len(output_text), len(self._on_chunk))
                     if action.type in ("shell", "read_dir"):
                         self._notify_chunk("assistant", f"\n```\n{output_text}\n```\n")
                     else:
