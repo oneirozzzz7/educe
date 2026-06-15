@@ -75,6 +75,7 @@ def build_context(
     tools: list[dict] | None = None,
     seed: str = "",
     connectors_summary: str = "",
+    surface: str = "web",
 ) -> str:
     """构建完整的 system prompt context。
 
@@ -151,9 +152,29 @@ def build_context(
             '```tool:filesystem.search_files\n{{"path":".","pattern":"关键词"}}\n```\n'
         )
 
+    # 输出渠道自知（SurfaceManifest）
+    surface_section = ""
+    if surface == "web":
+        surface_section = (
+            '\n## 你的输出渠道\n'
+            '用户通过 web 浏览器看你的回复。你能展示：\n'
+            '- Markdown 格式文本、代码块、表格\n'
+            '- HTML（通过 build 产物可嵌入预览）\n'
+            '- shell 命令的 stdout 文本输出\n\n'
+            '你不能展示：终端颜色(ANSI)、GUI窗口、音频、图片（除非生成HTML）。\n'
+            '当用户要求"看效果"时，确保选择的 demo 在纯文本输出中就能体现价值。\n'
+            '如果某个库的效果必须依赖终端/GUI才能看到，主动说明并提供替代方案。\n'
+        )
+    elif surface == "terminal":
+        surface_section = (
+            '\n## 你的输出渠道\n'
+            '用户在终端中与你交互。支持 ANSI 颜色、完整的终端输出。\n'
+        )
+
     return (
         identity
         + seed_section
+        + surface_section
         + session_section
         + pattern_section
         + knowledge_index
