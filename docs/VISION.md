@@ -115,17 +115,51 @@
 
 ## 当前位置
 
-我们在**阶段 0 之前**。已有的零件：
+我们在**阶段 1 完成、阶段 2 未启动**。
+
+### 阶段 0 ✅ — 因果可观测已建立
+
+| 交付项 | 状态 | 验证 |
+|--------|------|------|
+| 因果账本（OutcomeCapturer） | ✅ | 每个 action 写 (context, action, outcome) 三元组 |
+| Outcome Hook | ✅ | 行为循环强制写账本 |
+| 即时奖励（用户确认/拒绝/执行成功失败） | ✅ | |
+| 前端后果可视化 | ✅ | transcript sidebar + state_sync |
+| SurfaceManifest（输出渠道自知） | ✅ | |
+| Process Supervisor（后台进程管理） | ✅ | TTL/session隔离/并发上限 |
+
+### 阶段 1 ✅ — 后果改变行为已验证
+
+| 交付项 | 状态 | 验证 |
+|--------|------|------|
+| BehaviorLearner（纠正/重试/时间衰减） | ✅ | 9条规则自然学习 |
+| 规则注入改变行为 | ✅ | **delta = +54%**（远超 20% 目标） |
+| Marginal Attribution（因果归因） | ✅ | strong mv=0.312 > weak 0.062 |
+| 隐性偏好发现 | ✅ | confidence=0.95 |
+| 注意力经济学（MAX_ACTIVE=7） | ✅ | 冲突检测+排序 |
+| 激发引擎（fitness 驱动演化） | ✅ | v0.4 主动演化 |
+
+### 阶段 1 的不足 ⚠️
+
+- **验证任务复杂度不够**：当前验证集是简单任务（echo/curl/todo CRUD），未覆盖多步骤推理、错误恢复、长链决策
+- **账本规模太小**：实际积累的三元组数量不足以挖掘统计显著的模式
+- **延迟后果回填（Outcome Reconciler）未实现**：只有即时反馈，没有"5分钟后发现之前那步是错的"
+- **因果检索未实现**：决策前未查"相似 context 下历史 outcome"
+
+### 已有零件
 
 | 零件 | 对应阶段 | 状态 |
 |------|----------|------|
-| 激发引擎 v0.4 | 阶段 1 的前体 | ✅ 但 fitness 是开环的 |
-| 行为循环（决策树） | 阶段 0 的 action 节点 | ✅ 90% 准确率 |
-| ConnectorRegistry + MCP | 阶段 0 的 capability 执行层 | ✅ P0 完成 |
-| 知识系统 | 阶段 0 的存储底座 | ✅ 可复用 |
-| 前端 WebSocket | 阶段 0 的可视化通道 | ✅ |
+| 激发引擎 v0.4 | 阶段 1 | ✅ fitness 有账本驱动成分 |
+| 行为循环（Markdown-native） | 阶段 0 | ✅ 弱模型友好格式 |
+| BehaviorManifest + Learner | 阶段 1 | ✅ 规则学习+注入 |
+| OutcomeCapturer + Attribution | 阶段 0-1 | ✅ 因果观测+归因 |
+| ConnectorRegistry + MCP | 阶段 2 的执行层 | ✅ |
+| 知识系统 | 存储底座 | ✅ |
+| 前端 WebSocket + SurfaceManifest | 可视化+输出自知 | ✅ |
+| Safety Tiers + 确认机制 | 安全层 | ✅ |
 
-**下一步：阶段 0 — 因果账本。**
+**下一步：补齐阶段 1 验证深度 → 阶段 2 设计。**
 
 ---
 

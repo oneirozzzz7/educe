@@ -641,10 +641,10 @@ class Orchestrator:
             return await self._exec_read_dir(action)
 
         elif action.type == "read_file":
-            return await self._exec_read_file(action)
+            return await self._exec_read_file(action, _sid)
 
         elif action.type == "write_file":
-            return await self._exec_write_file(action)
+            return await self._exec_write_file(action, _sid)
 
         elif action.type == "plan":
             return await self._exec_plan(action, _sid)
@@ -811,7 +811,7 @@ class Orchestrator:
             return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
 
 
-    async def _exec_read_file(self, action) -> dict:
+    async def _exec_read_file(self, action, session_id: str = "") -> dict:
         """读取指定文件内容"""
         from pathlib import Path
 
@@ -820,6 +820,15 @@ class Orchestrator:
             return {"success": False, "output": "未指定文件路径"}
 
         path = Path(target).expanduser()
+
+        # 相对路径基于 session output_dir 解析
+        if not path.is_absolute():
+            if self.context.metadata.get("_project_context_path"):
+                base = Path(self.context.metadata["_project_context_path"])
+            else:
+                base = Path(".deepforge/output") / session_id[:16]
+            path = base / path
+
         if not path.exists():
             return {"success": False, "output": f"文件不存在: {target}"}
         if not path.is_file():
@@ -834,7 +843,7 @@ class Orchestrator:
         except Exception as e:
             return {"success": False, "output": f"读取失败: {e}"}
 
-    async def _exec_write_file(self, action) -> dict:
+    async def _exec_write_file(self, action, session_id: str = "") -> dict:
         """写入/修改指定文件
 
         支持两种格式（按优先级）：
@@ -879,10 +888,17 @@ class Orchestrator:
             return {"success": False, "output": "未指定文件路径"}
         if not content:
             return {"success": False, "output": f"文件内容为空 (path={file_path})"}
-        if not content:
-            return {"success": False, "output": f"文件内容为空 (path={file_path})"}
 
         path = Path(file_path).expanduser()
+
+        # 相对路径基于 session output_dir 解析
+        if not path.is_absolute():
+            if self.context.metadata.get("_project_context_path"):
+                base = Path(self.context.metadata["_project_context_path"])
+            else:
+                base = Path(".deepforge/output") / session_id[:16]
+            base.mkdir(parents=True, exist_ok=True)
+            path = base / path
 
         # Safety: don't write to system directories
         str_path = str(path)
