@@ -195,6 +195,18 @@ async def run_day(day_num: int, interactions: list, learner: BehaviorLearner,
             model=MODEL, max_tokens=600, temperature=0.3,
         )
 
+        # Output-Metric Attribution: 记录输出特征到 units
+        from deepforge.core.response_features import compute_response_features
+        features = compute_response_features(response)
+        for uid in injected_ids:
+            unit = manifest.get_unit(uid)
+            if unit and unit.effect_dimension and unit.effect_dimension in features:
+                unit.record_metric_sample(features[unit.effect_dimension], injected=True)
+        for uid in withheld_ids:
+            unit = manifest.get_unit(uid)
+            if unit and unit.effect_dimension and unit.effect_dimension in features:
+                unit.record_metric_sample(features[unit.effect_dimension], injected=False)
+
         # Check compliance
         check_name = turn.get("check", "")
         check_passed = True
