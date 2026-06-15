@@ -933,7 +933,13 @@ class Orchestrator:
             existed = path.exists()
             path.write_text(content, encoding="utf-8")
             action_word = "修改" if existed else "创建"
-            return {"success": True, "output": f"✅ {action_word}文件: {path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
+            # 显示相对于 session 工作目录的路径（模型用 shell cd 时需要的）
+            try:
+                rel = path.relative_to(base.resolve())
+                hint = f"（shell 中用 ./{rel} 访问）"
+            except (ValueError, TypeError):
+                hint = ""
+            return {"success": True, "output": f"✅ {action_word}文件: {rel if hint else path}\n({len(content)}字符, {len(content.split(chr(10)))}行){hint}"}
         except Exception as e:
             return {"success": False, "output": f"写入失败: {e}"}
 
