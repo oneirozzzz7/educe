@@ -412,10 +412,17 @@ class Orchestrator:
                     return True
                 return False
 
-            def _is_dangerous_shell(cmd: str) -> bool:
+            def _is_dangerous_shell(params: str) -> bool:
                 """安全命令自动执行，危险命令需确认"""
-                import re
-                cmd_stripped = cmd.strip()
+                import re, json as _j
+                # 解析 JSON 格式的 params
+                cmd = params.strip()
+                try:
+                    parsed = _j.loads(cmd)
+                    cmd = parsed.get("cmd") or parsed.get("command") or cmd
+                except (ValueError, TypeError, AttributeError):
+                    pass
+                cmd = cmd.strip()
                 safe_patterns = [
                     r"^git\s+(clone|pull|fetch|status|log|diff|branch|checkout)",
                     r"^pip\s+install",
@@ -427,7 +434,7 @@ class Orchestrator:
                     r"^pytest", r"^python\s+-m\s+(pytest|unittest)",
                 ]
                 for pattern in safe_patterns:
-                    if re.match(pattern, cmd_stripped):
+                    if re.match(pattern, cmd):
                         return False  # 安全，不需确认
                 return True  # 未匹配已知安全模式，需确认
 
@@ -700,7 +707,7 @@ class Orchestrator:
         cwd_override = None
         try:
             parsed = _json_sh.loads(raw)
-            cmd = parsed.get("cmd", raw)
+            cmd = parsed.get("cmd") or parsed.get("command") or raw
             cwd_override = parsed.get("cwd")
         except (ValueError, TypeError):
             cmd = raw
