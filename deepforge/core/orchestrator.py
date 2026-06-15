@@ -790,45 +790,50 @@ class Orchestrator:
             return {"success": False, "output": f"读取失败: {e}"}
 
     async def _exec_write_file(self, action) -> dict:
-        """写入/修改指定文件（宽容解析模型输出的各种格式）"""
+        """写入/修改指定文件
+
+        支持两种格式（按优先级）：
+        1. Heredoc: "path: /tmp/x.py\n---\n文件内容"（Markdown-native，主格式）
+        2. JSON: {"path":"...","content":"..."}（向后兼容）
+        """
         import json as _json_wf
-        import re
         from pathlib import Path
 
         raw = action.params.strip()
         file_path = ""
         content = ""
 
-        # 策略1：标准 JSON 解析
-        try:
-            params = _json_wf.loads(raw)
-            file_path = params.get("path", "")
-            content = params.get("content", "")
-        except (ValueError, TypeError):
-            pass
+        # 主路径：heredoc 格式 (path: xxx\n---\ncontent)
+        if raw.startswith("path:") or raw.startswith("path："):
+            first_line, rest = raw.split('\n', 1) if '\n' in raw else (raw, "")
+            file_path = first_line.split(':', 1)[1].strip()
+            if '\n---\n' in rest:
+                content = rest.split('\n---\n', 1)[1]
+            elif rest.startswith('---\n'):
+                content = rest[4:]
+            else:
+                content = rest
 
-        # 策略2：如果 JSON 解析失败，尝试提取 path 和 content
-        if not file_path or not content:
-            # 尝试匹配 "path": "xxx" 模式
-            path_match = re.search(r'"path"\s*:\s*"([^"]+)"', raw)
-            if path_match:
-                file_path = path_match.group(1)
-            # content 提取：从 "content": " 开始到最后的 "} 结束
-            content_match = re.search(r'"content"\s*:\s*"(.*)"[^"]*$', raw, re.DOTALL)
-            if content_match:
-                content = content_match.group(1)
-                # 恢复转义
-                content = content.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"')
+        # Fallback：JSON 格式
+        if not file_path:
+            try:
+                params = _json_wf.loads(raw)
+                file_path = params.get("path", "")
+                content = params.get("content", "")
+            except (ValueError, TypeError):
+                pass
 
-        # 策略3：如果仍然失败，看是否是 heredoc 风格 (path\n---\ncontent)
+        # Fallback 2：纯路径+内容（第一行是路径，其余是内容）
         if not file_path and '\n' in raw:
             lines = raw.split('\n', 1)
-            if len(lines) == 2 and ('/' in lines[0] or '.' in lines[0]):
+            if '/' in lines[0] or '.' in lines[0]:
                 file_path = lines[0].strip()
                 content = lines[1]
 
         if not file_path:
-            return {"success": False, "output": "未指定文件路径（JSON解析失败，也无法从文本中提取path）"}
+            return {"success": False, "output": "未指定文件路径"}
+        if not content:
+            return {"success": False, "output": f"文件内容为空 (path={file_path})"}
         if not content:
             return {"success": False, "output": f"文件内容为空 (path={file_path})"}
 
