@@ -1180,9 +1180,12 @@ class Orchestrator:
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
                 if result.get("output"):
-                    for i in range(0, len(result["output"]), 20):
-                        self._notify_chunk("assistant", result["output"][i:i+20])
-                    self.conversation.add_assistant(result["output"])
+                    output_text = result["output"][:2000]
+                    if action.type in ("shell", "read_dir"):
+                        self._notify_chunk("assistant", f"\n```\n{output_text}\n```\n")
+                    else:
+                        self._notify_chunk("assistant", output_text)
+                    self.conversation.add_assistant(result["output"][:1000])
 
             for p in build_actions:
                 action = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
