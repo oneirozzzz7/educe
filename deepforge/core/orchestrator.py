@@ -790,21 +790,47 @@ class Orchestrator:
             return {"success": False, "output": f"读取失败: {e}"}
 
     async def _exec_write_file(self, action) -> dict:
-        """写入/修改指定文件"""
+        """写入/修改指定文件（宽容解析模型输出的各种格式）"""
         import json as _json_wf
+        import re
         from pathlib import Path
 
+        raw = action.params.strip()
+        file_path = ""
+        content = ""
+
+        # 策略1：标准 JSON 解析
         try:
-            params = _json_wf.loads(action.params)
+            params = _json_wf.loads(raw)
             file_path = params.get("path", "")
             content = params.get("content", "")
         except (ValueError, TypeError):
-            return {"success": False, "output": "参数格式错误，需要 JSON: {\"path\": \"...\", \"content\": \"...\"}"}
+            pass
+
+        # 策略2：如果 JSON 解析失败，尝试提取 path 和 content
+        if not file_path or not content:
+            # 尝试匹配 "path": "xxx" 模式
+            path_match = re.search(r'"path"\s*:\s*"([^"]+)"', raw)
+            if path_match:
+                file_path = path_match.group(1)
+            # content 提取：从 "content": " 开始到最后的 "} 结束
+            content_match = re.search(r'"content"\s*:\s*"(.*)"[^"]*$', raw, re.DOTALL)
+            if content_match:
+                content = content_match.group(1)
+                # 恢复转义
+                content = content.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"')
+
+        # 策略3：如果仍然失败，看是否是 heredoc 风格 (path\n---\ncontent)
+        if not file_path and '\n' in raw:
+            lines = raw.split('\n', 1)
+            if len(lines) == 2 and ('/' in lines[0] or '.' in lines[0]):
+                file_path = lines[0].strip()
+                content = lines[1]
 
         if not file_path:
-            return {"success": False, "output": "未指定文件路径"}
+            return {"success": False, "output": "未指定文件路径（JSON解析失败，也无法从文本中提取path）"}
         if not content:
-            return {"success": False, "output": "内容为空"}
+            return {"success": False, "output": f"文件内容为空 (path={file_path})"}
 
         path = Path(file_path).expanduser()
 
