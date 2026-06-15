@@ -353,7 +353,7 @@ class Orchestrator:
         messages.extend(history)
         messages.append({"role": "user", "content": user_input})
 
-        max_rounds = 5
+        max_rounds = 10
         final_reply = ""
 
         for round_idx in range(max_rounds):
