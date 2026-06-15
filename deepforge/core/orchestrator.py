@@ -699,15 +699,18 @@ class Orchestrator:
         return {"success": True, "output": f"找到 {len(results)} 条相关记忆：\n{lines}"}
 
     async def _exec_shell(self, action, session_id: str) -> dict:
-        """执行 shell 命令（带安全检查 + 智能工作目录 + 环境检测）"""
-        import subprocess
+        """执行 shell 命令（支持前台+自动后台检测）
+
+        行为检测：5s 内退出=前台命令（等待完成），5s 未退出=后台服务（注册到 supervisor 立即返回）。
+        """
         import json as _json_sh
+        import os
 
         raw = action.params.strip()
         if not raw:
             return {"success": False, "output": "命令为空"}
 
-        # Parse params: support both plain string and JSON {"cmd": "...", "cwd": "..."}
+        # Parse params: plain string or JSON {"cmd": "...", "cwd": "..."}
         cwd_override = None
         try:
             parsed = _json_sh.loads(raw)
@@ -715,6 +718,9 @@ class Orchestrator:
             cwd_override = parsed.get("cwd")
         except (ValueError, TypeError):
             cmd = raw
+
+        # Strip trailing & (模型从训练数据学来的 bash 习惯，框架自己管理后台)
+        cmd = cmd.rstrip().rstrip("&").rstrip()
 
         # Safety: block dangerous commands
         BLOCKED = ["rm -rf /", "rm -rf /*", "mkfs", "dd if=", ":(){", "sudo rm",
@@ -724,7 +730,7 @@ class Orchestrator:
             if blocked in cmd_lower:
                 return {"success": False, "output": f"安全限制：禁止执行危险命令 ({blocked})"}
 
-        # Determine working directory (priority: explicit cwd > project context > output dir)
+        # Determine working directory
         from pathlib import Path
         if cwd_override:
             work_dir = Path(cwd_override).expanduser()
@@ -734,37 +740,76 @@ class Orchestrator:
             work_dir = Path(".deepforge/output") / session_id[:16]
         work_dir.mkdir(parents=True, exist_ok=True)
 
+        env = {**os.environ, "PATH": os.environ.get("PATH", "")}
+        supervisor = self._get_process_supervisor()
+
         try:
-            import os
-            result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True,
-                timeout=30, cwd=str(work_dir),
-                env={**os.environ, "PATH": os.environ.get("PATH", "")}
+            proc = await asyncio.create_subprocess_shell(
+                cmd, cwd=str(work_dir), env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            output = result.stdout
-            if result.stderr:
-                output += ("\n[stderr]\n" + result.stderr) if output else result.stderr
-            output = output[:5000] or "（无输出）"
 
-            log_activity(session_id, "shell_exec", cmd=cmd[:100],
-                        success=result.returncode == 0, exit_code=result.returncode)
+            try:
+                # Phase 1: 等 GRACE_PERIOD 看是否快速退出
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    proc.communicate(), timeout=supervisor.GRACE_PERIOD
+                )
+                # 快速退出 → 正常前台命令
+                stdout = stdout_bytes.decode(errors="ignore")
+                stderr = stderr_bytes.decode(errors="ignore")
+                output = stdout
+                if stderr:
+                    output += ("\n[stderr]\n" + stderr) if output else stderr
+                output = output[:5000] or "（无输出）"
 
-            # Auto-detect missing packages
-            if result.returncode != 0 and ("ModuleNotFoundError" in result.stderr or "No module named" in result.stderr):
-                import re
-                match = re.search(r"No module named ['\"]?(\w+)", result.stderr)
-                if match:
-                    pkg = match.group(1)
-                    output += f"\n\n💡 检测到缺失模块: {pkg}\n建议执行: pip install {pkg}"
+                log_activity(session_id, "shell_exec", cmd=cmd[:100],
+                            success=proc.returncode == 0, exit_code=proc.returncode)
 
-            return {
-                "success": result.returncode == 0,
-                "output": f"$ {cmd}\n[cwd: {work_dir}]\n{output}\n[exit: {result.returncode}]",
-            }
-        except subprocess.TimeoutExpired:
-            return {"success": False, "output": f"$ {cmd}\n执行超时 (30s限制)"}
+                # Auto-detect missing packages
+                if proc.returncode != 0 and ("ModuleNotFoundError" in stderr or "No module named" in stderr):
+                    import re
+                    match = re.search(r"No module named ['\"]?(\w+)", stderr)
+                    if match:
+                        pkg = match.group(1)
+                        output += f"\n\n💡 检测到缺失模块: {pkg}\n建议执行: pip install {pkg}"
+
+                return {
+                    "success": proc.returncode == 0,
+                    "output": f"$ {cmd}\n[cwd: {work_dir}]\n{output}\n[exit: {proc.returncode}]",
+                }
+
+            except asyncio.TimeoutError:
+                # Phase 2: GRACE_PERIOD 内未退出 → 判定为后台服务
+                if supervisor.is_full(session_id):
+                    proc.terminate()
+                    return {"success": False, "output": f"$ {cmd}\n后台进程已满（最多{supervisor.MAX_PER_SESSION}个），请先停止旧服务"}
+
+                entry = supervisor.register(proc, cmd, session_id, str(work_dir))
+
+                # 读取已产出的早期输出
+                early_output = ""
+                try:
+                    partial = await asyncio.wait_for(proc.stdout.read(2000), timeout=0.5)
+                    early_output = partial.decode(errors="ignore") if partial else ""
+                except (asyncio.TimeoutError, Exception):
+                    pass
+
+                log_activity(session_id, "shell_background", cmd=cmd[:100], pid=proc.pid)
+
+                return {
+                    "success": True,
+                    "output": (
+                        f"$ {cmd}\n[cwd: {work_dir}]\n"
+                        f"[后台启动] PID={proc.pid}\n"
+                        f"{early_output}"
+                        f"服务已在后台运行（最长{int(supervisor.MAX_TTL/60)}分钟）。"
+                    ),
+                }
+
         except Exception as e:
             return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
+
 
     async def _exec_read_file(self, action) -> dict:
         """读取指定文件内容"""
@@ -1212,6 +1257,14 @@ class Orchestrator:
             ledger = LedgerStore(Path(".deepforge/metabolism"))
             self._guardian = ActionGuardian(ledger)
         return self._guardian
+
+    def _get_process_supervisor(self):
+        """获取进程监管器（session 级别后台进程管理）"""
+        if not hasattr(self, '_process_supervisor'):
+            from deepforge.core.process_supervisor import ProcessSupervisor
+            self._process_supervisor = ProcessSupervisor()
+            self._process_supervisor.start_watchdog()
+        return self._process_supervisor
 
     def _get_behavior_manifest(self):
         """获取 BehaviorManifest（Agent 行为仓库）"""
