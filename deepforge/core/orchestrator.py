@@ -397,8 +397,39 @@ class Orchestrator:
                         self.state.add_ai_reply(raw)
                 break
 
-            # 需要用户确认的 action 类型
-            needs_confirm = {"memorize", "build", "shell", "write_file", "plan"}
+            # Safety Tiers: 分层确认，常见安全操作自动执行
+            # CONFIRMED: build, plan（影响大，需要用户确认方向）
+            # OBSERVABLE: shell(安全命令), write_file, memorize（自动执行+记录）
+            # TRANSPARENT: read_dir, read_file, recall, lookup_tools（静默）
+            needs_confirm = {"build", "plan"}
+
+            def _needs_confirmation(action) -> bool:
+                if action.type in needs_confirm:
+                    return True
+                if action.type == "shell":
+                    return _is_dangerous_shell(action.params)
+                if _is_dangerous_use_tool(action):
+                    return True
+                return False
+
+            def _is_dangerous_shell(cmd: str) -> bool:
+                """安全命令自动执行，危险命令需确认"""
+                import re
+                cmd_stripped = cmd.strip()
+                safe_patterns = [
+                    r"^git\s+(clone|pull|fetch|status|log|diff|branch|checkout)",
+                    r"^pip\s+install",
+                    r"^npm\s+install",
+                    r"^python\s+",
+                    r"^node\s+",
+                    r"^ls\b", r"^cat\b", r"^find\b", r"^grep\b",
+                    r"^mkdir\b", r"^cd\b", r"^pwd\b", r"^echo\b",
+                    r"^pytest", r"^python\s+-m\s+(pytest|unittest)",
+                ]
+                for pattern in safe_patterns:
+                    if re.match(pattern, cmd_stripped):
+                        return False  # 安全，不需确认
+                return True  # 未匹配已知安全模式，需确认
 
             # 检查 use_tool 是否调用危险能力
             def _is_dangerous_use_tool(action) -> bool:
@@ -413,7 +444,7 @@ class Orchestrator:
                 return False
 
             # 检查是否有需要确认的 action
-            pending_actions = [a for a in actions if a.type in needs_confirm or _is_dangerous_use_tool(a)]
+            pending_actions = [a for a in actions if _needs_confirmation(a)]
             immediate_actions = [a for a in actions if a not in pending_actions]
 
             # 立即执行不需要确认的（recall、lookup_tools、use_tool）
@@ -555,6 +586,14 @@ class Orchestrator:
         from deepforge.core.action_executor import ParsedAction
         import json as _json
         _sid = self.context.metadata.get("session_id", "")
+
+        # Action Normalizer: 框架识别自己的动词，无论模型用什么语法调用
+        BUILTIN_ACTIONS = {"shell", "read_dir", "read_file", "write_file",
+                           "memorize", "build", "plan", "recall"}
+        if action.type == "use_tool" and action.name:
+            effective_name = action.name.split(".")[-1] if "." in action.name else action.name
+            if effective_name in BUILTIN_ACTIONS:
+                action = ParsedAction(type=effective_name, params=action.params, name="")
 
         # 执行层守卫：检查并可能改写 action
         guardian = self._get_guardian()
