@@ -1,144 +1,102 @@
-# DeepForge 🔥
+# Educe
 
-**用弱模型做强活的多Agent框架**
+**第一个会承认"我没做到"的 AI 执行助手**
 
-[English](./README_EN.md) | 中文
+让 AI 不只是告诉你怎么做，而是帮你做完，并诚实地告诉你到底成没成。
 
 ---
 
-DeepForge 让 DeepSeek、Qwen、GLM、Kimi 等开源/国产模型，通过 7 个专业 Agent 协作，完成原本只有旗舰模型（如 Claude、GPT-4）才能做好的复杂工作。越用越强，自我进化。
+## 它能做什么
 
-## 核心特性
+说出你想要的，Educe 帮你执行：
 
-- 🧠 **7 Agent 协作流水线**: 项目经理 → 产品经理 → 架构师 → 工程师 → 审查专家 → 群像用户 → 记忆守护者
-- 🔀 **多模型统一接入**: DeepSeek / Qwen / GLM / Kimi / Ollama 本地模型 / OpenRouter
-- 📈 **越用越强**: 记忆系统自动沉淀知识，Skill 系统让每次项目经验可复用，社区贡献形成网络效应
-- 💻 **双界面**: CLI（开发者/工程师） + Web UI（小白/产品经理），同一套引擎
-- ⚡ **极致轻量**: 核心零外部服务依赖，`pip install` 即用
-- 🎭 **群像内测**: 独创多角色模拟用户内测机制，从小白到极客多视角评审产品
+- "帮我写一个待办管理的 Python 脚本" → 创建文件 + 运行验证 + 确认能用
+- "用 pandas 处理 data.csv 算每列平均值" → 安装依赖 + 创建数据 + 执行计算
+- "搭一个 Flask API 项目" → 多文件创建 + 启动服务 + curl 测试
+
+**和 ChatGPT 的区别**：Educe 真的执行，不只是给你一段代码让你自己跑。
+
+**和 AutoGPT 的区别**：Educe 知道自己的边界——做不到时会说"这个我搞不定，你可能需要换个方案"，而不是假装完成或无限重试。
 
 ## 快速开始
 
-### 安装
-
 ```bash
-# 基础安装（CLI模式）
-pip install -e .
+# 1. 克隆
+git clone https://github.com/oneirozzzz7/deepforge.git educe
+cd educe
 
-# 完整安装（含Web UI）
+# 2. 安装
 pip install -e ".[web]"
+
+# 3. 配置模型（任选一个）
+export DEEPFORGE_API_KEY=your-api-key
+export DEEPFORGE_BASE_URL=https://api.deepseek.com/v1
+export DEEPFORGE_MODEL=deepseek-chat
+
+# 4. 启动
+python -c "from deepforge.web.server import run_web; run_web()"
+
+# 5. 打开浏览器
+# http://localhost:7860
 ```
 
-### 配置
-
+前端（可选，更好的 UI）：
 ```bash
-# 方式1: 环境变量（最快上手）
-export DEEPSEEK_API_KEY=your-api-key
-
-# 方式2: 初始化配置文件
-deepforge init
-# 编辑生成的 deepforge.yaml 填入 API Key
+cd web && npm install && npm run dev
+# 访问 http://localhost:3001
 ```
-
-### 使用
-
-```bash
-# CLI 交互模式（开发者推荐）
-deepforge chat
-
-# Web UI（小白/产品经理推荐）
-deepforge web
-# 浏览器访问 http://localhost:7860
-
-# 一次性任务（非交互）
-deepforge run "帮我做一个番茄钟网页应用"
-
-# 快捷别名
-df chat
-df web
-```
-
-## Agent 团队
-
-| Agent | 角色 | 职责 |
-|-------|------|------|
-| 🎯 | 项目经理 | 深度理解用户意图，统筹全局，任务拆解与调度 |
-| 📋 | 产品经理 | 需求分析，输出PRD，定义功能优先级与验收标准 |
-| 🏗️ | 架构师 | 技术选型，系统架构设计，编码任务拆分 |
-| 💻 | 工程师 | 完整编码实现，编写测试，确保代码可运行 |
-| 🔍 | 审查专家 | Code Review，安全检查，质量把控 |
-| 👥 | 群像用户 | 模拟多种用户角色内测，提出多视角改进建议 |
-| 🧠 | 记忆守护者 | 知识沉淀，技能提炼，让框架越用越强 |
 
 ## 支持的模型
 
-| 提供商 | 模型示例 | 环境变量 | 备注 |
-|--------|----------|----------|------|
-| DeepSeek | deepseek-chat | `DEEPSEEK_API_KEY` | 推荐，性价比高 |
-| 通义千问 | qwen-plus | `QWEN_API_KEY` | 阿里云 |
-| 智谱GLM | glm-4-flash | `GLM_API_KEY` | 免费额度多 |
-| Moonshot/Kimi | moonshot-v1-8k | `KIMI_API_KEY` | 长上下文 |
-| Ollama | qwen2.5:7b | 无需（本地） | 完全免费离线 |
-| OpenRouter | 任意模型 | `OPENROUTER_API_KEY` | 聚合平台 |
+任何 OpenAI 兼容 API 都可以用：
 
-支持任何 OpenAI 兼容 API 的模型服务。
+| 模型 | 推荐场景 | 配置 |
+|------|---------|------|
+| DeepSeek-V3 | 日常使用，便宜 | `DEEPFORGE_BASE_URL=https://api.deepseek.com/v1` |
+| Qwen3 系列 | 中文任务 | 通义千问 API |
+| GPT-4o-mini | 快速可靠 | OpenAI API |
+| 本地模型(Ollama) | 离线/隐私 | `DEEPFORGE_BASE_URL=http://localhost:11434/v1` |
 
-## 项目结构
+## 核心机制
 
-```
-deepforge/
-├── core/               # 核心引擎
-│   ├── agent.py        # Agent 基类
-│   ├── config.py       # 配置系统（YAML + 环境变量）
-│   ├── message.py      # 消息协议 & 任务模型
-│   └── orchestrator.py # 调度器（pipeline + 自由路由）
-├── agents/             # 7 个 Agent 实现
-├── models/             # 模型路由器（多模型适配）
-├── memory/             # 记忆系统（JSON持久化）
-├── skills/             # 技能注册表（内置 + 用户 + 社区）
-├── tools/              # 工具箱（文件读写/命令执行/搜索）
-├── cli/                # CLI 终端界面（Rich美化）
-└── web/                # Web UI（FastAPI + WebSocket）
-```
+### 收敛追踪
+每个任务的执行过程被实时追踪。你能看到系统在"学习"——从尝试、失败、到最终成功的完整弧线。
 
-## 进化机制
+### 诚实退出
+当系统发现自己连续多轮无法解决某个问题时，会主动告知你，而不是无限重试浪费你的时间。
 
-DeepForge 的核心差异化——**越用越强**：
+### 环境感知
+框架自动告知模型运行环境的约束（沙箱限制、端口占用等），让模型一次做对，而不是反复试错。
+
+### 错误恢复
+遇到依赖缺失、文件不存在等问题时，模型会自动安装/创建/修复，无需你手动干预。
+
+## 技术架构
 
 ```
-第1次使用 → 完成任务 → 记忆Agent沉淀知识
-第2次使用 → 检索相关记忆 → 更快更好地完成
-第N次使用 → 积累的Skill模板 → 接近一键完成
-社区贡献   → Skill共享 → 所有人受益
+用户输入 → Orchestrator(行为循环)
+              ↓
+         模型推理（带环境约束 + 行为规则）
+              ↓
+         Action 执行（shell/write_file/read_dir）
+              ↓
+         IterationState 更新（收敛追踪）
+              ↓
+         结果反馈 → 继续/完成/诚实退出
 ```
 
-1. **记忆沉淀**: 每次项目完成后自动提炼可复用知识（模式、经验、坑点）
-2. **技能生成**: 重复的工作流自动提炼为 Skill 模板
-3. **社区共享**: 用户贡献的 Skill 可被全社区复用
-4. **Prompt自优化**: 基于成功/失败反馈，自动优化各 Agent 的 prompt
+## 开发状态
 
-## 与其他框架的对比
-
-| 特性 | DeepForge | MetaGPT | CrewAI | OpenCode |
-|------|-----------|---------|--------|----------|
-| 弱模型优化 | ✅ 核心设计 | ❌ | ❌ | ❌ |
-| 群像用户测试 | ✅ | ❌ | ❌ | ❌ |
-| 记忆进化 | ✅ | 部分 | ❌ | ❌ |
-| 中国模型原生支持 | ✅ | 部分 | ❌ | ❌ |
-| Web UI | ✅ | ❌ | ❌ | ❌ |
-| 轻量级 | ✅ | ❌（重） | ✅ | ✅ |
-
-## 开发计划
-
-- [x] 核心引擎 + 7 Agent
-- [x] CLI + Web 双界面
-- [x] 记忆系统 + Skill 注册表
-- [ ] 审查不通过自动回退修改
-- [ ] 更多内置 Skill 模板
-- [ ] 社区 Skill 市场
-- [ ] 多轮对话迭代优化
-- [ ] 可视化工作流编辑器
+- [x] 核心执行引擎（ActionLoop + Markdown-native Protocol）
+- [x] 收敛系统（IterationState + Prober + 自动 Claim 关闭）
+- [x] 环境约束（5 个，消除常见失败模式）
+- [x] 诚实退出（停滞检测 + 用户告知）
+- [x] Web 前端（收敛可视化 + 确认机制）
+- [x] 行为学习（BehaviorManifest）
+- [ ] Electron 桌面应用（一键安装）
+- [ ] Windows 支持
+- [ ] 非编程场景扩展
 
 ## License
 
-Apache 2.0
+MIT
