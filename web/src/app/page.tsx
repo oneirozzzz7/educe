@@ -7,6 +7,7 @@ import { mapWsMessage } from "@/lib/ws-handler";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { SettingsModal } from "@/components/settings-modal";
 import { LogoMark } from "@/components/logo";
+import { ConvergencePanel } from "@/components/convergence-panel";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -629,6 +630,7 @@ export default function Home() {
 
         {/* 输入框 */}
         <div style={{ padding: "12px 32px 20px", flexShrink: 0 }}>
+          <ConvergencePanel sessionId={state.sessionId} />
           <div style={{ maxWidth: 960, margin: "0 auto", position: "relative" }}>
             <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."} onKeyDown={handleKeyDown} rows={1} />
             <button onClick={() => inputRef.current && send(inputRef.current.value)}

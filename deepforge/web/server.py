@@ -535,6 +535,27 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             return {"error": "version not found"}
         return {"version": version, "files": files}
 
+    @app.get("/api/convergence/{session_id}")
+    async def get_convergence(session_id: str):
+        from deepforge.core.iteration_state import StateLog, IterationState
+        log_path = Path(f".deepforge/convergence/{session_id[:16]}.jsonl")
+        if not log_path.exists():
+            return {"curve": [], "claims": [], "convergence": 0}
+        log = StateLog(log_path)
+        log.load()
+        latest = log.latest()
+        if not latest:
+            return {"curve": [], "claims": [], "convergence": 0}
+        claims = []
+        for cid, c in latest.claims.items():
+            claims.append({"id": cid, "text": c.text[:80], "status": c.status.value})
+        return {
+            "curve": log.convergence_curve(),
+            "claims": claims,
+            "convergence": latest.convergence_metric(),
+            "revisions": len(log.convergence_curve()),
+        }
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -1015,6 +1036,10 @@ def run_web(host: str = "0.0.0.0", port: int = 7860, config: DeepForgeConfig | N
         print("Web dependencies not installed. Run: pip install deepforge[web]")
         print("Or: pip install fastapi uvicorn websockets")
         return
+
+    import os
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.chdir(project_root)
 
     app = create_app(config)
     uvicorn.run(app, host=host, port=port)
