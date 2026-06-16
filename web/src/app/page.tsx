@@ -547,26 +547,10 @@ export default function Home() {
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 0 100px" }}>
           <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 32px" }}>
             {events.length === 0 && !isThinking && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "12vh", position: "relative", gap: 24 }}>
-                <div style={{ position: "absolute", top: "10vh", left: "50%", transform: "translateX(-50%)", width: 320, height: 180, background: "radial-gradient(ellipse at center, rgba(167,139,250,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
-                <LogoMark size={48} />
-                <div style={{ fontSize: 24, color: "var(--text-2)", fontWeight: 300, letterSpacing: "0.05em" }}>Educe</div>
-                <div style={{ fontSize: 13, color: "var(--text-3)", maxWidth: 400, textAlign: "center", lineHeight: 1.6 }}>
-                  说出你想做的事，Educe 帮你执行并验证。<br/>遇到问题会自动修复，搞不定会诚实告诉你。
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 500, marginTop: 8 }}>
-                  {[
-                    "帮我写一个 Python 脚本统计当前目录所有文件的大小",
-                    "用 pandas 处理 CSV 算每列平均值",
-                    "做一个 Flask 待办 API 能增删改查",
-                  ].map((example, idx) => (
-                    <button key={idx} onClick={() => { if (inputRef.current) { inputRef.current.value = example; send(example); } }}
-                      style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border-1)", background: "var(--surface-1)", color: "var(--text-2)", fontSize: 12, cursor: "pointer", transition: "all 0.15s", textAlign: "left" }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-1)"; e.currentTarget.style.color = "var(--text-2)"; }}
-                    >{example}</button>
-                  ))}
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "20vh", position: "relative" }}>
+                <div style={{ position: "absolute", top: "18vh", left: "50%", transform: "translateX(-50%)", width: 320, height: 180, background: "radial-gradient(ellipse at center, rgba(167,139,250,0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
+                <LogoMark size={44} />
+                <div style={{ fontSize: 22, color: "var(--text-2)", fontWeight: 300, letterSpacing: "0.08em", marginTop: 16 }}>Educe</div>
               </div>
             )}
 
