@@ -35,13 +35,21 @@ class BaseAgent(abc.ABC):
         if build_seed:
             seed_section = f"\n\n## 思维引导\n{build_seed}"
 
+        # Behavior Manifest 注入（Git for Agent Behavior）
+        behavior_section = ""
+        manifest = context.metadata.get("_behavior_manifest")
+        if manifest:
+            behavior_text = manifest.render_for_prompt(context.user_request or "")
+            if behavior_text and behavior_text != manifest.base_seed:
+                behavior_section = f"\n\n{behavior_text}"
+
         return f"""你是 {self.role}。
 {self.description}
 
 ## 当前项目信息
 - 项目名称: {context.project_name}
 - 当前阶段: {context.current_phase}
-- 用户原始需求: {context.user_request}{seed_section}
+- 用户原始需求: {context.user_request}{seed_section}{behavior_section}
 
 ## 工作要求
 1. 输出必须结构化、清晰、可执行
