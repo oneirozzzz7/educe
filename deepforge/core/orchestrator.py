@@ -338,6 +338,22 @@ class Orchestrator:
         if causal_experience:
             system += causal_experience
 
+        # Prober: 注入 OPEN claims 让模型感知未验证知识
+        if _sid:
+            try:
+                state, _ = self._get_iteration_state(_sid)
+                open_claims = state.open_hyp()
+                if open_claims:
+                    claims_text = "\n".join(f"- {c.text}" for c in open_claims[:5])
+                    system += (
+                        f"\n\n## 待处理问题\n"
+                        f"以下操作之前失败了，如果和当前任务相关，请尝试修复：\n"
+                        f"{claims_text}"
+                    )
+                    log.info("Prober injected %d OPEN claims into prompt", len(open_claims))
+            except Exception as e:
+                log.warning("Prober injection failed: %s", e)
+
         # 构建对话历史
         history = self.conversation.get_history_for_llm()
         cleaned = []
@@ -1335,6 +1351,13 @@ class Orchestrator:
         elif action.type == "shell" and success:
             claim = Claim.new(f"command succeeded: {action.params[:60]}",
                               FactStatus.VERIFIED, evidence)
+            # Prober: 同命令之前失败 → 现在成功 = 关闭旧 OPEN claim
+            failed_text = f"command failed: {action.params[:60]}"
+            failed_claim_id = Claim.new(failed_text).claim_id
+            if failed_claim_id in state.claims and state.claims[failed_claim_id].status == FactStatus.OPEN:
+                closed = state.claims[failed_claim_id].with_status(
+                    FactStatus.RULED_OUT, ("resolved_by_success",) + evidence)
+                state = state.apply(closed)
         elif action.type == "shell" and not success:
             claim = Claim.new(f"command failed: {action.params[:60]}",
                               FactStatus.OPEN, evidence)
