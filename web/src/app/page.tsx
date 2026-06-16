@@ -253,9 +253,16 @@ function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; s
 
     case "user_confirm":
       return (
-        <div className={`status-bar ${event.decision === "confirm" ? "status-bar-success" : ""}`} style={{ marginBottom: 8 }}>
-          {event.decision === "confirm" ? "✅ 已确认" : "⊘ 已取消"}
-          {event.note && ` · 补充：${event.note}`}
+        <div style={{ marginBottom: 6, fontSize: 11, color: "var(--text-3)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 3,
+            padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+            color: event.decision === "confirm" ? "#16a34a" : "#a3a3a3",
+            background: event.decision === "confirm" ? "rgba(22,163,74,0.08)" : "rgba(163,163,163,0.08)",
+          }}>
+            {event.decision === "confirm" ? "✓ 已确认" : "⊘ 已取消"}
+          </span>
+          {event.note && <span style={{ color: "var(--text-3)" }}>· {event.note}</span>}
         </div>
       );
 
