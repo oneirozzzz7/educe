@@ -50,13 +50,13 @@ _CODE_ONLY_LANGS = {
 # 合法的 action type（用于二次验证）
 _VALID_ACTION_TYPES = {
     "shell", "read_dir", "read_file", "write_file", "edit_file",
+    "search_in_file", "read_lines",
     "create_file", "run", "exec",
     "memorize", "build", "plan", "recall", "search", "use_tool",
 }
 
 # 别名映射：模型可能使用的变体 → 规范 type
 _ACTION_ALIASES = {
-    "edit_file": "write_file",
     "create_file": "write_file",
     "run": "shell",
     "exec": "shell",

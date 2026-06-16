@@ -685,6 +685,15 @@ class Orchestrator:
         elif action.type == "write_file":
             return await self._exec_write_file(action, _sid)
 
+        elif action.type == "edit_file":
+            return await self._exec_edit_file(action, _sid)
+
+        elif action.type == "search_in_file":
+            return await self._exec_search_in_file(action, _sid)
+
+        elif action.type == "read_lines":
+            return await self._exec_read_lines(action, _sid)
+
         elif action.type == "plan":
             return await self._exec_plan(action, _sid)
 
@@ -982,6 +991,174 @@ class Orchestrator:
             return {"success": True, "output": f"✅ {action_word}文件: {display_path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
         except Exception as e:
             return {"success": False, "output": f"写入失败: {e}"}
+
+    async def _exec_edit_file(self, action, session_id: str = "") -> dict:
+        """局部编辑文件：搜索替换（git conflict 标记格式）"""
+        import re as _re_edit
+        from pathlib import Path
+
+        raw = action.params.strip()
+
+        # 解析 path
+        file_path = ""
+        if raw.startswith("path:") or raw.startswith("path："):
+            first_line, rest = raw.split("\n", 1)
+            file_path = first_line.split(":", 1)[1].strip()
+            raw = rest
+        else:
+            return {"success": False, "output": "edit_file 需要 path: 行"}
+
+        # 解析 OLD/NEW（git conflict 标记）
+        old_match = _re_edit.search(r'<{3,}\s*OLD\s*\n([\s\S]*?)\n={3,}\n([\s\S]*?)\n>{3,}\s*NEW', raw)
+        if not old_match:
+            return {"success": False, "output": "格式错误：需要 <<<<<<< OLD\\n原文\\n=======\\n新文\\n>>>>>>> NEW"}
+
+        old_string = old_match.group(1)
+        new_string = old_match.group(2)
+
+        # 解析文件路径
+        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        if self.context.metadata.get("_project_context_path"):
+            base = Path(self.context.metadata["_project_context_path"])
+        base.mkdir(parents=True, exist_ok=True)
+
+        path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
+        if not path.exists():
+            return {"success": False, "output": f"文件不存在: {file_path}"}
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+
+        # 分级匹配
+        def normalize_trailing(s):
+            return "\n".join(line.rstrip() for line in s.split("\n"))
+
+        def strip_lines(s):
+            return "\n".join(line.strip() for line in s.split("\n"))
+
+        # Level 0: 精确匹配
+        if old_string in content:
+            new_content = content.replace(old_string, new_string, 1)
+        # Level 1: 行尾空白归一化
+        elif normalize_trailing(old_string) in normalize_trailing(content):
+            c_norm = normalize_trailing(content)
+            o_norm = normalize_trailing(old_string)
+            idx = c_norm.find(o_norm)
+            lines = content.split("\n")
+            norm_lines = normalize_trailing(content).split("\n")
+            start_line = c_norm[:idx].count("\n")
+            end_line = start_line + o_norm.count("\n")
+            new_lines = lines[:start_line] + new_string.split("\n") + lines[end_line + 1:]
+            new_content = "\n".join(new_lines)
+        # Level 2: strip 后匹配
+        elif strip_lines(old_string) in strip_lines(content):
+            c_stripped = strip_lines(content)
+            o_stripped = strip_lines(old_string)
+            idx = c_stripped.find(o_stripped)
+            start_line = c_stripped[:idx].count("\n")
+            end_line = start_line + o_stripped.count("\n")
+            lines = content.split("\n")
+            new_lines = lines[:start_line] + new_string.split("\n") + lines[end_line + 1:]
+            new_content = "\n".join(new_lines)
+        else:
+            # 匹配失败——给诊断信息
+            lines = content.split("\n")
+            first_word = old_string.split("\n")[0].strip()[:30]
+            candidates = [(i+1, l.strip()[:60]) for i, l in enumerate(lines) if first_word and first_word in l][:5]
+            hint = "\n".join(f"  第{n}行: {t}" for n, t in candidates) if candidates else "  无相似内容"
+            return {"success": False, "output": f"未找到匹配内容。\n最相似的行：\n{hint}\n请用 read_lines 确认原文后重试。"}
+
+        # 唯一性检查
+        count = content.count(old_string)
+        if count > 1:
+            positions = []
+            idx = 0
+            for _ in range(min(count, 5)):
+                idx = content.find(old_string, idx)
+                line_no = content[:idx].count("\n") + 1
+                positions.append(f"  第{line_no}行")
+                idx += 1
+            return {"success": False, "output": f"old_string 匹配到 {count} 处，无法确定改哪个：\n" + "\n".join(positions) + "\n请加入更多上下文使其唯一。"}
+
+        # 写回
+        path.write_text(new_content, encoding="utf-8")
+        changed_lines = abs(new_content.count("\n") - content.count("\n"))
+        return {"success": True, "output": f"✅ 已修改 {file_path}（替换成功，变更约{changed_lines}行）"}
+
+    async def _exec_search_in_file(self, action, session_id: str = "") -> dict:
+        """在文件中搜索关键词，返回行号+上下文"""
+        from pathlib import Path
+
+        parts = action.params.strip().split("\n", 1)
+        if len(parts) < 2:
+            return {"success": False, "output": "格式：第一行文件路径，第二行搜索关键词"}
+
+        file_path, query = parts[0].strip(), parts[1].strip()
+
+        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        if self.context.metadata.get("_project_context_path"):
+            base = Path(self.context.metadata["_project_context_path"])
+
+        path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
+        if not path.exists():
+            return {"success": False, "output": f"文件不存在: {file_path}"}
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        lines = content.split("\n")
+
+        results = []
+        for i, line in enumerate(lines):
+            if query.lower() in line.lower():
+                context_lines = []
+                for j in range(max(0, i-2), min(len(lines), i+3)):
+                    prefix = "→" if j == i else " "
+                    context_lines.append(f"{prefix} {j+1:4d} | {lines[j]}")
+                results.append("\n".join(context_lines))
+                if len(results) >= 10:
+                    break
+
+        if not results:
+            return {"success": True, "output": f"未找到 '{query}' in {file_path}"}
+
+        output = f"在 {file_path} 中找到 {len(results)} 处：\n\n" + "\n\n".join(results)
+        return {"success": True, "output": output[:3000]}
+
+    async def _exec_read_lines(self, action, session_id: str = "") -> dict:
+        """读取文件指定行范围"""
+        from pathlib import Path
+
+        parts = action.params.strip().split("\n", 1)
+        if len(parts) < 2:
+            return {"success": False, "output": "格式：第一行文件路径，第二行行号范围（如 100-120）"}
+
+        file_path = parts[0].strip()
+        range_str = parts[1].strip()
+
+        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        if self.context.metadata.get("_project_context_path"):
+            base = Path(self.context.metadata["_project_context_path"])
+
+        path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
+        if not path.exists():
+            return {"success": False, "output": f"文件不存在: {file_path}"}
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        lines = content.split("\n")
+
+        # 解析范围
+        import re
+        m = re.match(r'(\d+)\s*[-~]\s*(\d+)', range_str)
+        if not m:
+            return {"success": False, "output": f"无法解析行号范围: {range_str}（格式如 100-120）"}
+
+        start = max(1, int(m.group(1)))
+        end = min(len(lines), int(m.group(2)))
+
+        result_lines = []
+        for i in range(start - 1, end):
+            result_lines.append(f"{i+1:4d} | {lines[i]}")
+
+        output = f"文件: {file_path} (第{start}-{end}行，共{len(lines)}行)\n" + "\n".join(result_lines)
+        return {"success": True, "output": output[:3000]}
 
     async def _exec_plan(self, action, session_id: str) -> dict:
         """执行多步计划——逐步执行每个步骤，反馈结果"""
