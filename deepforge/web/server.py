@@ -556,6 +556,17 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             "revisions": len(log.convergence_curve()),
         }
 
+    @app.post("/api/feedback")
+    async def submit_feedback(request: Request):
+        import json as _json
+        body = await request.json()
+        feedback_dir = Path(".deepforge/feedback")
+        feedback_dir.mkdir(parents=True, exist_ok=True)
+        feedback_file = feedback_dir / "feedback.jsonl"
+        with open(feedback_file, "a", encoding="utf-8") as f:
+            f.write(_json.dumps(body, ensure_ascii=False) + "\n")
+        return {"status": "ok"}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()

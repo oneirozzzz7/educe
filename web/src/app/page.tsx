@@ -8,6 +8,7 @@ import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { SettingsModal } from "@/components/settings-modal";
 import { LogoMark } from "@/components/logo";
 import { ConvergencePanel } from "@/components/convergence-panel";
+import { FeedbackButton } from "@/components/feedback-button";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -723,6 +724,9 @@ export default function Home() {
           </div>
         </>
       )}
+
+      {/* 反馈按钮 */}
+      <FeedbackButton sessionId={state.sessionId} />
     </div>
   );
 }
