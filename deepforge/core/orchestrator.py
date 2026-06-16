@@ -341,16 +341,36 @@ class Orchestrator:
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
             try:
-                state, _ = self._get_iteration_state(_sid)
+                state, log_obj = self._get_iteration_state(_sid)
                 open_claims = state.open_hyp()
                 if open_claims:
                     claims_text = "\n".join(f"- {c.text}" for c in open_claims[:5])
-                    system += (
-                        f"\n\n## 待处理问题\n"
-                        f"以下操作之前失败了，如果和当前任务相关，请尝试修复：\n"
-                        f"{claims_text}"
-                    )
-                    log.info("Prober injected %d OPEN claims into prompt", len(open_claims))
+
+                    # 诚实退出检测：收敛曲线是否停滞
+                    curve = log_obj.convergence_curve()
+                    stall_threshold = 5
+                    is_stalled = False
+                    if len(curve) >= stall_threshold and curve[-1] < 1.0:
+                        recent = curve[-stall_threshold:]
+                        variation = max(recent) - min(recent)
+                        is_stalled = variation < 0.02
+
+                    if is_stalled:
+                        system += (
+                            f"\n\n## ⚠️ 收敛停滞\n"
+                            f"以下问题已经连续 {stall_threshold} 轮没有进展，当前模型可能无法解决：\n"
+                            f"{claims_text}\n"
+                            f"请诚实告知用户：这个问题你可能需要换个思路、拆分任务、或人工介入。"
+                            f"不要继续重复相同的尝试。"
+                        )
+                        log.warning("Convergence stalled for %d rounds, triggering honest exit", stall_threshold)
+                    else:
+                        system += (
+                            f"\n\n## 待处理问题\n"
+                            f"以下操作之前失败了，如果和当前任务相关，请尝试修复：\n"
+                            f"{claims_text}"
+                        )
+                    log.info("Prober injected %d OPEN claims into prompt (stalled=%s)", len(open_claims), is_stalled)
             except Exception as e:
                 log.warning("Prober injection failed: %s", e)
 
