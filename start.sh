@@ -17,23 +17,31 @@ fi
 PYTHON=$(command -v python3 || command -v python)
 echo "✓ Python: $($PYTHON --version)"
 
-# 检查依赖
+# 检查 Node.js
+if ! command -v node &> /dev/null; then
+    echo "❌ 未找到 Node.js。请先安装："
+    echo "   brew install node"
+    exit 1
+fi
+echo "✓ Node: $(node --version)"
+
+# 检查后端依赖
 if ! $PYTHON -c "import fastapi" 2>/dev/null; then
-    echo "📦 安装依赖..."
+    echo "📦 安装后端依赖..."
     $PYTHON -m pip install -e ".[web]" -q
+fi
+
+# 检查前端依赖
+if [ ! -d "web/node_modules" ]; then
+    echo "📦 安装前端依赖..."
+    (cd web && npm install --silent)
 fi
 
 # 检查模型配置
 if [ -z "$DEEPFORGE_API_KEY" ] && [ ! -f .env ]; then
     echo ""
-    echo "⚠️  未配置模型。请设置环境变量或创建 .env 文件："
+    echo "⚠️  未配置模型。请创建 .env 文件："
     echo ""
-    echo "   方式1（DeepSeek，推荐）："
-    echo "   export DEEPFORGE_API_KEY=your-key"
-    echo "   export DEEPFORGE_BASE_URL=https://api.deepseek.com/v1"
-    echo "   export DEEPFORGE_MODEL=deepseek-chat"
-    echo ""
-    echo "   方式2：创建 .env 文件"
     echo "   echo 'DEEPFORGE_API_KEY=your-key' > .env"
     echo "   echo 'DEEPFORGE_BASE_URL=https://api.deepseek.com/v1' >> .env"
     echo "   echo 'DEEPFORGE_MODEL=deepseek-chat' >> .env"
@@ -65,29 +73,34 @@ BACKEND_PID=$!
 
 sleep 2
 
-# 检查后端是否启动成功
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "❌ 后端启动失败。检查日志。"
+    echo "❌ 后端启动失败。"
     exit 1
 fi
-
 echo "✓ 后端已启动 (PID: $BACKEND_PID)"
+
+# 启动前端
+echo "🎨 启动前端 (port 3001)..."
+(cd web && npx next dev -p 3001 > /dev/null 2>&1) &
+FRONTEND_PID=$!
+
+sleep 3
+echo "✓ 前端已启动 (PID: $FRONTEND_PID)"
 
 # 打开浏览器
 echo ""
 echo "✅ Educe 已就绪！"
 echo ""
-echo "   打开浏览器访问: http://localhost:7860"
-echo "   （如果安装了前端: http://localhost:3001）"
-echo ""
+echo "   浏览器访问: http://localhost:3001"
 echo "   按 Ctrl+C 停止"
+echo ""
 
-# 尝试自动打开浏览器
 if command -v open &> /dev/null; then
-    open "http://localhost:7860"
+    open "http://localhost:3001"
 elif command -v xdg-open &> /dev/null; then
-    xdg-open "http://localhost:7860"
+    xdg-open "http://localhost:3001"
 fi
 
-# 等待退出
+# Ctrl+C 时清理
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit" INT TERM
 wait $BACKEND_PID
