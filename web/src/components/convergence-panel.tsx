@@ -70,6 +70,9 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span style={{ fontWeight: 600, color }}>
           {(convergence * 100).toFixed(0)}%
+          <span style={{ fontWeight: 400, fontSize: 10, color: "var(--text-3)", marginLeft: 4 }}>
+            {convergence >= 1.0 ? "完成" : convergence >= 0.8 ? "接近完成" : "进行中"}
+          </span>
         </span>
         <span style={{ color: "var(--text-3)" }}>
           {verified}/{total} verified
