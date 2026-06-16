@@ -152,6 +152,8 @@ def build_context(
         '- 测试服务用 nohup 后台启动 + curl 验证，不要前台阻塞运行\n'
         '- 如果用户要求"交互式"程序（CLI菜单），创建文件后告知用户如何本地运行，不要在 shell 中测试\n'
         '- 多文件 Python 项目：同目录内 import 用相对路径（from service import X），不要 from 目录名.module（会找不到包）\n'
+        '- curl 测试时直接看输出，不要管道到 python -m json.tool 或 jq（空响应会导致管道失败）\n'
+        '- 启动 HTTP 服务时用 8000 以上的端口（低端口可能被系统占用），启动后 sleep 1-2 秒再 curl\n'
     )
 
     # 连接器概要（Level 1）
