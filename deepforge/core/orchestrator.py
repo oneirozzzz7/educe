@@ -795,7 +795,7 @@ class Orchestrator:
 
                 return {
                     "success": proc.returncode == 0,
-                    "output": f"$ {cmd}\n[cwd: {work_dir}]\n{output}\n[exit: {proc.returncode}]",
+                    "output": f"$ {cmd}\n[cwd: .]\n{output}\n[exit: {proc.returncode}]",
                 }
 
             except asyncio.TimeoutError:
@@ -819,7 +819,7 @@ class Orchestrator:
                 return {
                     "success": True,
                     "output": (
-                        f"$ {cmd}\n[cwd: {work_dir}]\n"
+                        f"$ {cmd}\n[cwd: .]\n"
                         f"[后台启动] PID={proc.pid}\n"
                         f"{early_output}"
                         f"服务已在后台运行（最长{int(supervisor.MAX_TTL/60)}分钟）。"
@@ -957,13 +957,9 @@ class Orchestrator:
             existed = path.exists()
             path.write_text(content, encoding="utf-8")
             action_word = "修改" if existed else "创建"
-            # 显示相对于 session 工作目录的路径（模型用 shell cd 时需要的）
-            try:
-                rel = path.relative_to(base.resolve())
-                hint = f"（shell 中用 ./{rel} 访问）"
-            except (ValueError, TypeError):
-                hint = ""
-            return {"success": True, "output": f"✅ {action_word}文件: {rel if hint else path}\n({len(content)}字符, {len(content.split(chr(10)))}行){hint}"}
+            # 只显示模型指定的原始路径，不暴露内部存储结构
+            display_path = file_path
+            return {"success": True, "output": f"✅ {action_word}文件: {display_path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
         except Exception as e:
             return {"success": False, "output": f"写入失败: {e}"}
 
