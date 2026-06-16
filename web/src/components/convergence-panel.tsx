@@ -44,7 +44,11 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
   const open = claims.filter(c => c.status === "open").length;
   const total = claims.length;
 
-  const color = convergence >= 0.9 ? "var(--accent)" : convergence >= 0.7 ? "#f0a030" : "#e04040";
+  // 检测停滞（最近5个点变化<0.02）
+  const isStalled = curve.length >= 5 && convergence < 1.0 &&
+    Math.max(...curve.slice(-5)) - Math.min(...curve.slice(-5)) < 0.02;
+
+  const color = isStalled ? "#e04040" : convergence >= 0.9 ? "var(--accent)" : convergence >= 0.7 ? "#f0a030" : "#e04040";
 
   return (
     <div style={{
@@ -71,12 +75,14 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
         <span style={{ fontWeight: 600, color }}>
           {(convergence * 100).toFixed(0)}%
           <span style={{ fontWeight: 400, fontSize: 10, color: "var(--text-3)", marginLeft: 4 }}>
-            {convergence >= 1.0 ? "完成" : convergence >= 0.8 ? "接近完成" : "进行中"}
+            {isStalled ? "遇到困难" : convergence >= 1.0 ? "完成" : convergence >= 0.8 ? "接近完成" : "进行中"}
           </span>
         </span>
         <span style={{ color: "var(--text-3)" }}>
-          {verified}/{total} verified
-          {open > 0 && <span style={{ color: "#e04040" }}> · {open} open</span>}
+          {isStalled
+            ? "这个问题可能需要换个思路"
+            : `${verified}/${total} verified`}
+          {!isStalled && open > 0 && <span style={{ color: "#e04040" }}> · {open} 待解决</span>}
         </span>
       </div>
     </div>
