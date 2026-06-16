@@ -265,6 +265,16 @@ class Orchestrator:
 
         _sid = self.context.metadata.get("session_id", "")
 
+        # L1 澄清：高危不可逆操作确认（L0公理级安全规则）
+        clarification = self._l1_clarification_check(user_input)
+        if clarification:
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content=clarification)
+            self.context.add_message(msg)
+            self._notify(msg)
+            self.conversation.add_assistant(clarification)
+            return self.context
+
         # 构建 context（索引式知识呈现 + 作用域隔离）
         seed = ""
         if self.unified_store:
@@ -1512,6 +1522,32 @@ class Orchestrator:
             ledger = LedgerStore(Path(".deepforge/metabolism"))
             self._causal_retriever = CausalRetriever(ledger)
         return self._causal_retriever
+
+    def _l1_clarification_check(self, user_input: str) -> str | None:
+        """L1 澄清：检测不可逆高危意图，要求用户确认方向。
+
+        不做模糊度判断（那是模型的事）。只检测客观的高危信号。
+        返回 None 表示不需要澄清，返回字符串表示澄清消息。
+        """
+        text = user_input.lower().strip()
+
+        # 高危模式：不可逆操作 + 缺乏具体目标
+        HIGH_RISK_PATTERNS = [
+            (["删除所有", "删除全部", "rm -rf", "清空"], "删除操作不可逆"),
+            (["部署到生产", "部署到线上", "deploy to prod"], "生产部署影响线上用户"),
+            (["推送到 main", "push to main", "force push"], "推送到主分支影响团队"),
+            (["格式化", "重装", "初始化数据库"], "数据可能丢失"),
+        ]
+
+        for keywords, risk_desc in HIGH_RISK_PATTERNS:
+            if any(kw in text for kw in keywords):
+                return (
+                    f"⚠️ 检测到高危操作（{risk_desc}）。\n\n"
+                    f"请确认你的意图：具体要对什么执行这个操作？\n"
+                    f"确认后我再执行，或者告诉我更具体的范围。"
+                )
+
+        return None
 
     def _get_iteration_state(self, session_id: str):
         """获取当前 session 的 IterationState + StateLog"""
