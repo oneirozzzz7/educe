@@ -481,6 +481,9 @@ class Orchestrator:
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
 
+                # IterationState: 将执行结果映射为知识状态更新
+                self._update_iteration_state(action, result, _sid)
+
                 # BehaviorLearner: 检测失败→重试成功模式
                 if not result.get("success"):
                     self.context.metadata.setdefault("_failed_actions", []).append({
@@ -1300,6 +1303,50 @@ class Orchestrator:
             ledger = LedgerStore(Path(".deepforge/metabolism"))
             self._causal_retriever = CausalRetriever(ledger)
         return self._causal_retriever
+
+    def _get_iteration_state(self, session_id: str):
+        """获取当前 session 的 IterationState + StateLog"""
+        if not hasattr(self, '_iteration_state'):
+            from deepforge.core.iteration_state import IterationState, StateLog
+            from pathlib import Path
+            log_path = Path(f".deepforge/convergence/{session_id[:16]}.jsonl")
+            state_log = StateLog(log_path)
+            state_log.load()
+            if state_log.latest():
+                state = state_log.latest()
+            else:
+                state = IterationState(task_id=session_id)
+            self._iteration_state = state
+            self._iteration_state_log = state_log
+        return self._iteration_state, self._iteration_state_log
+
+    def _update_iteration_state(self, action, result: dict, session_id: str):
+        """将 action 执行结果映射为 IterationState 的 Claim 更新"""
+        from deepforge.core.iteration_state import Claim, FactStatus
+        state, log = self._get_iteration_state(session_id)
+
+        output = result.get("output", "")[:200]
+        success = result.get("success", False)
+        evidence = (f"{action.type}:{session_id[:8]}:{state.revision}",)
+
+        if action.type == "write_file" and success:
+            claim = Claim.new(f"file created: {action.params.split(chr(10))[0][:60]}",
+                              FactStatus.VERIFIED, evidence)
+        elif action.type == "shell" and success:
+            claim = Claim.new(f"command succeeded: {action.params[:60]}",
+                              FactStatus.VERIFIED, evidence)
+        elif action.type == "shell" and not success:
+            claim = Claim.new(f"command failed: {action.params[:60]}",
+                              FactStatus.OPEN, evidence)
+        elif action.type in ("read_file", "read_dir") and success:
+            claim = Claim.new(f"observed: {action.params[:60]}",
+                              FactStatus.VERIFIED, evidence)
+        else:
+            return
+
+        state = state.apply(claim)
+        log.record(state)
+        self._iteration_state = state
 
     def _get_guardian(self):
         """获取执行层守卫"""
