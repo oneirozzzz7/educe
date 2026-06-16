@@ -146,6 +146,11 @@ def build_context(
         '- 多文件项目：用 shell 建目录，再逐个 write_file 创建文件，最后 shell 验证\n'
         '- 不要把代码贴在普通文字里"展示"给用户——那不会执行任何操作\n'
         '- build 仅用于独立的前端网页/HTML应用。Python/CLI/后端项目用 write_file + shell\n'
+        '\n🚫 运行环境约束（重要）：\n'
+        '- shell 是非交互式的，没有 stdin。不要写 input()、readline() 等需要用户输入的代码\n'
+        '- 测试 Python 程序用 python -c "from xxx import ...; 函数调用" 或命令行参数\n'
+        '- 测试服务用 nohup 后台启动 + curl 验证，不要前台阻塞运行\n'
+        '- 如果用户要求"交互式"程序（CLI菜单），创建文件后告知用户如何本地运行，不要在 shell 中测试\n'
     )
 
     # 连接器概要（Level 1）
