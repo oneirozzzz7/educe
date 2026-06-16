@@ -757,6 +757,8 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                                     orchestrator.conversation.add_assistant(f"[系统] {result_text}")
                                     if hasattr(orchestrator, 'state'):
                                         orchestrator.state.add_action_executed(a.type, result_text, result.get("success", False))
+                                    # IterationState 更新（确认路径也要追踪收敛）
+                                    orchestrator._update_iteration_state(a, result, session_id)
                                     # 推送完整输出到主聊天区
                                     if result_text:
                                         output_display = result_text[:2000]
