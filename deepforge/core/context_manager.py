@@ -151,6 +151,7 @@ def build_context(
         '- 测试 Python 程序用 python -c "from xxx import ...; 函数调用" 或命令行参数\n'
         '- 测试服务用 nohup 后台启动 + curl 验证，不要前台阻塞运行\n'
         '- 如果用户要求"交互式"程序（CLI菜单），创建文件后告知用户如何本地运行，不要在 shell 中测试\n'
+        '- 多文件 Python 项目：同目录内 import 用相对路径（from service import X），不要 from 目录名.module（会找不到包）\n'
     )
 
     # 连接器概要（Level 1）
