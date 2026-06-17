@@ -459,10 +459,13 @@ class Orchestrator:
             log.info("_action_loop | round=%d raw_len=%d", round_idx, len(raw) if raw else 0)
 
             if raw:
+                usage_data = {}
+                if hasattr(client, 'last_usage') and client.last_usage:
+                    usage_data = client.last_usage
                 self._slog("llm_call", "llm_response",
                            duration_ms=_llm_ms,
                            summary=f"round {round_idx}, {len(raw)} chars",
-                           data={"round": round_idx, "raw_len": len(raw)},
+                           data={"round": round_idx, "raw_len": len(raw), **usage_data},
                            trace_payload=raw, trace_kind="llm_output")
 
             # 解析 action
@@ -2116,13 +2119,25 @@ class Orchestrator:
             self.context.metadata["_behavior_manifest"] = manifest
 
         # ═══ 执行构建 ═══
+        self._slog("framework", "build_start",
+                   summary=f"complexity={complexity}, has_prev={bool(prev_code_context)}",
+                   data={"complexity": complexity, "has_prev_code": bool(prev_code_context),
+                         "checklist_count": len(checklist)})
+        _build_t0 = __import__("time").time()
         await self._run_agent("builder", build_input, "user", timeout=900)
+
+        _build_ms = (__import__("time").time() - _build_t0) * 1000
+        has_output = bool(self.context.artifacts.get("code_files"))
+        self._slog("framework", "build_end",
+                   duration_ms=_build_ms,
+                   summary=f"{'success' if has_output else 'no output'}, {_build_ms/1000:.1f}s",
+                   data={"has_output": has_output,
+                         "files": list(self.context.artifacts.get("code_files", []))[:5]})
 
         if self.context.metadata.get("_pending_decisions"):
             return self.context
 
         # ═══ C. Checklist 验收（StepBuilder 已有内置验证，跳过）═══
-        has_output = bool(self.context.artifacts.get("code_files"))
         if has_output and checklist and complexity != "complex":
             try:
                 from educe.core.checklist_judge import verify_checklist

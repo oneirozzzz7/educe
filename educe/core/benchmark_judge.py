@@ -169,11 +169,27 @@ async def judge_case(
 
 def extract_output_for_judge(result: dict) -> str:
     """从 benchmark result 中提取 judge 需要看的产出文本"""
+    import pathlib
     parts = []
-    # First try trace for full LLM output
     workspace = result.get("workspace", "")
+
+    # Priority 1: Read actual files from workspace (build 产出)
     if workspace:
-        import pathlib
+        ws_path = pathlib.Path(workspace)
+        if ws_path.exists():
+            for f in sorted(ws_path.rglob("*")):
+                if f.is_file() and f.suffix in (".html", ".py", ".js", ".css", ".json", ".txt", ".md", ".csv"):
+                    try:
+                        content = f.read_text(errors="ignore")[:3000]
+                        if content.strip():
+                            parts.append(f"=== {f.name} ===\n{content}")
+                    except Exception:
+                        pass
+                if len(parts) >= 5:
+                    break
+
+    # Priority 2: trace for full LLM output (if no workspace files)
+    if not parts and workspace:
         log_dir = pathlib.Path(workspace).parent / "logs"
         for trace_file in log_dir.rglob("trace.jsonl"):
             try:
@@ -187,14 +203,15 @@ def extract_output_for_judge(result: dict) -> str:
                             parts.append(payload)
             except Exception:
                 pass
-    # Fallback to reply_preview
+
+    # Fallback: reply_preview
     if not parts:
         for evt in result.get("events", []):
             if evt.get("name") == "model_output":
                 preview = evt.get("data", {}).get("reply_preview", "")
                 if preview:
                     parts.append(preview)
-    return "\n---\n".join(parts) if parts else "(无产出)"
+    return "\n---\n".join(parts)[:6000] if parts else "(无产出)"
 
 
 def extract_trace_for_judge(result: dict) -> str:

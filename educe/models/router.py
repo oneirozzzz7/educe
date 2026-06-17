@@ -13,6 +13,7 @@ log = logging.getLogger("educe.model")
 class ModelClient:
     def __init__(self, api_key: str, base_url: str):
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120)
+        self.last_usage: dict | None = None
 
     async def _chat_raw(
         self,
@@ -51,6 +52,17 @@ class ModelClient:
         finish_reason = getattr(response.choices[0], "finish_reason", None)
         log.info("model_resp | finish=%s, content_len=%d",
                  finish_reason, len(response.choices[0].message.content or ""))
+
+        # Record token usage
+        usage = getattr(response, "usage", None)
+        if usage:
+            self.last_usage = {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+            }
+        else:
+            self.last_usage = None
         if finish_reason == "length" and not _is_escalation:
             escalated = min(max_tokens * 4, 32768)
             log.info("max_tokens escalation: %d -> %d (finish_reason=length)", max_tokens, escalated)

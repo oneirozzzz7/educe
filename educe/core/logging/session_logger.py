@@ -98,6 +98,17 @@ class SessionLogger:
         self._task = task[:200]
 
     def close(self, status: str = "completed") -> None:
+        duration_ms = (_now() - self._start_ts) * 1000
+        self.event(
+            type="framework",
+            name="session_end",
+            status="ok" if status == "completed" else status,
+            duration_ms=duration_ms,
+            summary=f"session ended: {status}",
+            data={"outcome": status, "n_events": self._n_events,
+                  "n_errors": self._n_errors, "duration_s": round(duration_ms / 1000, 1)},
+        )
+
         self._meta.status = status
         self._write_meta()
 

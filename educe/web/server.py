@@ -977,9 +977,12 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     await websocket.send_json({"type": "status", "content": "idle"})
 
         except WebSocketDisconnect:
-            # Close session logger
-            if orchestrator and orchestrator.session_logger:
-                orchestrator.session_logger.close("completed")
+            # Close session logger (protected — must not lose logs)
+            try:
+                if orchestrator and orchestrator.session_logger:
+                    orchestrator.session_logger.close("completed")
+            except Exception:
+                pass
             # Clean up stuck building state
             if orchestrator and hasattr(orchestrator, 'state') and orchestrator.state.phase == "building":
                 code_files = orchestrator.context.artifacts.get("code_files", [])
@@ -993,6 +996,15 @@ def create_app(config: EduceConfig | None = None) -> Any:
             upload_dir = Path(".educe/uploads") / session_id
             if upload_dir.exists():
                 shutil.rmtree(upload_dir, ignore_errors=True)
+        except Exception as e:
+            # Catch-all: ensure logger is closed even on unexpected errors
+            try:
+                if orchestrator and orchestrator.session_logger:
+                    orchestrator.session_logger.close("error")
+            except Exception:
+                pass
+            import logging as _log
+            _log.getLogger("educe.ws").error("WebSocket handler crash: %s", str(e)[:200])
 
     return app
 
