@@ -216,6 +216,16 @@ class Orchestrator:
         if pending:
             return await self._handle_action_confirm(user_input, pending)
 
+        # ═══ 如果模型在等用户回答澄清问题 → 把回答合并到原始请求继续执行 ═══
+        if self.context.metadata.get("_clarify_pending"):
+            original = self.context.metadata.pop("_pending_user_input", "")
+            self.context.metadata.pop("_clarify_pending", None)
+            combined = f"{original}\n\n用户补充：{user_input}"
+            self.conversation.add_user(user_input)
+            if hasattr(self, 'state'):
+                self.state.add_user_input(user_input)
+            return await self._action_loop(combined, self.context.metadata.get("_transcript"))
+
         # ═══ 如果有用户决策回来——直接走构建 ═══
         if self.context.metadata.get("_user_decisions"):
             self.context.metadata["expert_name"] = "编程专家"
@@ -555,7 +565,18 @@ class Orchestrator:
                 # IterationState: 将执行结果映射为知识状态更新
                 self._update_iteration_state(action, result, _sid)
 
-                # BehaviorLearner: 检测失败→重试成功模式
+                # Clarify: 模型主动向用户提问 → 暂停循环
+                if result.get("_clarify"):
+                    question = result.get("output", "")
+                    self._notify_chunk("assistant", question)
+                    if hasattr(self, 'state'):
+                        self.state.add_ai_reply(question)
+                    self.conversation.add_assistant(question)
+                    # 保存上下文供用户回复后续接
+                    self.context.metadata["_clarify_pending"] = True
+                    self.context.metadata["_pending_user_input"] = user_input
+                    final_reply = question
+                    break
                 if not result.get("success"):
                     self.context.metadata.setdefault("_failed_actions", []).append({
                         "type": action.type, "params": action.params[:200],
@@ -730,7 +751,9 @@ class Orchestrator:
         elif guard_result.action == "block":
             return {"success": False, "output": f"[Guardian 拦截] {guard_result.reason}"}
 
-        if action.type == "memorize":
+        if action.type == "clarify":
+            return {"success": True, "output": action.params.strip(),
+                    "_clarify": True}
             result = await self._exec_memorize(action, _sid)
             # memorize 成功后更新 session 记忆
             if result.get("success") and "已记住" in result.get("output", ""):

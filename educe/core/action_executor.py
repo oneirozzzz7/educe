@@ -53,6 +53,7 @@ _VALID_ACTION_TYPES = {
     "search_in_file", "read_lines",
     "create_file", "run", "exec",
     "memorize", "build", "plan", "recall", "search", "use_tool",
+    "clarify",
 }
 
 # 别名映射：模型可能使用的变体 → 规范 type
