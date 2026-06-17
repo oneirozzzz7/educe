@@ -111,6 +111,7 @@ class BenchmarkRunner:
         run_id: str | None = None,
         output_dir: Path | None = None,
         timeout_s: float = 120.0,
+        enable_skills: bool = True,
     ):
         self.cases = cases
         self.model_name = model_name
@@ -119,6 +120,7 @@ class BenchmarkRunner:
         self.run_id = run_id or time.strftime("%Y%m%d_%H%M%S")
         self.output_dir = output_dir or Path(f".educe/benchmark_runs/{self.run_id}/{model_name}")
         self.timeout_s = timeout_s
+        self.enable_skills = enable_skills
         self.results: list[CaseResult] = []
 
     async def run_all(self) -> list[CaseResult]:
@@ -177,6 +179,10 @@ class BenchmarkRunner:
         orchestrator.context.metadata["_project_context_path"] = str(workspace)
         # Benchmark mode: auto-confirm all actions (no human in the loop)
         orchestrator.context.metadata["_benchmark_auto_confirm"] = True
+
+        # CompositeSkill A/B: disable skill injection for baseline runs
+        if not self.enable_skills:
+            orchestrator._match_composite_skills = lambda *a, **kw: ""
 
         # Register agents
         client = ModelClient(api_key=self.api_key, base_url=self.base_url)
@@ -259,3 +265,89 @@ class BenchmarkRunner:
         print(f"  Nudges: {summary['total_nudges']} | Timeouts: {summary['timeout']} | Errors: {summary['error']}")
         print(f"  Saved: {summary_file}")
         print(f"{'='*60}\n")
+
+
+async def run_ab_comparison(
+    cases: list[BenchmarkCase],
+    model_name: str,
+    api_key: str,
+    base_url: str,
+    timeout_s: float = 120.0,
+) -> dict:
+    """
+    A/B 对照：分别运行 skill_off (baseline) 和 skill_on (treatment)，
+    返回对比结果。
+    """
+    run_id = time.strftime("%Y%m%d_%H%M%S")
+
+    # Baseline: skills OFF
+    runner_off = BenchmarkRunner(
+        cases=cases, model_name=model_name,
+        api_key=api_key, base_url=base_url,
+        run_id=f"{run_id}_skill_off",
+        timeout_s=timeout_s, enable_skills=False,
+    )
+    print("\n" + "=" * 60)
+    print("  A/B Phase 1: SKILL OFF (baseline)")
+    print("=" * 60)
+    results_off = await runner_off.run_all()
+
+    # Treatment: skills ON
+    runner_on = BenchmarkRunner(
+        cases=cases, model_name=model_name,
+        api_key=api_key, base_url=base_url,
+        run_id=f"{run_id}_skill_on",
+        timeout_s=timeout_s, enable_skills=True,
+    )
+    print("\n" + "=" * 60)
+    print("  A/B Phase 2: SKILL ON (treatment)")
+    print("=" * 60)
+    results_on = await runner_on.run_all()
+
+    # Compare
+    off_rounds = [r.metrics.get("total_rounds", 0) for r in results_off if r.status == "completed"]
+    on_rounds = [r.metrics.get("total_rounds", 0) for r in results_on if r.status == "completed"]
+    off_tools = [r.metrics.get("tool_call_count", 0) for r in results_off if r.status == "completed"]
+    on_tools = [r.metrics.get("tool_call_count", 0) for r in results_on if r.status == "completed"]
+
+    avg_off_r = sum(off_rounds) / max(len(off_rounds), 1)
+    avg_on_r = sum(on_rounds) / max(len(on_rounds), 1)
+    avg_off_t = sum(off_tools) / max(len(off_tools), 1)
+    avg_on_t = sum(on_tools) / max(len(on_tools), 1)
+
+    delta_rounds = (avg_on_r - avg_off_r) / max(avg_off_r, 0.1) * 100
+    delta_tools = (avg_on_t - avg_off_t) / max(avg_off_t, 0.1) * 100
+
+    comparison = {
+        "run_id": run_id,
+        "model": model_name,
+        "cases_count": len(cases),
+        "baseline_completed": len(off_rounds),
+        "treatment_completed": len(on_rounds),
+        "avg_rounds_off": round(avg_off_r, 1),
+        "avg_rounds_on": round(avg_on_r, 1),
+        "rounds_delta_pct": round(delta_rounds, 1),
+        "avg_tools_off": round(avg_off_t, 1),
+        "avg_tools_on": round(avg_on_t, 1),
+        "tools_delta_pct": round(delta_tools, 1),
+        "target_met": delta_rounds <= -40,
+    }
+
+    print("\n" + "=" * 60)
+    print("  A/B COMPARISON RESULTS")
+    print("=" * 60)
+    print(f"  {'Metric':<20} {'Skill OFF':<12} {'Skill ON':<12} {'Delta':<10}")
+    print(f"  {'-' * 54}")
+    print(f"  {'Avg Rounds':<20} {avg_off_r:<12.1f} {avg_on_r:<12.1f} {delta_rounds:+.1f}%")
+    print(f"  {'Avg Tool Calls':<20} {avg_off_t:<12.1f} {avg_on_t:<12.1f} {delta_tools:+.1f}%")
+    print(f"\n  Target: rounds reduction >= 40%")
+    passed = "✅ PASS" if delta_rounds <= -40 else ("⚠️ partial" if delta_rounds < 0 else "❌ regression")
+    print(f"  Result: {passed} ({delta_rounds:+.1f}%)")
+    print("=" * 60)
+
+    # Save comparison
+    comp_file = Path(f".educe/benchmark_runs/{run_id}_comparison.json")
+    comp_file.parent.mkdir(parents=True, exist_ok=True)
+    comp_file.write_text(json.dumps(comparison, ensure_ascii=False, indent=2))
+
+    return comparison
