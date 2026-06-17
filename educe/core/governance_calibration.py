@@ -142,21 +142,56 @@ def run_analysis(logs_dir: Path | None = None) -> None:
     print(combined_safety.summary())
     print()
 
+    # Fine-grained FN analysis
+    true_fn = _count_true_fn(all_dirs)
+    tp = combined_nudge.tp
+    adjusted_recall = tp / max(tp + true_fn, 1)
+    print(f"【修正后指标（排除不该管的 session）】")
+    print(f"  真正漏报: {true_fn} (有探索≥3轮但未 nudge)")
+    print(f"  修正 Recall: {adjusted_recall:.2f}")
+    print()
+
     # Recommendations
     print("【建议】")
     if combined_nudge.precision < 0.5:
         print("  ⚠️ Nudge precision 低 — 干预频繁但效果差，考虑提高触发阈值")
-    elif combined_nudge.precision > 0.8:
-        print("  ✓ Nudge precision 高 — 干预精准有效")
+    elif combined_nudge.precision > 0.7:
+        print("  ✓ Nudge precision 良好")
 
-    if combined_nudge.recall < 0.5:
-        print("  ⚠️ Nudge recall 低 — 大量失败 session 未被干预，考虑降低阈值")
-    elif combined_nudge.recall > 0.8:
-        print("  ✓ Nudge recall 高 — 覆盖良好")
+    if adjusted_recall < 0.5:
+        print("  ⚠️ 修正 recall 低 — 仍有大量真漏报")
+    elif adjusted_recall > 0.7:
+        print("  ✓ 修正 recall 良好 — 真正需要干预的大部分被覆盖")
 
-    fn_ratio = combined_nudge.fn / max(combined_nudge.fn + combined_nudge.tn, 1)
-    if fn_ratio > 0.3:
-        print(f"  ⚠️ {fn_ratio:.0%} 的无干预 session 结局失败 — 漏报严重")
+
+def _count_true_fn(all_dirs: list[Path]) -> int:
+    """统计真正的漏报：有探索≥3轮 + 无 nudge + 结局失败"""
+    count = 0
+    for logs_dir in all_dirs:
+        for events_file in logs_dir.rglob("events.jsonl"):
+            try:
+                events = [json.loads(l) for l in events_file.read_text().strip().split("\n") if l.strip()]
+            except Exception:
+                continue
+            if len(events) < 3:
+                continue
+
+            tool_results = [e for e in events if e.get("type") == "tool_call"]
+            has_edit = any(
+                e.get("data", {}).get("action_type") in ("edit_file", "write_file", "shell")
+                and e.get("status") == "ok"
+                for e in tool_results
+            )
+            had_nudge = any(e.get("name") == "nudge_triggered" for e in events)
+            has_exploration = any(
+                e.get("data", {}).get("action_type") in ("read_file", "read_dir", "read_lines", "search_in_file")
+                for e in tool_results
+            )
+            rounds = sum(1 for e in events if e.get("name") == "turn_start")
+
+            if not had_nudge and not has_edit and has_exploration and rounds >= 3:
+                count += 1
+    return count
 
 
 if __name__ == "__main__":
