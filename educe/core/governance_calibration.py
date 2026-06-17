@@ -76,7 +76,8 @@ def analyze_sessions(logs_dir: Path) -> dict[str, InterventionStats]:
             and e.get("status") == "ok"
             for e in tool_results
         )
-        session_success = outcome == "completed" and has_successful_edit
+        # Success = has meaningful tool output, regardless of session_end status
+        session_success = has_successful_edit
 
         # Count interventions
         nudge_count = sum(1 for e in events if e.get("name") == "nudge_triggered")
