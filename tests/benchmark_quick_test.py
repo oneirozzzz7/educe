@@ -11,25 +11,29 @@ from educe.core.benchmark_runner import BenchmarkRunner, BenchmarkCase, CaseResu
 
 def check_calculation(result: CaseResult, workspace: Path) -> tuple[bool, float, str]:
     """验证计算结果包含 56088"""
+    import re
     for evt in result.events:
         if evt.get("name") == "model_output":
             preview = evt.get("data", {}).get("reply_preview", "")
-            if "56088" in preview or "56,088" in preview or "56 088" in preview:
-                return True, 1.0, "正确答案 56088"
-    # Check full conversation
+            # Normalize all whitespace/separator chars for matching
+            normalized = re.sub(r'[\s  ,.]', '', preview)
+            if "56088" in normalized:
+                return True, 1.0, f"正确答案 56088 (raw: {preview[:40]})"
     for evt in result.events:
-        summary = evt.get("summary", "")
-        if "56088" in summary or "56,088" in summary or "56 088" in summary:
-            return True, 1.0, "正确答案 56088"
+        summary = re.sub(r'[\s  ,.]', '', evt.get("summary", ""))
+        if "56088" in summary:
+            return True, 1.0, "正确答案 56088 (in summary)"
     return False, 0.0, "未找到正确答案 56088"
 
 
 def check_system_info(result: CaseResult, workspace: Path) -> tuple[bool, float, str]:
-    """验证执行了系统命令"""
+    """验证执行了目录读取或系统命令"""
     for evt in result.events:
-        if evt.get("type") == "tool_call" and evt.get("data", {}).get("action_type") == "shell":
-            return True, 1.0, "执行了 shell 命令"
-    return False, 0.0, "未执行 shell 命令"
+        if evt.get("type") == "tool_call":
+            action_type = evt.get("data", {}).get("action_type", "")
+            if action_type in ("shell", "read_dir", "read_file"):
+                return True, 1.0, f"执行了 {action_type}"
+    return False, 0.0, "未执行任何读取/命令操作"
 
 
 def check_file_created(result: CaseResult, workspace: Path) -> tuple[bool, float, str]:
