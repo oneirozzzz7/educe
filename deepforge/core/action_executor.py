@@ -112,6 +112,22 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                     name=attrs.get("name", ""),
                 ))
 
+    # Fallback：原生 tool call 格式（Kimi K2 / 某些模型的特殊 token 格式）
+    # 匹配模式: <|tool_call_begin|>...<|tool_call_end|>tool:name\n{json}<|tool_call_argument_begin|>
+    # 或: tool:name\n{json}（无特殊 token 包装）
+    if not actions:
+        _NATIVE_TOOL_CALL = re.compile(
+            r'(?:<\|tool_call_begin\|>.*?<\|tool_call_end\|>)?'
+            r'tool:([^\s\n]+)\s*\n*'
+            r'(\{[^}]*\})'
+            r'(?:<\|tool_call_argument_begin\|>)?',
+            re.DOTALL
+        )
+        for m in _NATIVE_TOOL_CALL.finditer(text):
+            tool_name = m.group(1).strip()
+            params = m.group(2).strip()
+            actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
+
     # 清理 reply_text（去掉 action 代码块和 XML 标签）
     reply_text = text
     for m in reversed(list(_MD_ACTION_PATTERN.finditer(text))):

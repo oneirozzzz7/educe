@@ -425,7 +425,7 @@ class Orchestrator:
                         reply_preview=reply_text[:80])
 
             if not actions:
-                # 无 action = 纯回复，流式推送给用户，循环结束
+                # 无 action = 纯回复
                 if not raw or not raw.strip():
                     log.warning("_action_loop | round %d empty response, messages=%d",
                                 round_idx, len(messages))
@@ -436,6 +436,24 @@ class Orchestrator:
                         if hasattr(self, 'state'):
                             self.state.add_ai_reply(fallback)
                 else:
+                    # 检测"未完成意图"：模型声明了方案但没执行
+                    _CONTINUATION_SIGNALS = [
+                        "让我实现", "让我修改", "让我添加", "让我开始",
+                        "我的方案是", "具体修改如下", "接下来我会",
+                        "let me implement", "let me modify", "I'll now",
+                    ]
+                    has_continuation = (
+                        round_idx > 0 and round_idx < max_rounds - 2
+                        and any(sig in raw for sig in _CONTINUATION_SIGNALS)
+                    )
+                    if has_continuation:
+                        # 模型想继续但没输出 action → 追加提示让它执行
+                        messages.append({"role": "assistant", "content": raw})
+                        messages.append({"role": "user", "content":
+                            "[系统] 方案已收到。请直接用代码块执行修改，不需要再解释。"})
+                        log.info("_action_loop | round %d continuation detected, prompting execution", round_idx)
+                        continue
+
                     for i in range(0, len(raw), 20):
                         self._notify_chunk("assistant", raw[i:i+20])
                     final_reply = raw
