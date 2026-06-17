@@ -34,7 +34,7 @@ async def run_tests():
         print("\n1️⃣  页面加载")
         await page.goto(URL, wait_until="networkidle")
         title = await page.title()
-        report("页面标题", title == "DeepForge", title)
+        report("页面标题", title == "Educe", title)
 
         # 检查关键元素
         logo = await page.locator("text=DeepForge").count()

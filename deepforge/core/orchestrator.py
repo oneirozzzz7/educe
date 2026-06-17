@@ -3087,7 +3087,7 @@ class Orchestrator:
 
                 # (SelfEvolver已移至run()入口统一处理)
             else:
-                self.context.metadata["expert_name"] = "DeepForge"
+                self.context.metadata["expert_name"] = "Educe"
 
             self.context.artifacts["last_text_domain"] = domain_tag
             self.conversation.add_assistant(raw, domain=domain_tag)

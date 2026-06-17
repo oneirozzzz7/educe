@@ -33,7 +33,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         )
 
     config = config or DeepForgeConfig.load()
-    app = FastAPI(title="DeepForge", version="0.1.0")
+    app = FastAPI(title="Educe", version="0.1.0")
 
     app.add_middleware(
         CORSMiddleware,

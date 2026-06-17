@@ -138,7 +138,7 @@ class PreviewServer:
         )
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><title>DeepForge 产出物</title>
+<head><meta charset="UTF-8"><title>Educe 产出物</title>
 <style>
 body{{font-family:system-ui;background:#0a0e14;color:#e6edf3;padding:40px;max-width:800px;margin:0 auto}}
 h1{{background:linear-gradient(135deg,#39d2c0,#58a6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}}

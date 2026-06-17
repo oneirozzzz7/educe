@@ -46,7 +46,7 @@ class HallucinationGuardConfig(BaseModel):
 
 
 class DeepForgeConfig(BaseModel):
-    project_name: str = "DeepForge"
+    project_name: str = "Educe"
     work_dir: str = "."
     language: str = "zh"
 
