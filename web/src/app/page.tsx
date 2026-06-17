@@ -550,7 +550,6 @@ export default function Home() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "20vh", position: "relative" }}>
                 <div style={{ position: "absolute", top: "18vh", left: "50%", transform: "translateX(-50%)", width: 320, height: 180, background: "radial-gradient(ellipse at center, rgba(167,139,250,0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
                 <LogoMark size={44} />
-                <div style={{ fontSize: 22, color: "var(--text-2)", fontWeight: 300, letterSpacing: "0.08em", marginTop: 16 }}>Educe</div>
               </div>
             )}
 
