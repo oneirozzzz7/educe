@@ -1,0 +1,46 @@
+{
+  "analysis": "variance_3runs_3cases",
+  "model": "Kimi-K2",
+  "cases": {
+    "LIFE-01": {
+      "acc": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "variance": 0.0,
+      "rounds": [
+        2,
+        2,
+        2
+      ]
+    },
+    "FIN-01": {
+      "acc": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "variance": 0.0,
+      "rounds": [
+        2,
+        4,
+        2
+      ]
+    },
+    "CODE-01": {
+      "acc": [
+        0.8,
+        1.0,
+        1.0
+      ],
+      "variance": 0.2,
+      "rounds": [
+        20,
+        20,
+        20
+      ]
+    }
+  },
+  "conclusion": "Kimi-K2 highly stable on key cases. Variance in efficiency (rounds/time) not quality."
+}
