@@ -72,6 +72,21 @@ _XML_ACTION_PATTERN = re.compile(
 _ATTR_PATTERN = re.compile(r'(\w+)\s*=\s*["\']?([^"\'\s>]+)["\']?')
 
 
+def _looks_executable(code: str) -> bool:
+    """判断 python 代码块是否像可执行脚本（非纯定义/展示）"""
+    lines = code.strip().split("\n")
+    if len(lines) < 2:
+        return False
+    executable_signals = ("print(", "print (", "result", "= ", "import ", "open(", "input(")
+    return any(any(sig in line for sig in executable_signals) for line in lines)
+
+
+def _quote_for_shell(code: str) -> str:
+    """将 Python 代码包装为 shell 安全的单引号字符串"""
+    escaped = code.replace("'", "'\\''")
+    return f"'{escaped}'"
+
+
 def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
     """从模型输出中提取 action 和纯文字部分。
 
@@ -164,6 +179,19 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
     reply_text = re.sub(r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>', '', reply_text, flags=re.DOTALL)
     reply_text = re.sub(r'tool:[\w.]+\s*\n\{[^}]*\}', '', reply_text)
     reply_text = reply_text.strip()
+
+    # Code-block promotion: 如果无 action 但有可执行的 python/bash 代码块，提升为 shell
+    if not actions:
+        for m in _MD_ACTION_PATTERN.finditer(text):
+            lang = m.group(1).lower()
+            body = m.group(2).strip()
+            if lang in ("python", "py") and _looks_executable(body):
+                actions.append(ParsedAction(type="shell", params=f"python3 -c {_quote_for_shell(body)}", name=""))
+                break
+            elif lang in ("bash", "sh") and body:
+                actions.append(ParsedAction(type="shell", params=body, name=""))
+                break
+
     return reply_text, actions
 
 
