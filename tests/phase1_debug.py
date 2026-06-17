@@ -8,10 +8,10 @@ async def main():
     # 但history里包含了前一轮的回答，模型可能被history干扰
 
     # 先单独测试judge prompt在无history时的表现
-    from educe.core.config import DeepForgeConfig
+    from educe.core.config import EduceConfig
     from educe.models.router import ModelClient
 
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
 
     tests = [

@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.orchestrator import Orchestrator
 from educe.core.message import Message
 from educe.models.router import ModelClient
@@ -25,14 +25,14 @@ except ImportError:
     HAS_WEB_DEPS = False
 
 
-def create_app(config: DeepForgeConfig | None = None) -> Any:
+def create_app(config: EduceConfig | None = None) -> Any:
     if not HAS_WEB_DEPS:
         raise ImportError(
             "Web dependencies not installed. Run: pip install educe[web]\n"
             "Or: pip install fastapi uvicorn websockets"
         )
 
-    config = config or DeepForgeConfig.load()
+    config = config or EduceConfig.load()
     app = FastAPI(title="Educe", version="0.1.0")
 
     app.add_middleware(
@@ -1046,7 +1046,7 @@ def _extract_summary(sender: str, content: str, msg_type: str) -> str:
     return AGENT_SUMMARIES.get(sender, "完成")
 
 
-def run_web(host: str = "0.0.0.0", port: int = 7860, config: DeepForgeConfig | None = None):
+def run_web(host: str = "0.0.0.0", port: int = 7860, config: EduceConfig | None = None):
     if not HAS_WEB_DEPS:
         print("Web dependencies not installed. Run: pip install educe[web]")
         print("Or: pip install fastapi uvicorn websockets")
@@ -1062,7 +1062,7 @@ def run_web(host: str = "0.0.0.0", port: int = 7860, config: DeepForgeConfig | N
 
 # Module-level app for uvicorn CLI: uvicorn educe.web.server:app
 try:
-    from educe.core.config import DeepForgeConfig as _Cfg
+    from educe.core.config import EduceConfig as _Cfg
     app = create_app(_Cfg.load())
 except Exception:
     app = None

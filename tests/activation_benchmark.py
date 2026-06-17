@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.activation_engine import (
     ActivationEngine, REASONING_CHAINS, DEFAULT_ACTIVATION_SEED
 )
@@ -197,7 +197,7 @@ async def run_experiment(variant: str, model_name: str, client: ModelClient):
 
 
 async def main():
-    cfg = DeepForgeConfig.load()
+    cfg = EduceConfig.load()
     model_name = cfg.default_model.model
     client = ModelClient(api_key=cfg.default_model.api_key, base_url=cfg.default_model.base_url)
 

@@ -91,11 +91,11 @@ def evaluate_html(content: str, checks: list) -> dict:
 
 async def run_educe_task(task: dict, output_dir: Path) -> dict:
     """Run task through Educe framework (StepBuilder)"""
-    from educe.core.config import DeepForgeConfig
+    from educe.core.config import EduceConfig
     from educe.core.step_builder import StepBuilder
     from educe.models.router import ModelClient
 
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
 
     build_system = (

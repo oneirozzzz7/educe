@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.activation_engine import (
     ActivationEngine, ACTIVATION_PROMPT, REASONING_CHAINS, DOMAIN_LABELS
 )
@@ -166,7 +166,7 @@ async def evolve_domain(client: ModelClient, model: str, domain_key: str, domain
 
 
 async def main():
-    cfg = DeepForgeConfig.load()
+    cfg = EduceConfig.load()
     model = cfg.default_model.model
     client = ModelClient(api_key=cfg.default_model.api_key, base_url=cfg.default_model.base_url)
 

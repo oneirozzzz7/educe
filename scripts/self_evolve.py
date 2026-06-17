@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from educe.core.config import DeepForgeConfig, ModelConfig
+from educe.core.config import EduceConfig, ModelConfig
 from educe.core.orchestrator import Orchestrator
 from educe.core.message import Message, MessageType, WorkContext
 from educe.models.router import ModelClient
@@ -72,7 +72,7 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class EvolutionEngine:
-    def __init__(self, config: DeepForgeConfig):
+    def __init__(self, config: EduceConfig):
         self.config = config
         self.client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
         self.memory = MemoryStore(".educe/memory")
@@ -315,7 +315,7 @@ async def main():
     from educe.core.setup_wizard import load_env_file
     load_env_file()
 
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     if not config.default_model.api_key:
         print("❌ 请先配置API Key")
         sys.exit(1)

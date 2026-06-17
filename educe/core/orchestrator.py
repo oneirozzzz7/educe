@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 
 from educe.core.agent import BaseAgent
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.message import Message, MessageType, WorkContext
 from educe.core.observer import Observer
 from educe.core.task_store import TaskStore
@@ -32,7 +32,7 @@ console = Console()
 
 
 class Orchestrator:
-    def __init__(self, config: DeepForgeConfig, max_iterations: int = 3):
+    def __init__(self, config: EduceConfig, max_iterations: int = 3):
         self.config = config
         self.agents: dict[str, BaseAgent] = {}
         self.context = WorkContext()

@@ -11,7 +11,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 from rich import box
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.orchestrator import Orchestrator
 from educe.models.router import ModelClient, ModelRouter, PROVIDER_PRESETS
 from educe.agents import ALL_AGENTS
@@ -34,7 +34,7 @@ BANNER = r"""
 """
 
 
-def create_orchestrator(config: DeepForgeConfig) -> Orchestrator:
+def create_orchestrator(config: EduceConfig) -> Orchestrator:
     model_cfg = config.default_model
     client = ModelClient(api_key=model_cfg.api_key, base_url=model_cfg.base_url)
 
@@ -58,7 +58,7 @@ def show_banner():
     console.print(BANNER)
 
 
-def show_status(config: DeepForgeConfig):
+def show_status(config: EduceConfig):
     table = Table(box=box.ROUNDED, title="⚙️ 当前配置", title_style="bold")
     table.add_column("项目", style="cyan")
     table.add_column("值", style="green")
@@ -92,12 +92,12 @@ def chat(config):
     """交互式对话模式"""
     from educe.core.setup_wizard import load_env_file, ensure_configured
     load_env_file()
-    cfg = DeepForgeConfig.load(config)
+    cfg = EduceConfig.load(config)
     show_banner()
 
     if not cfg.default_model.api_key:
         ensure_configured()
-        cfg = DeepForgeConfig.load(config)
+        cfg = EduceConfig.load(config)
     show_status(cfg)
 
     if not cfg.default_model.api_key:
@@ -198,7 +198,7 @@ def init(provider):
         shutil.copy(template, target)
         console.print(f"[green]✅ 配置文件已创建: {target}[/green]")
     else:
-        cfg = DeepForgeConfig()
+        cfg = EduceConfig()
         if provider in PROVIDER_PRESETS:
             preset = PROVIDER_PRESETS[provider]
             cfg.default_model.base_url = preset["base_url"]
@@ -219,7 +219,7 @@ def run(prompt, config):
         console.print("[red]请提供任务描述[/red]")
         return
 
-    cfg = DeepForgeConfig.load(config)
+    cfg = EduceConfig.load(config)
     if not cfg.default_model.api_key:
         console.print("[red]未配置API Key[/red]")
         return
@@ -235,7 +235,7 @@ def run(prompt, config):
 @click.option("--game", "-g", default=None, help="游戏描述（默认：像素跑酷）")
 def demo(config, game):
     """一键Demo：生成可玩的Chrome小游戏扩展"""
-    cfg = DeepForgeConfig.load(config)
+    cfg = EduceConfig.load(config)
     if not cfg.default_model.api_key:
         console.print("[red]未配置API Key[/red]")
         return
@@ -260,11 +260,11 @@ def web(host, port, config):
     """启动Web界面（适合非技术用户）"""
     from educe.core.setup_wizard import load_env_file, ensure_configured
     load_env_file()
-    cfg = DeepForgeConfig.load(config)
+    cfg = EduceConfig.load(config)
 
     if not cfg.default_model.api_key:
         ensure_configured()
-        cfg = DeepForgeConfig.load(config)
+        cfg = EduceConfig.load(config)
 
     console.print(f"\n[bold cyan]🌐 DeepForge Web UI[/bold cyan]")
     console.print(f"[dim]访问 http://localhost:{port} 开始使用[/dim]\n")
@@ -312,7 +312,7 @@ def _show_agents(orchestrator: Orchestrator):
     console.print(table)
 
 
-def _show_memory(config: DeepForgeConfig):
+def _show_memory(config: EduceConfig):
     store = MemoryStore(config.memory.storage_dir)
     stats = store.stats()
 

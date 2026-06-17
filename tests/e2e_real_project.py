@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.orchestrator import Orchestrator
 from educe.agents import ALL_AGENTS
 from educe.models.router import ModelClient
@@ -36,7 +36,7 @@ PROJECT_DIR = "/tmp/educe_test_project"
 
 def setup_orchestrator() -> Orchestrator:
     """创建带真实模型的 Orchestrator"""
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     client = ModelClient(api_key=config.default_model.api_key,
                          base_url=config.default_model.base_url)
     orchestrator = Orchestrator(config)

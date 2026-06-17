@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-from educe.core.config import DeepForgeConfig, ModelConfig
+from educe.core.config import EduceConfig, ModelConfig
 from educe.core.orchestrator import Orchestrator
 from educe.models.router import ModelClient
 from educe.agents import ALL_AGENTS
@@ -50,7 +50,7 @@ TASKS = [
 
 
 class EvolutionEngineV2:
-    def __init__(self, config: DeepForgeConfig, client: ModelClient):
+    def __init__(self, config: EduceConfig, client: ModelClient):
         self.config = config
         self.client = client
         self.knowledge = LayeredCache()
@@ -404,7 +404,7 @@ async def main():
     from local_config_loader import load_keys_from_llm_api
     load_keys_from_llm_api()
 
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     if not config.default_model.api_key:
         print("❌ 请先配置API Key")
         return

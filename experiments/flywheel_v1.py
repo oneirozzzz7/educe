@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.models.router import ModelClient
 from educe.core.activation_engine import ActivationEngine, ACTIVATION_PROMPT
 from tests.ab_experiment import TEST_QUESTIONS, score_response
@@ -248,7 +248,7 @@ async def step4_validate_new_seeds(client, model, max_tokens, new_seeds):
 
 
 async def main():
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
     client = ModelClient(
         api_key=config.default_model.api_key,
         base_url=config.default_model.base_url)

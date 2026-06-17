@@ -45,7 +45,7 @@ class HallucinationGuardConfig(BaseModel):
     mode: str = "quick"  # "quick"(轻量标注) 或 "deep"(完整声明拆解)
 
 
-class DeepForgeConfig(BaseModel):
+class EduceConfig(BaseModel):
     project_name: str = "Educe"
     work_dir: str = "."
     language: str = "zh"
@@ -69,7 +69,7 @@ class DeepForgeConfig(BaseModel):
     hallucination_guard: HallucinationGuardConfig = Field(default_factory=HallucinationGuardConfig)
 
     @classmethod
-    def load(cls, path: str | Path | None = None) -> DeepForgeConfig:
+    def load(cls, path: str | Path | None = None) -> EduceConfig:
         cls._load_dotenv()
 
         if path is None:

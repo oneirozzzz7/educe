@@ -4,7 +4,7 @@ import abc
 import asyncio
 from typing import Any, AsyncIterator
 
-from educe.core.config import DeepForgeConfig, ModelConfig
+from educe.core.config import EduceConfig, ModelConfig
 from educe.core.message import Message, MessageType, WorkContext
 
 
@@ -13,7 +13,7 @@ class BaseAgent(abc.ABC):
     role: str = "Base Agent"
     description: str = ""
 
-    def __init__(self, config: DeepForgeConfig, model_client: Any = None, **kwargs):
+    def __init__(self, config: EduceConfig, model_client: Any = None, **kwargs):
         self.config = config
         self.model_client = model_client
         self._model_config: ModelConfig | None = None

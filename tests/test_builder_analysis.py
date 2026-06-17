@@ -6,13 +6,13 @@ import asyncio
 import sys
 sys.path.insert(0, ".")
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.core.message import Message, MessageType, WorkContext
 from educe.agents.builder import BuilderAgent
 
 
 async def test_builder_analysis():
-    config = DeepForgeConfig.load()
+    config = EduceConfig.load()
 
     from educe.models.router import ModelClient
     model_config = config.get_model_config("builder")

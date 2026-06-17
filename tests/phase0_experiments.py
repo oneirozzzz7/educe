@@ -11,10 +11,10 @@ from pathlib import Path
 
 sys.path.insert(0, ".")
 
-from educe.core.config import DeepForgeConfig
+from educe.core.config import EduceConfig
 from educe.models.router import ModelClient
 
-config = DeepForgeConfig.load()
+config = EduceConfig.load()
 client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
 
 RESULTS_DIR = Path("docs/experiments")
