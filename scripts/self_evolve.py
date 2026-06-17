@@ -21,15 +21,15 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.config import DeepForgeConfig, ModelConfig
-from deepforge.core.orchestrator import Orchestrator
-from deepforge.core.message import Message, MessageType, WorkContext
-from deepforge.models.router import ModelClient
-from deepforge.agents import ALL_AGENTS
-from deepforge.agents.engineer import EngineerAgent
-from deepforge.agents.supervisor import SupervisorAgent
-from deepforge.memory.store import MemoryStore, MemoryEntry
-from deepforge.skills.registry import SkillRegistry
+from educe.core.config import DeepForgeConfig, ModelConfig
+from educe.core.orchestrator import Orchestrator
+from educe.core.message import Message, MessageType, WorkContext
+from educe.models.router import ModelClient
+from educe.agents import ALL_AGENTS
+from educe.agents.engineer import EngineerAgent
+from educe.agents.supervisor import SupervisorAgent
+from educe.memory.store import MemoryStore, MemoryEntry
+from educe.skills.registry import SkillRegistry
 
 # ═══ 进化任务池 ═══
 
@@ -225,7 +225,7 @@ class EvolutionEngine:
                 print(f"\n📦 Skill生成: {name}")
                 existing = self.skills.get(name)
                 if not existing:
-                    from deepforge.skills.registry import Skill
+                    from educe.skills.registry import Skill
                     skill = Skill(
                         name=name,
                         description=desc,
@@ -312,7 +312,7 @@ async def main():
     args = parser.parse_args()
 
     # 加载配置
-    from deepforge.core.setup_wizard import load_env_file
+    from educe.core.setup_wizard import load_env_file
     load_env_file()
 
     config = DeepForgeConfig.load()

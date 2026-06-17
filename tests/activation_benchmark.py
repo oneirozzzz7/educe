@@ -23,11 +23,11 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.config import DeepForgeConfig
-from deepforge.core.activation_engine import (
+from educe.core.config import DeepForgeConfig
+from educe.core.activation_engine import (
     ActivationEngine, REASONING_CHAINS, DEFAULT_ACTIVATION_SEED
 )
-from deepforge.models.router import ModelClient
+from educe.models.router import ModelClient
 
 # ═══ 测试集 ═══
 

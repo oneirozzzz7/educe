@@ -25,7 +25,7 @@ import websockets
 
 def test_part_a():
     """验证 IterationState 结构能正确表达状态回退"""
-    from deepforge.core.iteration_state import Claim, FactStatus, IterationState, StateLog
+    from educe.core.iteration_state import Claim, FactStatus, IterationState, StateLog
     import tempfile
 
     print("=" * 70)

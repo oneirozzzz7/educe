@@ -24,7 +24,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from deepforge.models.router import ModelClient
+from educe.models.router import ModelClient
 
 # 模型配置
 API_KEY = os.environ.get("EDUCE_MODEL_KEY", "")

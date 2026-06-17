@@ -1,7 +1,7 @@
 """IterationState 单元测试"""
 import time
 from pathlib import Path
-from deepforge.core.iteration_state import (
+from educe.core.iteration_state import (
     Claim, FactStatus, IterationState, StateLog,
 )
 

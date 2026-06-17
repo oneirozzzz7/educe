@@ -1,0 +1,99 @@
+# Educe 项目真实环境陷阱 — 模拟用户实验 Ground Truth
+# 这些是新用户/弱模型容易踩的坑，需要"环境经验"才能避免
+
+pitfalls:
+  - id: P1
+    trigger: "启动后端服务"
+    naive_action: "python main.py 或 python -m educe"
+    failure: "ImportError 或找不到模块"
+    correct_action: "python -c 'from educe.web.server import run_web; run_web(port=7860)'"
+    why: "项目用 module 导入方式，不能直接运行脚本文件"
+    type: environment_specific
+
+  - id: P2
+    trigger: "启动前端服务"
+    naive_action: "npm start 或 npm run dev"
+    failure: "找不到 start 脚本 或在错误目录"
+    correct_action: "cd web && npx next dev -p 3001"
+    why: "前端在 web/ 子目录，且用 npx 不是 npm run"
+    type: environment_specific
+
+  - id: P3
+    trigger: "修改后端代码后想看效果"
+    naive_action: "直接发请求测试"
+    failure: "还是旧行为"
+    correct_action: "先 kill 旧进程再重启（后端无热重载）"
+    why: "Python 后端不像 Next.js 有热重载，改代码必须重启"
+    type: causal
+
+  - id: P4
+    trigger: "运行 pytest 测试"
+    naive_action: "pytest tests/"
+    failure: "部分测试需要后端服务在运行 / import 失败"
+    correct_action: "确保在项目根目录执行，某些 integration test 需要先启动后端"
+    why: "测试有外部依赖（后端 API、模型 API）"
+    type: environment_specific
+
+  - id: P5
+    trigger: "提交代码（git commit）"
+    naive_action: "git commit -m 'xxx'"
+    failure: "pre-commit hook 阻止：安全检查发现敏感信息（API key in .env等）"
+    correct_action: "确保不把 .env 或含 API key 的文件加入暂存区"
+    why: "项目有 security_check.py pre-commit hook"
+    type: environment_specific
+
+  - id: P6
+    trigger: "想看模型 API 是否可用"
+    naive_action: "curl 一个随便的 endpoint"
+    failure: "超时或格式错"
+    correct_action: "使用项目的 Qwen3.6 API，需 extra_body chat_template_kwargs"
+    why: "Qwen API 需要特殊的 extra_body 参数才能禁用思考模式"
+    type: environment_specific
+
+  - id: P7
+    trigger: "想查看前端 WebSocket 通信"
+    naive_action: "看 network 面板"
+    failure: "看不到内容/不知道消息格式"
+    correct_action: "前端 console.log 里有 [Educe] Received xxx 日志"
+    why: "WS 消息有自定义类型（status/chunk/state_sync/action_confirm_request）"
+    type: environment_specific
+
+  - id: P8
+    trigger: "想给模型加新工具"
+    naive_action: "修改 ToolRegistry 代码"
+    failure: "重启后丢失 / 不知道注册格式"
+    correct_action: "POST /api/tools 或编辑 .educe/tools.json"
+    why: "工具注册有持久化机制，不该改代码"
+    type: environment_specific
+
+  - id: P9
+    trigger: "前端改了样式但看不到效果"
+    naive_action: "刷新页面"
+    failure: "可能是 Next.js 缓存"
+    correct_action: "清 .next 缓存目录，或 hard refresh (Cmd+Shift+R)"
+    why: "Next.js dev server 有时缓存旧样式"
+    type: causal
+
+  - id: P10
+    trigger: "想用 MCP 工具但不知道有哪些"
+    naive_action: "随便猜工具名"
+    failure: "工具不存在"
+    correct_action: "查看 .educe/mcp.json 配置，或发送 lookup_tools action"
+    why: "MCP 工具是动态发现的，需要先查询可用列表"
+    type: environment_specific
+
+  - id: P11
+    trigger: "模型响应卡住不动"
+    naive_action: "等待 / 刷新"
+    failure: "可能 WS 已断开但前端没显示"
+    correct_action: "检查后端进程是否存活(lsof -i :7860)，重启"
+    why: "WS 断开时前端可能没有明显错误提示"
+    type: causal
+
+  - id: P12
+    trigger: "想让模型做复杂任务（规划/部署）"
+    naive_action: "说'帮我规划一下'"
+    failure: "模型可能只用文字列步骤而不触发 action"
+    correct_action: "明确说'帮我做'而不是'帮我想'，或直接说'build'"
+    why: "弱模型决策树：规划也映射到 build action，但含糊表述可能误判为闲聊"
+    type: transferable

@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY pyproject.toml .
-COPY deepforge/ deepforge/
+COPY educe/ educe/
 COPY deepforge_metrics/ deepforge_metrics/
 COPY eval/ eval/
 COPY scripts/ scripts/
@@ -15,4 +15,4 @@ EXPOSE 7860
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "deepforge.cli.app", "web", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python", "-m", "educe.cli.app", "web", "--host", "0.0.0.0", "--port", "7860"]

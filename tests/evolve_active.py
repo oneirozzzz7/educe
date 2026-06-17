@@ -18,12 +18,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.config import DeepForgeConfig
-from deepforge.core.activation_engine import (
+from educe.core.config import DeepForgeConfig
+from educe.core.activation_engine import (
     ActivationEngine, ACTIVATION_PROMPT, REASONING_CHAINS, DOMAIN_LABELS
 )
-from deepforge.core.activation_evolver import ActivationEvolver, SEED_ELEMENTS, SEED_POOL
-from deepforge.models.router import ModelClient
+from educe.core.activation_evolver import ActivationEvolver, SEED_ELEMENTS, SEED_POOL
+from educe.models.router import ModelClient
 
 # ═══ 评测题库（按领域） ═══
 

@@ -18,10 +18,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.config import DeepForgeConfig
-from deepforge.core.orchestrator import Orchestrator
-from deepforge.agents import ALL_AGENTS
-from deepforge.models.router import ModelClient
+from educe.core.config import DeepForgeConfig
+from educe.core.orchestrator import Orchestrator
+from educe.agents import ALL_AGENTS
+from educe.models.router import ModelClient
 
 BOLD = "\033[1m"
 GREEN = "\033[92m"

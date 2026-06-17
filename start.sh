@@ -66,7 +66,7 @@ sys.path.insert(0, '.')
 os.environ.setdefault('DEEPFORGE_API_KEY', '${DEEPFORGE_API_KEY:-}')
 os.environ.setdefault('DEEPFORGE_BASE_URL', '${DEEPFORGE_BASE_URL:-}')
 os.environ.setdefault('DEEPFORGE_MODEL', '${DEEPFORGE_MODEL:-}')
-from deepforge.web.server import run_web
+from educe.web.server import run_web
 run_web(port=7860)
 " &
 BACKEND_PID=$!

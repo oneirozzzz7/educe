@@ -23,9 +23,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
-from deepforge.core.behavior_learner import BehaviorLearner
-from deepforge.models.router import ModelClient
+from educe.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
+from educe.core.behavior_learner import BehaviorLearner
+from educe.models.router import ModelClient
 
 API_KEY = os.environ.get("EDUCE_MODEL_KEY", "")
 BASE_URL = os.environ.get("EDUCE_MODEL_URL", "")

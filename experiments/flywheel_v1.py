@@ -20,9 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.config import DeepForgeConfig
-from deepforge.models.router import ModelClient
-from deepforge.core.activation_engine import ActivationEngine, ACTIVATION_PROMPT
+from educe.core.config import DeepForgeConfig
+from educe.models.router import ModelClient
+from educe.core.activation_engine import ActivationEngine, ACTIVATION_PROMPT
 from tests.ab_experiment import TEST_QUESTIONS, score_response
 
 SEEDS = [

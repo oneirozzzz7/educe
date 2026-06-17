@@ -20,13 +20,13 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-from deepforge.core.config import DeepForgeConfig, ModelConfig
-from deepforge.core.orchestrator import Orchestrator
-from deepforge.models.router import ModelClient
-from deepforge.agents import ALL_AGENTS
-from deepforge.memory.store import MemoryStore
-from deepforge.skills.registry import SkillRegistry
-from deepforge.core.knowledge import LayeredCache
+from educe.core.config import DeepForgeConfig, ModelConfig
+from educe.core.orchestrator import Orchestrator
+from educe.models.router import ModelClient
+from educe.agents import ALL_AGENTS
+from educe.memory.store import MemoryStore
+from educe.skills.registry import SkillRegistry
+from educe.core.knowledge import LayeredCache
 
 LOG_DIR = Path(".educe/evolution")
 LOG_DIR.mkdir(parents=True, exist_ok=True)

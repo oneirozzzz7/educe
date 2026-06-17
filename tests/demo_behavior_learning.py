@@ -16,9 +16,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from deepforge.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
-from deepforge.core.behavior_learner import BehaviorLearner
-from deepforge.models.router import ModelClient
+from educe.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
+from educe.core.behavior_learner import BehaviorLearner
+from educe.models.router import ModelClient
 
 # 从环境变量或 deepforge 配置读取
 API_KEY = os.environ.get("EDUCE_MODEL_KEY", "")

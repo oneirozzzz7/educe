@@ -1,5 +1,5 @@
 services:
-  deepforge:
+  educe:
     build: .
     ports:
       - "7860:7860"
@@ -10,5 +10,5 @@ services:
       - KIMI_API_KEY=${KIMI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
-      - ./.deepforge:/app/.deepforge
+      - ./.educe:/app/.educe
     restart: unless-stopped

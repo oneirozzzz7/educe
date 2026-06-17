@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from deepforge.core.unified_store import UnifiedKnowledgeStore, KnowledgeEntry
+from educe.core.unified_store import UnifiedKnowledgeStore, KnowledgeEntry
 
 
 @pytest.fixture

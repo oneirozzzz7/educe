@@ -20,9 +20,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from deepforge.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
-from deepforge.core.behavior_learner import BehaviorLearner
-from deepforge.models.router import ModelClient
+from educe.core.behavior import BehaviorManifest, BehaviorUnit, UnitStatus
+from educe.core.behavior_learner import BehaviorLearner
+from educe.models.router import ModelClient
 
 API_KEY = os.environ.get("EDUCE_MODEL_KEY", "")
 BASE_URL = os.environ.get("EDUCE_MODEL_URL", "")
@@ -196,7 +196,7 @@ async def run_day(day_num: int, interactions: list, learner: BehaviorLearner,
         )
 
         # Output-Metric Attribution: 记录输出特征到 units
-        from deepforge.core.response_features import compute_response_features
+        from educe.core.response_features import compute_response_features
         features = compute_response_features(response)
         for uid in injected_ids:
             unit = manifest.get_unit(uid)

@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "deepforge"
-version = "0.1.0"
-description = "DeepForge - Multi-agent harness that makes weak LLMs do strong work"
+name = "educe"
+version = "0.2.0"
+description = "Educe - Governance layer between humans and AI models"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
-authors = [{ name = "DeepForge Team" }]
-keywords = ["ai", "agent", "llm", "multi-agent", "harness"]
+authors = [{ name = "Educe Team" }]
+keywords = ["ai", "agent", "llm", "governance", "harness"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -33,15 +33,15 @@ dependencies = [
 [project.optional-dependencies]
 web = ["fastapi>=0.100.0", "uvicorn>=0.23.0", "websockets>=11.0"]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "ruff>=0.1.0"]
-all = ["deepforge[web,dev]"]
+all = ["educe[web,dev]"]
 
 [project.scripts]
-deepforge = "deepforge.cli.app:main"
-df = "deepforge.cli.app:main"
+educe = "educe.cli.app:main"
+df = "educe.cli.app:main"
 
 [tool.ruff]
 target-version = "py310"
 line-length = 100
 
 [tool.hatch.build.targets.wheel]
-packages = ["deepforge"]
+packages = ["educe"]

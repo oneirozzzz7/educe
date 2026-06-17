@@ -2,8 +2,8 @@
 import sys
 sys.path.insert(0, '.')
 
-from deepforge.core.action_executor import parse_actions
-from deepforge.core.context_manager import build_context
+from educe.core.action_executor import parse_actions
+from educe.core.context_manager import build_context
 
 # Test 1: 两个 shell action
 test1 = "我来帮你安装。\n\n```shell\ngit clone https://github.com/xxx/yyy /tmp/test\n```\n\n```shell\npip install -e /tmp/test\n```\n"

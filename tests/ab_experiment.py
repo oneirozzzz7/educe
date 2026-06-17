@@ -141,7 +141,7 @@ async def run_ab_test(model_client, model: str, max_tokens: int = 4096):
     for question, domain, keywords, bad in TEST_QUESTIONS:
         for variant, system_prompt in [("baseline", BASELINE_PROMPT), ("activation", None)]:
             if variant == "activation":
-                from deepforge.core.activation_engine import ActivationEngine
+                from educe.core.activation_engine import ActivationEngine
                 engine = ActivationEngine()
                 system_prompt = engine.build_activation_prompt(question)
 
@@ -218,8 +218,8 @@ async def main():
     import sys
     sys.path.insert(0, ".")
 
-    from deepforge.core.config import DeepForgeConfig
-    from deepforge.models.router import ModelClient
+    from educe.core.config import DeepForgeConfig
+    from educe.models.router import ModelClient
 
     config = DeepForgeConfig.load()
     client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
