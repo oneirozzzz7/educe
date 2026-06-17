@@ -999,35 +999,14 @@ class Orchestrator:
             base = Path(".deepforge/output") / session_id[:16]
         base.mkdir(parents=True, exist_ok=True)
 
-        # 相对路径基于 session output_dir 解析
+        # 路径解析策略：
+        # 1. 绝对路径且父目录存在 → 直接使用（用户/模型明确指定了位置）
+        # 2. 相对路径 → 基于 project_context_path 或 session output_dir
         if not path.is_absolute():
             path = base / path
-        else:
-            # 绝对路径：提取项目相关部分，忽略系统前缀
-            try:
-                path.relative_to(base.resolve())
-            except ValueError:
-                # 去掉常见系统前缀，保留项目路径
-                str_p = str(path)
-                strip_prefixes = ["/tmp/", "/private/tmp/", "/home/user/", "/root/"]
-                stripped = ""
-                for prefix in strip_prefixes:
-                    if str_p.startswith(prefix):
-                        stripped = str_p[len(prefix):]
-                        break
-                if not stripped:
-                    # 非系统前缀 — 提取 cwd 之后的部分
-                    parts = path.parts
-                    cwd_parts = Path.cwd().parts
-                    common_len = 0
-                    for i, (a, b) in enumerate(zip(parts, cwd_parts)):
-                        if a == b:
-                            common_len = i + 1
-                        else:
-                            break
-                    relative_parts = parts[common_len:]
-                    stripped = str(Path(*relative_parts)) if relative_parts else path.name
-                path = base / stripped
+        elif not path.parent.exists():
+            # 绝对路径但目录不存在 → 可能是模型幻觉，fallback 到 base
+            path = base / path.name
 
         # Safety: don't write to system directories
         str_path = str(path)
