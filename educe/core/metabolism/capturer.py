@@ -24,6 +24,7 @@ class OutcomeCapturer:
 
     def __init__(self, ledger: LedgerStore):
         self._ledger = ledger
+        self._seq_counters: dict[str, int] = {}  # session_id -> next seq
 
     async def capture(
         self,
@@ -85,6 +86,10 @@ class OutcomeCapturer:
         # 计算即时奖励
         reward = immediate_reward(outcome_type, detail)
 
+        # 分配 session 全局 seq
+        seq = self._seq_counters.get(session_id, 0)
+        self._seq_counters[session_id] = seq + 1
+
         # 写入账本
         record = ConsequenceRecord(
             record_id=record_id,
@@ -97,6 +102,7 @@ class OutcomeCapturer:
             outcome_type=outcome_type,
             outcome_detail=detail,
             immediate_reward=reward,
+            seq=seq,
         )
         await self._ledger.append(record)
 
@@ -118,6 +124,9 @@ class OutcomeCapturer:
         outcome_type = OutcomeType.USER_CONFIRMED if confirmed else OutcomeType.USER_REJECTED
         reward = immediate_reward(outcome_type, {})
 
+        seq = self._seq_counters.get(session_id, 0)
+        self._seq_counters[session_id] = seq + 1
+
         record = ConsequenceRecord(
             record_id=str(uuid.uuid4())[:12],
             session_id=session_id,
@@ -129,6 +138,7 @@ class OutcomeCapturer:
             outcome_type=outcome_type,
             outcome_detail={"confirmed": confirmed},
             immediate_reward=reward,
+            seq=seq,
         )
         await self._ledger.append(record)
 

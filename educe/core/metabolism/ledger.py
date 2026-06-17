@@ -43,6 +43,7 @@ class ConsequenceRecord:
     outcome_type: OutcomeType
     outcome_detail: dict          # 返回值/报错/用户反馈
     immediate_reward: float       # -1.0 ~ 1.0
+    seq: int = -1                 # session 全局递增序号（阶段2序列归属）
     delayed_outcome_ref: Optional[str] = None
     created_at: float = field(default_factory=time.time)
 
@@ -125,6 +126,7 @@ class LedgerStore:
                 try:
                     d = json.loads(line)
                     d["outcome_type"] = OutcomeType(d["outcome_type"])
+                    d.setdefault("seq", -1)
                     records.append(ConsequenceRecord(**d))
                 except Exception:
                     continue
