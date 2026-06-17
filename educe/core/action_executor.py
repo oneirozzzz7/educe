@@ -77,7 +77,11 @@ def _looks_executable(code: str) -> bool:
     lines = code.strip().split("\n")
     if len(lines) < 2:
         return False
-    executable_signals = ("print(", "print (", "result", "= ", "import ", "open(", "input(")
+    first_line = lines[0].strip()
+    if first_line.startswith(("class ", "def ", "from ", "import ")):
+        if not any("print(" in line for line in lines):
+            return False
+    executable_signals = ("print(", "print (", "result =", "import ", "open(", "input(")
     return any(any(sig in line for sig in executable_signals) for line in lines)
 
 

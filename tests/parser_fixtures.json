@@ -1,0 +1,82 @@
+[
+  {
+    "input": "函数就像一台“魔法机器”：\n\n1. 你给它一些原料（叫“输入”）。  \n2. 它在里面按图纸加工。  \n3. 最后掉出一个成品（叫“输出”）。\n\n例子：  \n输入两个数字 3 和 5 → 机器“加法函数” → 输出 8。  \n\n在编程里，我们先把这台机器造好（写一次），以后只要喊“来两个数的和”，它就能立刻工作，不用每次都重新拼一遍。",
+    "expected_actions": 0,
+    "case": "EDU-01",
+    "category": "pure_text"
+  },
+  {
+    "input": "已生成 5 道二元一次方程练习题并附带答案，文件保存为 `equations.md`。",
+    "expected_actions": 0,
+    "case": "EDU-02",
+    "category": "pure_text"
+  },
+  {
+    "input": "根据计算结果，你的房贷情况如下：\n\n**月供：13,471.79 元**\n\n详细还款计划：\n- 贷款金额：300万元\n- 贷款期限：30年（360期）\n- 年利率：3.5%\n- 总还款金额：484.98万元\n- 总利息：184.98万元\n\n等额本息的特点是每个月还款金额固定，前期利息占比较高，后期本金占比逐渐增加。",
+    "expected_actions": 0,
+    "case": "FIN-01",
+    "category": "pure_text"
+  },
+  {
+    "input": "我按“作为补充选项”来做，默认放在 `click_extensions.py` 里，装饰器叫 `@version_only`。  \n如果名字或位置不合意，随时告诉我再改。  \n先确认一下本地项目结构：  \n```shell\nfind . -type f -name \"*.py\" | grep -E \"(click|version)\" | head -20\n```",
+    "expected_actions": 1,
+    "expected_type": "shell",
+    "case": "CODE-01",
+    "category": "shell"
+  },
+  {
+    "input": "```shell\nls src/click/\n```",
+    "expected_actions": 1,
+    "expected_type": "shell",
+    "case": "CODE-01",
+    "category": "shell"
+  },
+  {
+    "input": "```shell\npython demo_version_only.py --version\n```",
+    "expected_actions": 1,
+    "expected_type": "shell",
+    "case": "CODE-01",
+    "category": "shell"
+  },
+  {
+    "input": "```edit_file\npath: src/click/decorators.py\n<<<<<<< OLD\ndef version_option(\n    version: str | None = None,\n    *param_decls: str,\n    package_name: str | None = None,\n    prog_name: str | None = None,\n    message: str | None = None,\n    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n=======\ndef version_option(\n    version: str | None = None,\n    *param_decls: str,\n    package_name: str | None = None,\n    prog_name: str | None = None,\n    message: str | None = None,\n    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n>>>>>>> NEW\n```\n\n```edit_file\npath: src/click/decorators.py\n<<<<<<< OLD\n    return f\n=======\n    return f\n\n\ndef version_only(\n    version: str | None = None,\n    *param_decls: str,\n    package_name: str | None = None,\n    prog_name: str | None = None,\n    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n    \"\"\"Add a ``--version`` option which prints *only* the version number\n    (no prefix) and exits the program.\n\n    Parameters are the same as ``version_option``, but ``message`` is ignored.\n    \"\"\"\n    if not param_decls:\n        param_decls = (\"--version\",)\n\n    def callback(ctx: Context, param: Parameter, value: bool) -> None:\n        if not value or ctx.resilient_parsing:\n            return\n\n        nonlocal prog_name\n        nonlocal version\n\n        if prog_name is None:\n            prog_name = ctx.find_root().info_name\n\n        if version is None and package_name is not None:\n            version = _get_package_version(package_name)\n\n        if version is None:\n        ",
+    "expected_actions": 1,
+    "case": "CODE-01",
+    "category": "edit",
+    "expected_type": "edit_file"
+  },
+  {
+    "input": "```edit_file\npath: src/click/decorators.py\n<<<<<<< OLD\n    return f\n=======\n    return f\n\n\ndef version_only(\n    version: str | None = None,\n    *param_decls: str,\n    package_name: str | None = None,\n    prog_name: str | None = None,\n    **kwargs: t.Any,\n) -> t.Callable[[FC], FC]:\n    \"\"\"Add a ``--version`` option which prints *only* the version number\n    (no prefix) and exits the program.\n\n    Parameters are the same as ``version_option``, but ``message`` is ignored.\n    \"\"\"\n    if not param_",
+    "expected_actions": 0,
+    "case": "CODE-01",
+    "category": "edit",
+    "note": "truncated — no closing backticks"
+  },
+  {
+    "input": "```write_file\npath: demo_version_only.py\n---\nimport click\n\n@click.command()\n@click.version_only(version=\"1.2.3\")\ndef cli():\n    \"\"\"A tiny test command.\"\"\"\n\nif __name__ == \"__main__\":\n    cli()\n```",
+    "expected_actions": 1,
+    "expected_type": "write_file",
+    "case": "CODE-01",
+    "category": "write"
+  },
+  {
+    "input": "（已匹配，无需改动，因为前面已经把别名一起塞进 `self.commands` 了，默认实现就能命中。）\n\n写个最小 demo 验证：  \n```write_file\ndemo_aliases.py\n---\nimport click\n\n@click.group()\ndef cli():\n    pass\n\n@cli.command(aliases=[\"hi\", \"hey\"])\ndef hello():\n    \"\"\"Say hello.\"\"\"\n    click.echo(\"Hello world!\")\n\nif __name__ == \"__main__\":\n    cli()\n```",
+    "expected_actions": 1,
+    "expected_type": "write_file",
+    "case": "CODE-03",
+    "category": "write"
+  },
+  {
+    "input": "让我用 Python 计算：\n```python\nprincipal = 3000000\nrate = 0.035 / 12\nmonths = 360\npayment = principal * rate * (1+rate)**months / ((1+rate)**months - 1)\nprint(f\"月供: {payment:.2f}\")\n```",
+    "expected_actions": 1,
+    "expected_type": "shell",
+    "case": "synthetic",
+    "category": "python_promotion"
+  },
+  {
+    "input": "这是代码结构：\n```python\nclass BaseCommand:\n    def __init__(self):\n        self.name = \"base\"\n    \n    def execute(self):\n        pass\n```",
+    "expected_actions": 0,
+    "case": "synthetic",
+    "category": "python_no_promotion"
+  }
+]
