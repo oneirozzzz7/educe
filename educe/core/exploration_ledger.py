@@ -58,6 +58,11 @@ class ExplorationLedger:
         if len(recent) < window:
             return False
 
+        # 条件0：轮次过多无修改 → 强制 nudge（弱模型探索焦虑）
+        total_actions = len(self.actions_history)
+        if total_actions >= 8 and not self.has_edit_action:
+            return True
+
         # 条件1：最近 window 个 action 全是读类操作（无修改意图）
         read_types = {"read_lines", "read_file", "read_dir", "search_in_file", "use_tool"}
         if not all(a["type"] in read_types for a in recent):
@@ -70,7 +75,6 @@ class ExplorationLedger:
         # 条件3：连续在同一个文件读不同段（已定位到目标，在犹豫）
         recent_reads = [a for a in recent if a["type"] == "read_lines"]
         if len(recent_reads) >= 2:
-            # 提取路径
             paths = set()
             for a in recent_reads:
                 first_line = a["params"].split("\n")[0] if "\n" in a["params"] else ""
