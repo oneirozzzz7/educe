@@ -402,6 +402,10 @@ class Orchestrator:
         max_rounds = 20
         final_reply = ""
 
+        # 探索账本：追踪信息饱和度，避免无限探索
+        from deepforge.core.exploration_ledger import ExplorationLedger
+        ledger = ExplorationLedger()
+
         for round_idx in range(max_rounds):
             # 模型调用（action 轮次用非流式，避免标签被流式推送到前端）
             try:
@@ -584,13 +588,29 @@ class Orchestrator:
                 messages.append({"role": "user", "content":
                     f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
 
-            # immediate action 伴随的文字推送给用户
+                # 探索账本：记录行为
+                ledger.record(action.type, action.params, result.get("output", ""), result.get("success", False))
             if immediate_actions and reply_text and not pending_actions:
                 for i in range(0, len(reply_text), 20):
                     self._notify_chunk("assistant", reply_text[i:i+20])
                 self.conversation.add_assistant(reply_text)
                 if hasattr(self, 'state'):
                     self.state.add_ai_reply(reply_text)
+
+            # Evidence-Gated Nudge：探索信息饱和时注入反射镜
+            if immediate_actions and not pending_actions and ledger.should_nudge():
+                reflection = ledger.build_reflection()
+                messages.append({"role": "user", "content": reflection})
+                log.info("_action_loop | round %d nudge injected (nudge_count=%d)", round_idx, ledger.nudge_count)
+
+            # 安全网：nudge 反复失败后，拒绝纯 read 类 action
+            if ledger.should_restrict_actions(max_rounds, round_idx):
+                read_only = all(a.type in ("read_lines", "read_file", "read_dir", "search_in_file", "use_tool")
+                               for a in immediate_actions) if immediate_actions else False
+                if read_only and immediate_actions:
+                    messages.append({"role": "user", "content":
+                        "[系统] 探索预算已用尽。请直接执行修改（edit_file），或告知用户你无法完成此任务。"})
+                    log.info("_action_loop | round %d safety net triggered", round_idx)
 
             # 需要确认的 action → 暂存，发确认请求给前端，返回等待
             if pending_actions:
