@@ -22,14 +22,13 @@ console = Console()
 
 BANNER = r"""
 [bold cyan]
-  ____                   _____
- |  _ \  ___  ___ _ __  |  ___|__  _ __ __ _  ___
- | | | |/ _ \/ _ \ '_ \ | |_ / _ \| '__/ _` |/ _ \
- | |_| |  __/  __/ |_) ||  _| (_) | | | (_| |  __/
- |____/ \___|\___| .__/ |_|  \___/|_|  \__, |\___|
-                 |_|                    |___/
+  _____    _
+ | ____|__| |_   _  ___ ___
+ |  _| / _` | | | |/ __/ _ \
+ | |__| (_| | |_| | (_|  __/
+ |_____\__,_|\__,_|\___\___|
 [/bold cyan]
-[dim]Multi-agent harness · Make weak LLMs do strong work[/dim]
+[dim]The governance layer between humans and models[/dim]
 [dim]v0.1.0 · https://github.com/oneirozzzz7/educe[/dim]
 """
 

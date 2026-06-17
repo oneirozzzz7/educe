@@ -1,0 +1,1422 @@
+{
+  "run_id": "20260617_171104",
+  "model": "qwen36",
+  "total_cases": 5,
+  "completed": 1,
+  "partial": 0,
+  "timeout": 4,
+  "error": 0,
+  "avg_wall_time_s": 72.59,
+  "avg_rounds": 2.4,
+  "total_nudges": 0,
+  "cases": [
+    {
+      "case_id": "FIN-01",
+      "level": "L1",
+      "instruction": "帮我算下这笔房贷：300万，30年，利率3.5%，等额本息，月供多少",
+      "model": "qwen36",
+      "status": "timeout",
+      "wall_time_s": 90.0,
+      "events": [
+        {
+          "event_id": "468762977af14776",
+          "ts": 1781687464.633573,
+          "type": "user",
+          "name": "user_input",
+          "status": "ok",
+          "summary": "user_input: input=帮我算下这笔房贷：300万，30年，利率3.5%，等额本息，月供多少",
+          "data": {
+            "input": "帮我算下这笔房贷：300万，30年，利率3.5%，等额本息，月供多少",
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "852589b99b0f4861",
+          "ts": 1781687464.63377,
+          "type": "framework",
+          "name": "session_start",
+          "status": "ok",
+          "summary": "user: 帮我算下这笔房贷：300万，30年，利率3.5%，等额本息，月供多少",
+          "data": {
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "e59a2123065d4cad",
+          "ts": 1781687468.052489,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 0",
+          "data": {
+            "round": 0,
+            "messages_len": 2
+          },
+          "trace_id": "14b36a5b16ec46be"
+        },
+        {
+          "event_id": "042a6336676e4a1e",
+          "ts": 1781687471.081415,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 3028.697729110718,
+          "summary": "round 0, 795 chars",
+          "data": {
+            "round": 0,
+            "raw_len": 795
+          },
+          "trace_id": "f188c7f5ff634210"
+        },
+        {
+          "event_id": "b94b34c54d7a4cb6",
+          "ts": 1781687471.082988,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: has_actions=1, action_types=['shell'], reply_preview=我来帮你计算这笔房贷的月供情况。\n\n```python\nimport math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 30",
+          "data": {
+            "round": 0,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": "我来帮你计算这笔房贷的月供情况。\n\n```python\nimport math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 30"
+          }
+        },
+        {
+          "event_id": "11359f62d4174439",
+          "ts": 1781687471.0830941,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "14e3ddaac19f4c46",
+          "ts": 1781687471.1629262,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=python3 -c 'import math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 300万\nyears = 30             # 贷款年限\nann, success=True",
+          "data": {
+            "cmd": "python3 -c 'import math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 300万\nyears = 30             # 贷款年限\nann",
+            "success": true,
+            "exit_code": 0
+          }
+        },
+        {
+          "event_id": "df05ab2ae23d4185",
+          "ts": 1781687471.163975,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, success=True, output_preview=$ python3 -c 'import math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 300万\nyears = 30 ",
+          "data": {
+            "type": "shell",
+            "success": true,
+            "output_preview": "$ python3 -c 'import math\n\n# 贷款参数\nloan_amount = 3000000  # 贷款总额 300万\nyears = 30 "
+          }
+        },
+        {
+          "event_id": "ea0e975a8955461e",
+          "ts": 1781687471.164107,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "shell: ok",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": true,
+            "round": 0
+          },
+          "trace_id": "966e7fa48fba40e6"
+        },
+        {
+          "event_id": "0b7863a1d6654877",
+          "ts": 1781687471.1646059,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 1",
+          "data": {
+            "round": 1,
+            "messages_len": 4
+          },
+          "trace_id": "725555e55889460e"
+        },
+        {
+          "event_id": "387f1cdb10bf449e",
+          "ts": 1781687473.803209,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 2638.395071029663,
+          "summary": "round 1, 683 chars",
+          "data": {
+            "round": 1,
+            "raw_len": 683
+          },
+          "trace_id": "53eb584258d74fb7"
+        },
+        {
+          "event_id": "ba78d196912d4fae",
+          "ts": 1781687473.803351,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=1, has_actions=1, action_types=['shell'], reply_preview=让我重新执行计算：",
+          "data": {
+            "round": 1,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": "让我重新执行计算："
+          }
+        },
+        {
+          "event_id": "e45d7136394a407b",
+          "ts": 1781687473.803415,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "c58fcb5664644fbe",
+          "ts": 1781687473.8647912,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=python3 -c \"\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035\n\nmonthly_rate = annua, success=True",
+          "data": {
+            "cmd": "python3 -c \"\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035\n\nmonthly_rate = annua",
+            "success": true,
+            "exit_code": 0
+          }
+        },
+        {
+          "event_id": "5a9568e43a5545b6",
+          "ts": 1781687473.865388,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, success=True, output_preview=$ python3 -c \"\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035",
+          "data": {
+            "type": "shell",
+            "success": true,
+            "output_preview": "$ python3 -c \"\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035"
+          }
+        },
+        {
+          "event_id": "5e7fea57fe4f4bb8",
+          "ts": 1781687473.8654652,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "shell: ok",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": true,
+            "round": 1
+          },
+          "trace_id": "090072d9cd5e4cb0"
+        },
+        {
+          "event_id": "ce1d6b92cc204f86",
+          "ts": 1781687473.8657641,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 2",
+          "data": {
+            "round": 2,
+            "messages_len": 6
+          },
+          "trace_id": "ce8c9231f0ff45f5"
+        },
+        {
+          "event_id": "5dee39f2ddd1471a",
+          "ts": 1781687475.898761,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 2032.883882522583,
+          "summary": "round 2, 678 chars",
+          "data": {
+            "round": 2,
+            "raw_len": 678
+          },
+          "trace_id": "1b35be6902a64adf"
+        },
+        {
+          "event_id": "0a7d37d9f8f640f3",
+          "ts": 1781687475.898886,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=2, has_actions=1, action_types=['shell']",
+          "data": {
+            "round": 2,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "4be949ee3335479b",
+          "ts": 1781687475.898931,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "02bcbda75ef94ef9",
+          "ts": 1781687475.980034,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=python3 << 'EOF'\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035\n\nmonthly_rate = a, success=True",
+          "data": {
+            "cmd": "python3 << 'EOF'\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0.035\n\nmonthly_rate = a",
+            "success": true,
+            "exit_code": 0
+          }
+        },
+        {
+          "event_id": "e7006c9b3cd74788",
+          "ts": 1781687475.980698,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, success=True, output_preview=$ python3 << 'EOF'\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0",
+          "data": {
+            "type": "shell",
+            "success": true,
+            "output_preview": "$ python3 << 'EOF'\nimport math\n\nloan_amount = 3000000\nyears = 30\nannual_rate = 0"
+          }
+        },
+        {
+          "event_id": "6b707e6023564708",
+          "ts": 1781687475.9808,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "shell: ok",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": true,
+            "round": 2
+          },
+          "trace_id": "b26253edd9e343a1"
+        },
+        {
+          "event_id": "e73948ba20134b17",
+          "ts": 1781687475.9811862,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 3",
+          "data": {
+            "round": 3,
+            "messages_len": 8
+          },
+          "trace_id": "da12d114926e43dd"
+        },
+        {
+          "event_id": "cf93bbfbe6f1456a",
+          "ts": 1781687478.1304939,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 2148.9901542663574,
+          "summary": "round 3, 693 chars",
+          "data": {
+            "round": 3,
+            "raw_len": 693
+          },
+          "trace_id": "8e5a2c4df5b84cf4"
+        },
+        {
+          "event_id": "451c585690dd4c3e",
+          "ts": 1781687478.130914,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=3, has_actions=1, action_types=['write_file']",
+          "data": {
+            "round": 3,
+            "has_actions": 1,
+            "action_types": [
+              "write_file"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "e00b2d64af19460b",
+          "ts": 1781687478.130975,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['write_file']",
+          "data": {
+            "count": 1,
+            "types": [
+              "write_file"
+            ]
+          }
+        },
+        {
+          "event_id": "490f9cb5805c41e2",
+          "ts": 1781687478.1323268,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=write_file, success=True, output_preview=✅ 创建文件: /tmp/mortgage.py\n(648字符, 24行)",
+          "data": {
+            "type": "write_file",
+            "success": true,
+            "output_preview": "✅ 创建文件: /tmp/mortgage.py\n(648字符, 24行)"
+          }
+        },
+        {
+          "event_id": "26bcf2d1ed454735",
+          "ts": 1781687478.132374,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "write_file: ok",
+          "data": {
+            "action_type": "write_file",
+            "action_name": "",
+            "success": true,
+            "round": 3
+          }
+        },
+        {
+          "event_id": "75e002bee0264c23",
+          "ts": 1781687478.132959,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 4",
+          "data": {
+            "round": 4,
+            "messages_len": 10
+          },
+          "trace_id": "e9c6427f57f745f2"
+        },
+        {
+          "event_id": "12ec927af86a4443",
+          "ts": 1781687478.658614,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 525.4771709442139,
+          "summary": "round 4, 37 chars",
+          "data": {
+            "round": 4,
+            "raw_len": 37
+          },
+          "trace_id": "d9345a578da14d9c"
+        },
+        {
+          "event_id": "3090eaebbe114279",
+          "ts": 1781687478.658703,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=4, has_actions=1, action_types=['shell']",
+          "data": {
+            "round": 4,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "db6a10ff683146e0",
+          "ts": 1781687478.658751,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "5c26abb1b45f4583",
+          "ts": 1781687478.729485,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=python3 /tmp/mortgage.py, exit_code=1",
+          "data": {
+            "cmd": "python3 /tmp/mortgage.py",
+            "success": false,
+            "exit_code": 1
+          }
+        },
+        {
+          "event_id": "63c2b20631b54cfc",
+          "ts": 1781687478.730103,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, output_preview=$ python3 /tmp/mortgage.py\n[cwd: .]\n贷款金额：¥3,000,000\n贷款年限：30年（360期）\n年利率：3.5000000",
+          "data": {
+            "type": "shell",
+            "success": false,
+            "output_preview": "$ python3 /tmp/mortgage.py\n[cwd: .]\n贷款金额：¥3,000,000\n贷款年限：30年（360期）\n年利率：3.5000000"
+          }
+        },
+        {
+          "event_id": "364de950558b4cad",
+          "ts": 1781687478.730172,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "error",
+          "summary": "shell: fail",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": false,
+            "round": 4
+          }
+        },
+        {
+          "event_id": "69ef68c34b77494d",
+          "ts": 1781687478.7306209,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 5",
+          "data": {
+            "round": 5,
+            "messages_len": 12
+          },
+          "trace_id": "0625306b728e4be7"
+        }
+      ],
+      "metrics": {
+        "total_rounds": 5,
+        "llm_time_s": 10.37,
+        "tool_call_count": 14,
+        "action_dist": {
+          "unknown": 9,
+          "shell": 4,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 1,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {},
+      "session_id": "3820fa6d853949bd",
+      "workspace": ".educe/benchmark_runs/20260617_171104/qwen36/FIN-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-01",
+      "level": "L1",
+      "instruction": "查下这台机器的内存和磁盘占用",
+      "model": "qwen36",
+      "status": "timeout",
+      "wall_time_s": 90.0,
+      "events": [
+        {
+          "event_id": "2204d7b25ae64a13",
+          "ts": 1781687554.6665092,
+          "type": "user",
+          "name": "user_input",
+          "status": "ok",
+          "summary": "user_input: input=查下这台机器的内存和磁盘占用",
+          "data": {
+            "input": "查下这台机器的内存和磁盘占用",
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "2ea444a4982e40db",
+          "ts": 1781687554.666757,
+          "type": "framework",
+          "name": "session_start",
+          "status": "ok",
+          "summary": "user: 查下这台机器的内存和磁盘占用",
+          "data": {
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "3886fa8deee94eb0",
+          "ts": 1781687555.809653,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 0",
+          "data": {
+            "round": 0,
+            "messages_len": 2
+          },
+          "trace_id": "f33c3a71770845e0"
+        },
+        {
+          "event_id": "5be9a506d0f84d98",
+          "ts": 1781687556.1622589,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 352.45537757873535,
+          "summary": "round 0, 20 chars",
+          "data": {
+            "round": 0,
+            "raw_len": 20
+          },
+          "trace_id": "2a305059f2e24d47"
+        },
+        {
+          "event_id": "b5fcabc1a70c4647",
+          "ts": 1781687556.162357,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: has_actions=1, action_types=['shell']",
+          "data": {
+            "round": 0,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "40f50d2abcd24dff",
+          "ts": 1781687556.1623979,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "0a4e53b1f2344334",
+          "ts": 1781687556.168405,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=free -h, exit_code=127",
+          "data": {
+            "cmd": "free -h",
+            "success": false,
+            "exit_code": 127
+          }
+        },
+        {
+          "event_id": "750b783c8d524144",
+          "ts": 1781687556.1687338,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, output_preview=$ free -h\n[cwd: .]\n/bin/sh: free: command not found\n\n[exit: 127]",
+          "data": {
+            "type": "shell",
+            "success": false,
+            "output_preview": "$ free -h\n[cwd: .]\n/bin/sh: free: command not found\n\n[exit: 127]"
+          }
+        },
+        {
+          "event_id": "11341fbba393441b",
+          "ts": 1781687556.168771,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "error",
+          "summary": "shell: fail",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": false,
+            "round": 0
+          }
+        },
+        {
+          "event_id": "99a084c4f3a44ce2",
+          "ts": 1781687556.1690822,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 1",
+          "data": {
+            "round": 1,
+            "messages_len": 4
+          },
+          "trace_id": "13da287f5acc4fce"
+        },
+        {
+          "event_id": "5bde3fad5f6e4de4",
+          "ts": 1781687556.3929138,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 223.7398624420166,
+          "summary": "round 1, 40 chars",
+          "data": {
+            "round": 1,
+            "raw_len": 40
+          },
+          "trace_id": "d212ab334967423b"
+        },
+        {
+          "event_id": "8b17e88d5f1a4f6c",
+          "ts": 1781687556.3929899,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=1, has_actions=1, action_types=['shell']",
+          "data": {
+            "round": 1,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "53cd9f65870e4c35",
+          "ts": 1781687556.393025,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "f1a398c5736e4881",
+          "ts": 1781687556.401024,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=cat /proc/meminfo | head -5, success=True",
+          "data": {
+            "cmd": "cat /proc/meminfo | head -5",
+            "success": true,
+            "exit_code": 0
+          }
+        },
+        {
+          "event_id": "4825a834f37f4694",
+          "ts": 1781687556.401451,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, success=True, output_preview=$ cat /proc/meminfo | head -5\n[cwd: .]\ncat: /proc/meminfo: No such file or direc",
+          "data": {
+            "type": "shell",
+            "success": true,
+            "output_preview": "$ cat /proc/meminfo | head -5\n[cwd: .]\ncat: /proc/meminfo: No such file or direc"
+          }
+        },
+        {
+          "event_id": "98f2a85a8298472b",
+          "ts": 1781687556.4014888,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "shell: ok",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": true,
+            "round": 1
+          }
+        },
+        {
+          "event_id": "f090340a873546ae",
+          "ts": 1781687556.4017448,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 2",
+          "data": {
+            "round": 2,
+            "messages_len": 6
+          },
+          "trace_id": "c7bdb257873c47d8"
+        },
+        {
+          "event_id": "1ccee361964143ef",
+          "ts": 1781687556.922879,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 521.0278034210205,
+          "summary": "round 2, 88 chars",
+          "data": {
+            "round": 2,
+            "raw_len": 88
+          },
+          "trace_id": "2879fc91cfac496f"
+        },
+        {
+          "event_id": "ac3f8b027377416e",
+          "ts": 1781687556.922949,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=2, has_actions=1, action_types=['shell']",
+          "data": {
+            "round": 2,
+            "has_actions": 1,
+            "action_types": [
+              "shell"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "34ea004b97ca4919",
+          "ts": 1781687556.922983,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['shell']",
+          "data": {
+            "count": 1,
+            "types": [
+              "shell"
+            ]
+          }
+        },
+        {
+          "event_id": "c17f8232ad54423a",
+          "ts": 1781687557.153482,
+          "type": "tool_call",
+          "name": "shell_exec",
+          "status": "ok",
+          "summary": "shell_exec: cmd=system_profiler SPHardwareDataType 2>/dev/null || sysctl hw.memsize hw.ncpu, success=True",
+          "data": {
+            "cmd": "system_profiler SPHardwareDataType 2>/dev/null || sysctl hw.memsize hw.ncpu",
+            "success": true,
+            "exit_code": 0
+          }
+        },
+        {
+          "event_id": "48eaeddc28384214",
+          "ts": 1781687557.1540108,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=shell, success=True, output_preview=$ system_profiler SPHardwareDataType 2>/dev/null || sysctl hw.memsize hw.ncpu\n[c",
+          "data": {
+            "type": "shell",
+            "success": true,
+            "output_preview": "$ system_profiler SPHardwareDataType 2>/dev/null || sysctl hw.memsize hw.ncpu\n[c"
+          }
+        },
+        {
+          "event_id": "21ce4d2115d64447",
+          "ts": 1781687557.154114,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "shell: ok",
+          "data": {
+            "action_type": "shell",
+            "action_name": "",
+            "success": true,
+            "round": 2
+          },
+          "trace_id": "ce25554c44da4aae"
+        },
+        {
+          "event_id": "e8e7dbef77034174",
+          "ts": 1781687557.154429,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 3",
+          "data": {
+            "round": 3,
+            "messages_len": 8
+          },
+          "trace_id": "cd8846c7bc1041d4"
+        },
+        {
+          "event_id": "cc96ccf0c23949e1",
+          "ts": 1781687557.2412689,
+          "type": "framework",
+          "name": "behavior_learned",
+          "status": "ok",
+          "summary": "behavior_learned: trigger=在容器化环境（如Docker）或精简版Linux系统中执行内存检查命令时, directive=避免直接使用 free 命令，改用读取 /proc/meminfo 文件的方式获取内存信息, source=retry",
+          "data": {
+            "trigger": "在容器化环境（如Docker）或精简版Linux系统中执行内存检查命令时",
+            "directive": "避免直接使用 free 命令，改用读取 /proc/meminfo 文件的方式获取内存信息",
+            "source": "retry"
+          }
+        }
+      ],
+      "metrics": {
+        "total_rounds": 3,
+        "llm_time_s": 1.1,
+        "tool_call_count": 9,
+        "action_dist": {
+          "unknown": 6,
+          "shell": 3
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 1,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {},
+      "session_id": "d51ff73f92d147fb",
+      "workspace": ".educe/benchmark_runs/20260617_171104/qwen36/TECH-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-02",
+      "level": "L1",
+      "instruction": "给我出5道二元一次方程练习题，带答案",
+      "model": "qwen36",
+      "status": "timeout",
+      "wall_time_s": 90.0,
+      "events": [
+        {
+          "event_id": "059564428b5f49ca",
+          "ts": 1781687644.710916,
+          "type": "user",
+          "name": "user_input",
+          "status": "ok",
+          "summary": "user_input: input=给我出5道二元一次方程练习题，带答案",
+          "data": {
+            "input": "给我出5道二元一次方程练习题，带答案",
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "7c8a8c24257740e2",
+          "ts": 1781687644.711155,
+          "type": "framework",
+          "name": "session_start",
+          "status": "ok",
+          "summary": "user: 给我出5道二元一次方程练习题，带答案",
+          "data": {
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "b7e1dd8fa34d415c",
+          "ts": 1781687645.855168,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 0",
+          "data": {
+            "round": 0,
+            "messages_len": 2
+          },
+          "trace_id": "83156a42a00340e8"
+        }
+      ],
+      "metrics": {
+        "total_rounds": 0,
+        "llm_time_s": 0.0,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {},
+      "session_id": "425a849f2c754174",
+      "workspace": ".educe/benchmark_runs/20260617_171104/qwen36/EDU-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-01",
+      "level": "L1",
+      "instruction": "帮我把这周的待办整理成清单存起来：周一交报告，周三开会，周五团建",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 2.92,
+      "events": [
+        {
+          "event_id": "22415208706c40c8",
+          "ts": 1781687734.74195,
+          "type": "user",
+          "name": "user_input",
+          "status": "ok",
+          "summary": "user_input: input=帮我把这周的待办整理成清单存起来：周一交报告，周三开会，周五团建",
+          "data": {
+            "input": "帮我把这周的待办整理成清单存起来：周一交报告，周三开会，周五团建",
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "75efb4805f634d90",
+          "ts": 1781687734.742163,
+          "type": "framework",
+          "name": "session_start",
+          "status": "ok",
+          "summary": "user: 帮我把这周的待办整理成清单存起来：周一交报告，周三开会，周五团建",
+          "data": {
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "6f71a3e19c034f69",
+          "ts": 1781687735.676799,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 0",
+          "data": {
+            "round": 0,
+            "messages_len": 2
+          },
+          "trace_id": "2d04c3cb01dc4000"
+        },
+        {
+          "event_id": "35b8284f1c5b457c",
+          "ts": 1781687736.446917,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 769.9570655822754,
+          "summary": "round 0, 100 chars",
+          "data": {
+            "round": 0,
+            "raw_len": 100
+          },
+          "trace_id": "75b5072a06664324"
+        },
+        {
+          "event_id": "adf82c902bda49f8",
+          "ts": 1781687736.4470122,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: has_actions=1, action_types=['write_file']",
+          "data": {
+            "round": 0,
+            "has_actions": 1,
+            "action_types": [
+              "write_file"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "324359d8be344fda",
+          "ts": 1781687736.447047,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['write_file']",
+          "data": {
+            "count": 1,
+            "types": [
+              "write_file"
+            ]
+          }
+        },
+        {
+          "event_id": "91f2735fe13c42b3",
+          "ts": 1781687736.447625,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=write_file, success=True, output_preview=✅ 创建文件: weekly_todo.md\n(57字符, 10行)",
+          "data": {
+            "type": "write_file",
+            "success": true,
+            "output_preview": "✅ 创建文件: weekly_todo.md\n(57字符, 10行)"
+          }
+        },
+        {
+          "event_id": "1a409cca2eae4f61",
+          "ts": 1781687736.447665,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "write_file: ok",
+          "data": {
+            "action_type": "write_file",
+            "action_name": "",
+            "success": true,
+            "round": 0
+          }
+        },
+        {
+          "event_id": "256bd1d9a97c4156",
+          "ts": 1781687736.447955,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 1",
+          "data": {
+            "round": 1,
+            "messages_len": 4
+          },
+          "trace_id": "a8971013b88a4ce5"
+        },
+        {
+          "event_id": "0bb54ed84ba749fe",
+          "ts": 1781687737.656472,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 1208.409309387207,
+          "summary": "round 1, 138 chars",
+          "data": {
+            "round": 1,
+            "raw_len": 138
+          },
+          "trace_id": "abc3c800d3764af8"
+        },
+        {
+          "event_id": "fb2b6fb9ed36476c",
+          "ts": 1781687737.656574,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=1, reply_preview=已为您创建 `weekly_todo.md` 文件，内容如下：\n\n```markdown\n# 本周待办清单\n\n## 周一\n- [ ] 交报告\n\n## 周三\n- ",
+          "data": {
+            "round": 1,
+            "has_actions": 0,
+            "action_types": [],
+            "reply_preview": "已为您创建 `weekly_todo.md` 文件，内容如下：\n\n```markdown\n# 本周待办清单\n\n## 周一\n- [ ] 交报告\n\n## 周三\n- "
+          }
+        },
+        {
+          "event_id": "3e95a6644f224249",
+          "ts": 1781687737.659083,
+          "type": "framework",
+          "name": "turn_end",
+          "status": "ok",
+          "summary": "ended: no_action",
+          "data": {
+            "reason": "no_action"
+          }
+        }
+      ],
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 1.98,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "创建了文件: ['weekly_todo.md']"
+          }
+        ]
+      },
+      "session_id": "25bf8a2bc95c4caf",
+      "workspace": ".educe/benchmark_runs/20260617_171104/qwen36/LIFE-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-03",
+      "level": "L2",
+      "instruction": "帮我对这组实验数据做个 t 检验，看两组有没有显著差异",
+      "model": "qwen36",
+      "status": "timeout",
+      "wall_time_s": 90.01,
+      "events": [
+        {
+          "event_id": "192c24b0c0f144aa",
+          "ts": 1781687737.683774,
+          "type": "user",
+          "name": "user_input",
+          "status": "ok",
+          "summary": "user_input: input=帮我对这组实验数据做个 t 检验，看两组有没有显著差异",
+          "data": {
+            "input": "帮我对这组实验数据做个 t 检验，看两组有没有显著差异",
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "ed11a9202a6b4ee4",
+          "ts": 1781687737.683958,
+          "type": "framework",
+          "name": "session_start",
+          "status": "ok",
+          "summary": "user: 帮我对这组实验数据做个 t 检验，看两组有没有显著差异",
+          "data": {
+            "has_file": false
+          }
+        },
+        {
+          "event_id": "eea9adcd5c4d4db3",
+          "ts": 1781687738.652889,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 0",
+          "data": {
+            "round": 0,
+            "messages_len": 2
+          },
+          "trace_id": "b8ff6e560d9c4acd"
+        },
+        {
+          "event_id": "8036ce4a877544d9",
+          "ts": 1781687739.2464588,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 593.4238433837891,
+          "summary": "round 0, 43 chars",
+          "data": {
+            "round": 0,
+            "raw_len": 43
+          },
+          "trace_id": "4f152547bc1b4a8b"
+        },
+        {
+          "event_id": "705bb68b56ff426f",
+          "ts": 1781687739.246537,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: has_actions=1, action_types=['read_dir'], reply_preview=我来帮你做 t 检验。首先让我看看这组实验数据。",
+          "data": {
+            "round": 0,
+            "has_actions": 1,
+            "action_types": [
+              "read_dir"
+            ],
+            "reply_preview": "我来帮你做 t 检验。首先让我看看这组实验数据。"
+          }
+        },
+        {
+          "event_id": "5b0e02d8fcf04963",
+          "ts": 1781687739.246576,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['read_dir']",
+          "data": {
+            "count": 1,
+            "types": [
+              "read_dir"
+            ]
+          }
+        },
+        {
+          "event_id": "adcb89eecf6b46ae",
+          "ts": 1781687739.246967,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=read_dir, success=True, output_preview=目录: .educe/benchmark_runs/20260617_171104/qwen36/SCI-03/workspace\n文件数: 0\n\n## 结构\n",
+          "data": {
+            "type": "read_dir",
+            "success": true,
+            "output_preview": "目录: .educe/benchmark_runs/20260617_171104/qwen36/SCI-03/workspace\n文件数: 0\n\n## 结构\n"
+          }
+        },
+        {
+          "event_id": "0125174a088e4fe8",
+          "ts": 1781687739.2470012,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "read_dir: ok",
+          "data": {
+            "action_type": "read_dir",
+            "action_name": "",
+            "success": true,
+            "round": 0
+          }
+        },
+        {
+          "event_id": "560858f3cfb84fa4",
+          "ts": 1781687739.247285,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 1",
+          "data": {
+            "round": 1,
+            "messages_len": 4
+          },
+          "trace_id": "e0f97e7255d94075"
+        },
+        {
+          "event_id": "1ded932410fa46d1",
+          "ts": 1781687739.4286919,
+          "type": "llm_call",
+          "name": "llm_response",
+          "status": "ok",
+          "duration_ms": 181.32591247558594,
+          "summary": "round 1, 17 chars",
+          "data": {
+            "round": 1,
+            "raw_len": 17
+          },
+          "trace_id": "dad29b2ef4ce4831"
+        },
+        {
+          "event_id": "2836c7d7241f4888",
+          "ts": 1781687739.428766,
+          "type": "llm_call",
+          "name": "model_output",
+          "status": "ok",
+          "summary": "model_output: round=1, has_actions=1, action_types=['read_dir']",
+          "data": {
+            "round": 1,
+            "has_actions": 1,
+            "action_types": [
+              "read_dir"
+            ],
+            "reply_preview": ""
+          }
+        },
+        {
+          "event_id": "133146b74a104f19",
+          "ts": 1781687739.428833,
+          "type": "framework",
+          "name": "actions_parsed",
+          "status": "ok",
+          "summary": "1 actions: ['read_dir']",
+          "data": {
+            "count": 1,
+            "types": [
+              "read_dir"
+            ]
+          }
+        },
+        {
+          "event_id": "7a9fefbe7304464c",
+          "ts": 1781687739.4291682,
+          "type": "tool_call",
+          "name": "action_executed",
+          "status": "ok",
+          "summary": "action_executed: type=read_dir, success=True, output_preview=目录: .educe/benchmark_runs/20260617_171104/qwen36/SCI-03/workspace\n文件数: 0\n\n## 结构\n",
+          "data": {
+            "type": "read_dir",
+            "success": true,
+            "output_preview": "目录: .educe/benchmark_runs/20260617_171104/qwen36/SCI-03/workspace\n文件数: 0\n\n## 结构\n"
+          }
+        },
+        {
+          "event_id": "d30065510aac4f6b",
+          "ts": 1781687739.429207,
+          "type": "tool_call",
+          "name": "tool_result",
+          "status": "ok",
+          "summary": "read_dir: ok",
+          "data": {
+            "action_type": "read_dir",
+            "action_name": "",
+            "success": true,
+            "round": 1
+          }
+        },
+        {
+          "event_id": "0bfda6d2982a44d4",
+          "ts": 1781687739.4294138,
+          "type": "framework",
+          "name": "turn_start",
+          "status": "ok",
+          "summary": "round 2",
+          "data": {
+            "round": 2,
+            "messages_len": 6
+          },
+          "trace_id": "ac09c3876ad249d7"
+        }
+      ],
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 0.77,
+        "tool_call_count": 4,
+        "action_dist": {
+          "unknown": 2,
+          "read_dir": 2
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 3,
+        "redundant_read_ratio": 0.5,
+        "total_reads": 2
+      },
+      "acceptance": {},
+      "session_id": "3ae5792f05244e48",
+      "workspace": ".educe/benchmark_runs/20260617_171104/qwen36/SCI-03/workspace",
+      "error": ""
+    }
+  ]
+}
