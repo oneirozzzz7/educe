@@ -74,7 +74,8 @@ _ATTR_PATTERN = re.compile(r'(\w+)\s*=\s*["\']?([^"\'\s>]+)["\']?')
 def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
     """从模型输出中提取 action 和纯文字部分。
 
-    优先解析 Markdown 代码块格式，fallback 到旧 XML 格式。
+    解析优先级：Markdown code block > 原生 tool call > XML (旧格式)
+    Markdown 和 native tool call 同时解析并合并（模型可能混用格式）。
     返回 (reply_text, actions)。
     """
     actions = []
@@ -98,6 +99,33 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                 canonical = _ACTION_ALIASES.get(atype, atype)
                 actions.append(ParsedAction(type=canonical, params=body, name=""))
 
+    # 并行：原生 tool call 格式（Kimi K2 等模型的特殊 token 格式）
+    # 与 Markdown 格式合并（模型可能在同一个 response 中混用两种格式）
+    _NATIVE_JSON = re.compile(
+        r'(?:<\|tool_call_begin\|>.*?<\|tool_call_end\|>)?'
+        r'tool:([\w.]+)\s*\n'
+        r'(\{[^}]*\})'
+        r'(?:<\|tool_call_argument_begin\|>)?',
+        re.DOTALL
+    )
+    for m in _NATIVE_JSON.finditer(text):
+        tool_name = m.group(1).strip()
+        params = m.group(2).strip()
+        actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
+
+    # Pattern B: special_tokens + bare action name + raw params (hybrid)
+    if not actions:
+        _NATIVE_BARE = re.compile(
+            r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>'
+            r'([\w][\w.]*)\n'
+            r'([\s\S]*?)(?:```|<\|tool_call_argument_begin\|>|$)',
+        )
+        for m in _NATIVE_BARE.finditer(text):
+            tool_name = m.group(1).strip()
+            params = m.group(2).strip()
+            if tool_name and params:
+                actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
+
     # Fallback：旧 XML 格式（向后兼容）
     if not actions:
         for m in _XML_ACTION_PATTERN.finditer(text):
@@ -111,26 +139,6 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                     params=body,
                     name=attrs.get("name", ""),
                 ))
-
-    # Fallback：原生 tool call 格式（Kimi K2 / 某些模型的特殊 token 格式）
-    # 格式变体:
-    #   A: <|tool_call_begin|><|tool_call_end|>tool:name\n{json}<|tool_call_argument_begin|>
-    #   B: <|tool_call_begin|><|tool_call_end|>name\nparams\n``` (hybrid: special tokens + bare name)
-    if not actions:
-        # Pattern A: tool:name + JSON params
-        _NATIVE_JSON = re.compile(
-            r'(?:<\|tool_call_begin\|>.*?<\|tool_call_end\|>)?'
-            r'tool:([\w.]+)\s*\n'
-            r'(\{[^}]*\})'
-            r'(?:<\|tool_call_argument_begin\|>)?',
-            re.DOTALL
-        )
-        for m in _NATIVE_JSON.finditer(text):
-            tool_name = m.group(1).strip()
-            params = m.group(2).strip()
-            actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
-
-        # Pattern B: special_tokens + bare action name + raw params
         if not actions:
             _NATIVE_BARE = re.compile(
                 r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>'
@@ -143,13 +151,18 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                 if tool_name and params:
                     actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
 
-    # 清理 reply_text（去掉 action 代码块和 XML 标签）
+    # 清理 reply_text（去掉 action 代码块、XML 标签、native tool call tokens）
     reply_text = text
     for m in reversed(list(_MD_ACTION_PATTERN.finditer(text))):
         lang = m.group(1).lower()
         if lang not in _CODE_ONLY_LANGS:
             reply_text = reply_text[:m.start()] + reply_text[m.end():]
-    reply_text = _XML_ACTION_PATTERN.sub("", reply_text).strip()
+    reply_text = _XML_ACTION_PATTERN.sub("", reply_text)
+    # 清理 native tool call 特殊 token
+    reply_text = re.sub(r'<\|tool_call_begin\|>.*?<\|tool_call_argument_begin\|>', '', reply_text, flags=re.DOTALL)
+    reply_text = re.sub(r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>', '', reply_text, flags=re.DOTALL)
+    reply_text = re.sub(r'tool:[\w.]+\s*\n\{[^}]*\}', '', reply_text)
+    reply_text = reply_text.strip()
     return reply_text, actions
 
 
