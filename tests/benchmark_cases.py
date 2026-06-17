@@ -492,7 +492,7 @@ ALL_CASES: list[BenchmarkCase] = [
                   [fin04_check], needs_judge=True),
     BenchmarkCase("FIN-05", "L3", "FIN",
                   "做一个可交互的复利计算器网页，能调本金/利率/年限看曲线",
-                  [fin05_check]),
+                  [fin05_check], timeout_s=180),
 
     # === TECH ===
     BenchmarkCase("TECH-01", "L1", "TECH",
@@ -509,7 +509,7 @@ ALL_CASES: list[BenchmarkCase] = [
                   [tech04_check]),
     BenchmarkCase("TECH-05", "L3", "TECH",
                   "搭一个最小的 REST API demo，有 GET/POST 两个接口，能跑起来",
-                  [tech05_check]),
+                  [tech05_check], timeout_s=180),
 
     # === EDU ===
     BenchmarkCase("EDU-01", "L1", "EDU",
@@ -526,7 +526,7 @@ ALL_CASES: list[BenchmarkCase] = [
                   [edu04_check]),
     BenchmarkCase("EDU-05", "L3", "EDU",
                   "做个交互式九九乘法表网页，点击格子高亮整行整列",
-                  [edu05_check]),
+                  [edu05_check], timeout_s=180),
 
     # === LIFE ===
     BenchmarkCase("LIFE-01", "L1", "LIFE",
@@ -543,7 +543,7 @@ ALL_CASES: list[BenchmarkCase] = [
                   [life04_check]),
     BenchmarkCase("LIFE-05", "L3", "LIFE",
                   "做一个精美的个人待办网页，支持添加/完成/删除，数据本地存",
-                  [life05_check]),
+                  [life05_check], timeout_s=180),
 
     # === SCI ===
     BenchmarkCase("SCI-01", "L1", "SCI",
@@ -560,5 +560,5 @@ ALL_CASES: list[BenchmarkCase] = [
                   [sci04_check]),
     BenchmarkCase("SCI-05", "L3", "SCI",
                   "做个数据可视化面板，展示三组实验数据的箱线图对比",
-                  [sci05_check]),
+                  [sci05_check], timeout_s=180),
 ]

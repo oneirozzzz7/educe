@@ -46,8 +46,9 @@ class BenchmarkCase:
     domain: str
     instruction: str
     acceptance_checks: list[Callable[[CaseResult, Path], tuple[bool, float, str]]] = field(default_factory=list)
-    fixture_dir: str | None = None  # 初始文件目录
+    fixture_dir: str | None = None
     needs_judge: bool = False
+    timeout_s: float | None = None  # per-case override
 
 
 def extract_metrics(events: list[dict]) -> dict:
@@ -188,11 +189,12 @@ class BenchmarkRunner:
                 pass
 
         # Execute with timeout
+        case_timeout = case.timeout_s or self.timeout_s
         t0 = time.time()
         try:
             await asyncio.wait_for(
                 orchestrator.run(case.instruction),
-                timeout=self.timeout_s,
+                timeout=case_timeout,
             )
             result.status = "completed"
         except asyncio.TimeoutError:
