@@ -910,6 +910,21 @@ class Orchestrator:
                 log_activity(session_id, "shell_exec", cmd=cmd[:100],
                             success=proc.returncode == 0, exit_code=proc.returncode)
 
+                # Auto-update project context path when cd to absolute dir
+                if proc.returncode == 0:
+                    import re as _re_cd
+                    cd_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)', cmd)
+                    if cd_match:
+                        cd_path = Path(cd_match.group(1))
+                        if cd_path.is_dir():
+                            self.context.metadata["_project_context_path"] = str(cd_path)
+                    # Also detect "cd /path && ..." pattern
+                    cd_and_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)\s*&&', cmd)
+                    if cd_and_match:
+                        cd_path = Path(cd_and_match.group(1))
+                        if cd_path.is_dir():
+                            self.context.metadata["_project_context_path"] = str(cd_path)
+
                 # Auto-detect missing packages
                 if proc.returncode != 0 and ("ModuleNotFoundError" in stderr or "No module named" in stderr):
                     import re
@@ -1425,8 +1440,16 @@ class Orchestrator:
                 pass
 
         target_path = Path(target).expanduser()
+        if not target_path.is_absolute() and self.context.metadata.get("_project_context_path"):
+            # 相对路径基于项目上下文解析
+            target_path = Path(self.context.metadata["_project_context_path"]) / target
         if not target_path.exists():
-            return {"success": False, "output": f"目录不存在: {target}"}
+            # Fallback: 尝试推断
+            inferred = self._infer_project_path(target)
+            if inferred and inferred.exists():
+                target_path = inferred
+            else:
+                return {"success": False, "output": f"目录不存在: {target}"}
         if not target_path.is_dir():
             # Single file — read it
             try:
