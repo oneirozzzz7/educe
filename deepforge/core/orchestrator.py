@@ -399,7 +399,7 @@ class Orchestrator:
         messages.extend(history)
         messages.append({"role": "user", "content": user_input})
 
-        max_rounds = 10
+        max_rounds = 20
         final_reply = ""
 
         for round_idx in range(max_rounds):
@@ -1034,7 +1034,11 @@ class Orchestrator:
 
         path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
         if not path.exists():
-            return {"success": False, "output": f"文件不存在: {file_path}"}
+            inferred = self._infer_project_path(file_path)
+            if inferred and inferred.exists():
+                path = inferred
+            else:
+                return {"success": False, "output": f"文件不存在: {file_path}"}
 
         content = path.read_text(encoding="utf-8", errors="ignore")
 
@@ -1110,7 +1114,11 @@ class Orchestrator:
 
         path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
         if not path.exists():
-            return {"success": False, "output": f"文件不存在: {file_path}"}
+            inferred = self._infer_project_path(file_path)
+            if inferred and inferred.exists():
+                path = inferred
+            else:
+                return {"success": False, "output": f"文件不存在: {file_path}"}
 
         content = path.read_text(encoding="utf-8", errors="ignore")
         lines = content.split("\n")
@@ -1149,7 +1157,12 @@ class Orchestrator:
 
         path = base / file_path if not Path(file_path).is_absolute() else Path(file_path)
         if not path.exists():
-            return {"success": False, "output": f"文件不存在: {file_path}"}
+            # Fallback: 尝试从 shell 历史推断项目路径
+            inferred = self._infer_project_path(file_path)
+            if inferred and inferred.exists():
+                path = inferred
+            else:
+                return {"success": False, "output": f"文件不存在: {file_path}"}
 
         content = path.read_text(encoding="utf-8", errors="ignore")
         lines = content.split("\n")
@@ -1169,6 +1182,38 @@ class Orchestrator:
 
         output = f"文件: {file_path} (第{start}-{end}行，共{len(lines)}行)\n" + "\n".join(result_lines)
         return {"success": True, "output": output[:3000]}
+
+    def _infer_project_path(self, relative_path: str):
+        """从 shell 历史推断项目根路径，解析相对文件路径"""
+        from pathlib import Path
+        # 从 conversation 中提取最近 cd 到的目录
+        history = self.conversation.get_history_for_llm() if hasattr(self, 'conversation') else []
+        import re
+        candidates = set()
+        for msg in reversed(history[-10:]):
+            content = msg.get("content", "")
+            # 匹配 shell output 中的 cwd 或 cd 命令
+            for m in re.finditer(r'cd\s+(/[^\s;&|]+)', content):
+                candidates.add(m.group(1).rstrip('/'))
+            # 匹配 "$ cmd\n[cwd: /path]" 模式
+            for m in re.finditer(r'\[cwd:\s*(/[^\]]+)\]', content):
+                candidates.add(m.group(1).rstrip('/'))
+            # 匹配绝对路径中包含的目录
+            for m in re.finditer(r'(/tmp/[^\s\]"\']+)', content):
+                p = Path(m.group(1))
+                if p.is_dir():
+                    candidates.add(str(p))
+                elif p.parent.is_dir():
+                    candidates.add(str(p.parent))
+
+        # 尝试每个候选目录
+        for cand in candidates:
+            full = Path(cand) / relative_path
+            if full.exists():
+                # 记住这个路径供后续使用
+                self.context.metadata["_project_context_path"] = cand
+                return full
+        return None
 
     async def _exec_plan(self, action, session_id: str) -> dict:
         """执行多步计划——逐步执行每个步骤，反馈结果"""
@@ -1250,6 +1295,15 @@ class Orchestrator:
         target = action.params.strip()
         if not target:
             return {"success": False, "output": "未指定目录路径"}
+
+        # 兼容 JSON 格式参数 {"path": "..."}
+        if target.startswith("{"):
+            try:
+                import json as _j
+                parsed = _j.loads(target)
+                target = parsed.get("path") or parsed.get("dir") or target
+            except (ValueError, TypeError):
+                pass
 
         target_path = Path(target).expanduser()
         if not target_path.exists():
