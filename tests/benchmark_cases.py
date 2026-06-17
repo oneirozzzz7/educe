@@ -23,13 +23,29 @@ def _normalize(s: str) -> str:
 
 
 def _get_reply_text(result: CaseResult) -> str:
-    """从 events 拼接完整回复文本"""
+    """从 events + trace 拼接完整回复文本"""
     parts = []
     for evt in result.events:
         if evt.get("name") == "model_output":
             parts.append(evt.get("data", {}).get("reply_preview", ""))
         if evt.get("summary", "").startswith("model_output"):
             parts.append(evt.get("summary", ""))
+    # Also try reading trace for full LLM output
+    import pathlib
+    ws = pathlib.Path(result.workspace) if result.workspace else None
+    if ws:
+        log_dir = ws.parent / "logs"
+        for trace_file in log_dir.rglob("trace.jsonl"):
+            try:
+                for line in trace_file.read_text().strip().split("\n"):
+                    if not line.strip():
+                        continue
+                    t = json.loads(line)
+                    if t.get("kind") == "llm_output":
+                        payload = str(t.get("payload", ""))
+                        parts.append(payload)
+            except Exception:
+                pass
     return "\n".join(parts)
 
 

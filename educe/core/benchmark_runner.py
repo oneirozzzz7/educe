@@ -174,6 +174,8 @@ class BenchmarkRunner:
         orchestrator.session_logger = sl
         orchestrator.context.metadata["session_id"] = session_id
         orchestrator.context.metadata["_project_context_path"] = str(workspace)
+        # Benchmark mode: auto-confirm all actions (no human in the loop)
+        orchestrator.context.metadata["_benchmark_auto_confirm"] = True
 
         # Register agents
         client = ModelClient(api_key=self.api_key, base_url=self.base_url)

@@ -529,6 +529,9 @@ class Orchestrator:
             needs_confirm = {"build", "plan"}
 
             def _needs_confirmation(action) -> bool:
+                # Benchmark mode: skip all confirmations
+                if self.context.metadata.get("_benchmark_auto_confirm"):
+                    return False
                 if action.type in needs_confirm:
                     return True
                 if action.type == "shell":
