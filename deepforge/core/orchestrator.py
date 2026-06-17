@@ -450,7 +450,10 @@ class Orchestrator:
                         # 模型想继续但没输出 action → 追加提示让它执行
                         messages.append({"role": "assistant", "content": raw})
                         messages.append({"role": "user", "content":
-                            "[系统] 方案已收到。请直接用代码块执行修改，不需要再解释。"})
+                            "[系统] 方案已收到。请直接修改文件。你可以用以下格式：\n"
+                            "tool:edit_file\n"
+                            '{"path": "文件路径", "old": "要替换的原文", "new": "替换后的新文"}\n'
+                            "或者用 shell 执行 python 脚本来修改。不需要再解释，直接执行。"})
                         log.info("_action_loop | round %d continuation detected, prompting execution", round_idx)
                         continue
 

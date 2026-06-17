@@ -113,20 +113,35 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                 ))
 
     # Fallback：原生 tool call 格式（Kimi K2 / 某些模型的特殊 token 格式）
-    # 匹配模式: <|tool_call_begin|>...<|tool_call_end|>tool:name\n{json}<|tool_call_argument_begin|>
-    # 或: tool:name\n{json}（无特殊 token 包装）
+    # 格式变体:
+    #   A: <|tool_call_begin|><|tool_call_end|>tool:name\n{json}<|tool_call_argument_begin|>
+    #   B: <|tool_call_begin|><|tool_call_end|>name\nparams\n``` (hybrid: special tokens + bare name)
     if not actions:
-        _NATIVE_TOOL_CALL = re.compile(
+        # Pattern A: tool:name + JSON params
+        _NATIVE_JSON = re.compile(
             r'(?:<\|tool_call_begin\|>.*?<\|tool_call_end\|>)?'
-            r'tool:([^\s\n]+)\s*\n*'
+            r'tool:([\w.]+)\s*\n'
             r'(\{[^}]*\})'
             r'(?:<\|tool_call_argument_begin\|>)?',
             re.DOTALL
         )
-        for m in _NATIVE_TOOL_CALL.finditer(text):
+        for m in _NATIVE_JSON.finditer(text):
             tool_name = m.group(1).strip()
             params = m.group(2).strip()
             actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
+
+        # Pattern B: special_tokens + bare action name + raw params
+        if not actions:
+            _NATIVE_BARE = re.compile(
+                r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>'
+                r'([\w][\w.]*)\n'
+                r'([\s\S]*?)(?:```|<\|tool_call_argument_begin\|>|$)',
+            )
+            for m in _NATIVE_BARE.finditer(text):
+                tool_name = m.group(1).strip()
+                params = m.group(2).strip()
+                if tool_name and params:
+                    actions.append(ParsedAction(type="use_tool", params=params, name=tool_name))
 
     # 清理 reply_text（去掉 action 代码块和 XML 标签）
     reply_text = text
