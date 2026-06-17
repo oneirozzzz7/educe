@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\ncd rest_demo\nls -la\n```\n\n```shell\nsource venv/bin/activate\npython app.py\n```\n\n手动前台跑一下，看看到底哪里报错。",
+  "session_dir": ".educe/benchmark_runs/20260617_163341/Kimi-K2/TECH-05/logs/sessions/2026-06-17/c50ab16271cf428d",
+  "hash": "2f0fe26257c5"
+}

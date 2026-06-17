@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\ncd ./src/click && head -50 core.py | grep -A 20 \"class BaseCommand\"\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_170613/Kimi-K2/CODE-02/logs/sessions/2026-06-17/7f36bd986eaf4563",
+  "hash": "c8192d833fcc"
+}

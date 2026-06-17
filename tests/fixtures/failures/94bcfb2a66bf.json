@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "edit_file",
+  "summary": "edit_file: fail",
+  "llm_output": "```edit_file\npath: ./src/click/decorators.py\n<<<<<<< SEARCH\nfrom .utils\n=======\nfrom .utils import echo\n>>>>>>> NEW\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_163341/Kimi-K2/CODE-01/logs/sessions/2026-06-17/ed81801315b94b43",
+  "hash": "94bcfb2a66bf"
+}

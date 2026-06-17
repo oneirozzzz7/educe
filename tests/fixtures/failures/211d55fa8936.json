@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\ndiskutil info disk3 | grep -E \"Total Size|Media Size|Logical Size\"\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_203236/qwen36/TECH-01/logs/sessions/2026-06-17/a1a012b6546d4568",
+  "hash": "211d55fa8936"
+}

@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\nls src/click/\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-05/logs/sessions/2026-06-17/d747f496e7674193",
+  "hash": "fd36173ffc44"
+}

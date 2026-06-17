@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "read_lines",
+  "summary": "read_lines: fail",
+  "llm_output": "```read_lines\n./src/click/decorators.py\n15\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_163341/Kimi-K2/CODE-01/logs/sessions/2026-06-17/ed81801315b94b43",
+  "hash": "c19f8624dbab"
+}

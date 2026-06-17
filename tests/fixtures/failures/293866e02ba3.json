@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\ncd /home/user/.educe/benchmark_runs/20260617_184156/qwen36/CODE-05/workspace && find . -name \"exceptions.py\" 2>/dev/null\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-05/logs/sessions/2026-06-17/d747f496e7674193",
+  "hash": "293866e02ba3"
+}

@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\npython3 /tmp/mortgage.py\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_171104/qwen36/FIN-01/logs/sessions/2026-06-17/3820fa6d853949bd",
+  "hash": "a6b3eefa3256"
+}

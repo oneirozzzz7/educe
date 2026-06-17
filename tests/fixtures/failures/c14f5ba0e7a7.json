@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\npython3 /tmp/find_longest_func.py\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_203236/qwen36/CODE-04/logs/sessions/2026-06-17/1b1d21a3df1b4af3",
+  "hash": "c14f5ba0e7a7"
+}

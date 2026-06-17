@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\npython demo_version_only.py --version\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_170613/Kimi-K2/CODE-01/logs/sessions/2026-06-17/3ea60481d00541f6",
+  "hash": "cdd0f8778488"
+}

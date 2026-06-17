@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "shell",
+  "summary": "shell: fail",
+  "llm_output": "```shell\ngrep -n \"class BaseCommand\" src/click/core.py\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_202825/qwen36/CODE-02/logs/sessions/2026-06-17/3555fac8d05f4add",
+  "hash": "26dcc0d78e51"
+}

@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "memorize",
+  "summary": "memorize: fail",
+  "llm_output": "```memorize\n用户喜欢用 Python 写代码，不喜欢 Java\n```",
+  "session_dir": ".educe/logs/sessions/2026-06-17/e03865ba-300c-47",
+  "hash": "2506f5cf96b7"
+}

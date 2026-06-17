@@ -1,0 +1,8 @@
+{
+  "event_name": "tool_result",
+  "action_type": "search_in_file",
+  "summary": "search_in_file: fail",
+  "llm_output": "```search_in_file\ncore.py\nclass BaseCommand\n```",
+  "session_dir": ".educe/benchmark_runs/20260617_163341/Kimi-K2/CODE-02/logs/sessions/2026-06-17/e4f2023885c34dba",
+  "hash": "5a5858beceee"
+}
