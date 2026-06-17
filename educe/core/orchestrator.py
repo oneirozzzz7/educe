@@ -376,6 +376,11 @@ class Orchestrator:
         if causal_experience:
             system += causal_experience
 
+        # 阶段2: CompositeSkill 注入 — 匹配已编译技能，引导一口气执行
+        skill_prompt = self._match_composite_skills(user_input, round_idx=0)
+        if skill_prompt:
+            system += skill_prompt
+
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
             try:
@@ -1820,6 +1825,48 @@ class Orchestrator:
             ledger = LedgerStore(Path(".educe/metabolism"))
             self._causal_retriever = CausalRetriever(ledger)
         return self._causal_retriever
+
+    def _get_skill_registry(self):
+        """获取 CompositeSkill 注册表"""
+        if not hasattr(self, '_skill_registry'):
+            from educe.core.metabolism.composite_skill import SkillRegistry
+            from pathlib import Path
+            self._skill_registry = SkillRegistry(Path(".educe/skills"))
+        return self._skill_registry
+
+    def _match_composite_skills(self, user_input: str, round_idx: int = 0) -> str:
+        """匹配已编译的 CompositeSkill，返回注入文本"""
+        try:
+            from educe.core.metabolism.context_sig import task_type
+            registry = self._get_skill_registry()
+            if registry.count == 0:
+                return ""
+
+            scope = task_type(user_input)
+            is_start = (round_idx == 0)
+            matched = registry.match(scope, is_start=is_start)
+
+            if not matched:
+                return ""
+
+            # 最多注入 3 个最相关的 skill
+            top_skills = matched[:3]
+            lines = ["\n\n## 已掌握的多步技能（可一口气执行）\n"]
+            for skill in top_skills:
+                lines.append(skill.render_for_prompt())
+                lines.append("")
+
+            # 记录本轮激活的 skill ids
+            self.context.metadata["_activated_skill_ids"] = [s.skill_id for s in top_skills]
+
+            self._slog("framework", "skill_matched",
+                       summary=f"matched {len(top_skills)} skills for scope={scope}",
+                       data={"scope": scope, "skill_names": [s.name for s in top_skills],
+                             "is_start": is_start})
+
+            return "\n".join(lines)
+        except Exception:
+            return ""
 
     def _l1_clarification_check(self, user_input: str) -> str | None:
         """L1 澄清：检测不可逆高危意图，要求用户确认方向。
