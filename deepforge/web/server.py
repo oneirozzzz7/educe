@@ -540,20 +540,24 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         from deepforge.core.iteration_state import StateLog, IterationState
         log_path = Path(f".deepforge/convergence/{session_id[:16]}.jsonl")
         if not log_path.exists():
-            return {"curve": [], "claims": [], "convergence": 0}
+            return {"curve": [], "claims": [], "convergence": 0, "has_edits": False}
         log = StateLog(log_path)
         log.load()
         latest = log.latest()
         if not latest:
-            return {"curve": [], "claims": [], "convergence": 0}
+            return {"curve": [], "claims": [], "convergence": 0, "has_edits": False}
         claims = []
+        has_edits = False
         for cid, c in latest.claims.items():
             claims.append({"id": cid, "text": c.text[:80], "status": c.status.value})
+            if "修改" in c.text or "file created" in c.text or "edit" in c.text.lower():
+                has_edits = True
         return {
             "curve": log.convergence_curve(),
             "claims": claims,
             "convergence": latest.convergence_metric(),
             "revisions": len(log.convergence_curve()),
+            "has_edits": has_edits,
         }
 
     @app.post("/api/feedback")

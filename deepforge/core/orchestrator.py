@@ -1743,6 +1743,12 @@ class Orchestrator:
         if action.type == "write_file" and success:
             claim = Claim.new(f"file created: {action.params.split(chr(10))[0][:60]}",
                               FactStatus.VERIFIED, evidence)
+        elif action.type == "edit_file" and success:
+            claim = Claim.new(f"edit applied: {action.params.split(chr(10))[0][:60]}",
+                              FactStatus.VERIFIED, evidence)
+        elif action.type == "edit_file" and not success:
+            claim = Claim.new(f"edit failed: {output[:60]}",
+                              FactStatus.OPEN, evidence)
         elif action.type == "shell" and success:
             claim = Claim.new(f"command succeeded: {action.params[:60]}",
                               FactStatus.VERIFIED, evidence)

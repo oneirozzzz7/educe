@@ -8,6 +8,7 @@ interface ConvergenceData {
   claims: { id: string; text: string; status: string }[];
   convergence: number;
   revisions: number;
+  has_edits?: boolean;
 }
 
 export function ConvergencePanel({ sessionId }: { sessionId: string }) {
@@ -30,7 +31,7 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
 
   if (!data || data.curve.length < 2) return null;
 
-  const { curve, convergence, claims } = data;
+  const { curve, convergence, claims, has_edits } = data;
   const verified = claims.filter(c => c.status === "verified").length;
   const open = claims.filter(c => c.status === "open").length;
   const total = claims.length;
@@ -38,8 +39,8 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
   const isStalled = curve.length >= 5 && convergence < 1.0 &&
     Math.max(...curve.slice(-5)) - Math.min(...curve.slice(-5)) < 0.02;
 
-  const dotColor = isStalled ? "#e04040" : convergence >= 1.0 ? "#16a34a" : convergence >= 0.7 ? "#eab308" : "#e04040";
-  const statusText = isStalled ? "遇到困难" : convergence >= 1.0 ? "完成" : convergence >= 0.8 ? "接近完成" : "进行中";
+  const dotColor = isStalled ? "#e04040" : has_edits ? "#16a34a" : convergence >= 1.0 ? "#eab308" : "#e04040";
+  const statusText = isStalled ? "遇到困难" : has_edits ? "已修改" : convergence >= 1.0 ? `探索完成` : convergence >= 0.8 ? "探索中" : "进行中";
 
   return (
     <div style={{ borderTop: "1px solid var(--border-1, #2a2a2a)", marginBottom: 4 }}>
