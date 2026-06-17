@@ -1,6 +1,6 @@
-# DeepForge 🔥
+# Educe
 
-**Make weak LLMs do strong work through multi-agent collaboration**
+**The governance layer between humans and models — steering wheel, brakes, and dashboard.**
 
 [中文](./README.md) | English
 

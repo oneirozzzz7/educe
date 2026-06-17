@@ -77,7 +77,7 @@ def show_status(config: EduceConfig):
 @click.option("--config", "-c", default=None, help="配置文件路径")
 @click.pass_context
 def main(ctx, config):
-    """DeepForge - 用弱模型做强活的多Agent框架"""
+    """Educe — 人与模型之间的治理层"""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config
 
