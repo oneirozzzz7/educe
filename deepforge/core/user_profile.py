@@ -16,7 +16,7 @@ from pathlib import Path
 from collections import Counter
 
 
-PROFILE_DIR = Path(".deepforge/profiles")
+PROFILE_DIR = Path(".educe/profiles")
 
 
 class UserProfile:

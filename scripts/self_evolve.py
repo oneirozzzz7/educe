@@ -67,7 +67,7 @@ SKILL_GENERATION_TASKS = [
     ("qr_generator", "二维码生成器", ["qr", "二维码", "生成"]),
 ]
 
-LOG_DIR = Path(".deepforge/evolution")
+LOG_DIR = Path(".educe/evolution")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -75,8 +75,8 @@ class EvolutionEngine:
     def __init__(self, config: DeepForgeConfig):
         self.config = config
         self.client = ModelClient(api_key=config.default_model.api_key, base_url=config.default_model.base_url)
-        self.memory = MemoryStore(".deepforge/memory")
-        self.skills = SkillRegistry(".deepforge/skills", ".deepforge/community_skills")
+        self.memory = MemoryStore(".educe/memory")
+        self.skills = SkillRegistry(".educe/skills", ".educe/community_skills")
         self.stats = {
             "rounds": 0,
             "tests_run": 0,

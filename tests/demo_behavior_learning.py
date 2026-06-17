@@ -26,9 +26,9 @@ BASE_URL = os.environ.get("EDUCE_MODEL_URL", "")
 MODEL = os.environ.get("EDUCE_MODEL_NAME", "qwen36")
 
 if not API_KEY or not BASE_URL:
-    # fallback: 尝试从 .deepforge 配置读取
+    # fallback: 尝试从 .educe 配置读取
     try:
-        cfg_path = Path(".deepforge/config.json")
+        cfg_path = Path(".educe/config.json")
         if cfg_path.exists():
             cfg = json.loads(cfg_path.read_text())
             API_KEY = cfg.get("default_model", {}).get("api_key", "")
@@ -38,7 +38,7 @@ if not API_KEY or not BASE_URL:
         pass
 
 if not API_KEY or not BASE_URL:
-    print("请设置环境变量 EDUCE_MODEL_KEY 和 EDUCE_MODEL_URL，或配置 .deepforge/config.json")
+    print("请设置环境变量 EDUCE_MODEL_KEY 和 EDUCE_MODEL_URL，或配置 .educe/config.json")
     exit(1)
 
 BLUE = "\033[94m"

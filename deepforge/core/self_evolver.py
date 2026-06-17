@@ -20,7 +20,7 @@ from pathlib import Path
 from dataclasses import dataclass, field
 
 
-EVOLVER_LOG = Path(".deepforge/evolution/self_evolver.jsonl")
+EVOLVER_LOG = Path(".educe/evolution/self_evolver.jsonl")
 
 
 @dataclass

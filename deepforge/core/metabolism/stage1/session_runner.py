@@ -248,6 +248,6 @@ if __name__ == "__main__":
     pitfalls_file = Path("deepforge/core/metabolism/stage1") / "pitfalls.yaml"
     asyncio.run(run_accumulation(
         pitfalls_path=pitfalls_file,
-        output_dir=Path(".deepforge/metabolism_stage1"),
+        output_dir=Path(".educe/metabolism_stage1"),
         trials_per_persona=3,
     ))

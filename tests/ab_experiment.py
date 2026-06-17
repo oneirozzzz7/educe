@@ -235,7 +235,7 @@ async def main():
     print(report)
 
     # 保存结果
-    output_dir = Path(".deepforge/experiments")
+    output_dir = Path(".educe/experiments")
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
 

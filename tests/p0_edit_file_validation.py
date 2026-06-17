@@ -245,8 +245,8 @@ async def main():
             print(f"\n  Changes made (first 1000 chars):\n{full_diff.stdout[:1000]}")
         else:
             print(f"\n  {YELLOW}No changes detected in git — edit_file may not have written to the right path{RESET}")
-            # Check .deepforge/output too
-            output_dir = Path(".deepforge/output")
+            # Check .educe/output too
+            output_dir = Path(".educe/output")
             if output_dir.exists():
                 for f in output_dir.rglob("core.py"):
                     print(f"    Found in output dir: {f}")

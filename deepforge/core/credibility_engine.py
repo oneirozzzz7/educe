@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 
-CREDIBILITY_DIR = Path(".deepforge/credibility")
+CREDIBILITY_DIR = Path(".educe/credibility")
 
 
 class CredibilityEngine:

@@ -45,7 +45,7 @@ class Orchestrator:
         from deepforge.core.unified_store import UnifiedKnowledgeStore
         self.unified_store = None
         try:
-            self.unified_store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+            self.unified_store = UnifiedKnowledgeStore(Path(".educe/unified"))
         except Exception:
             pass
 
@@ -858,7 +858,7 @@ class Orchestrator:
         elif self.context.metadata.get("_project_context_path"):
             work_dir = Path(self.context.metadata["_project_context_path"])
         else:
-            work_dir = Path(".deepforge/output") / session_id[:16]
+            work_dir = Path(".educe/output") / session_id[:16]
         work_dir.mkdir(parents=True, exist_ok=True)
 
         env = {**os.environ, "PATH": os.environ.get("PATH", "")}
@@ -947,7 +947,7 @@ class Orchestrator:
             if self.context.metadata.get("_project_context_path"):
                 base = Path(self.context.metadata["_project_context_path"])
             else:
-                base = Path(".deepforge/output") / session_id[:16]
+                base = Path(".educe/output") / session_id[:16]
             path = base / path
 
         if not path.exists():
@@ -1016,7 +1016,7 @@ class Orchestrator:
         if self.context.metadata.get("_project_context_path"):
             base = Path(self.context.metadata["_project_context_path"])
         else:
-            base = Path(".deepforge/output") / session_id[:16]
+            base = Path(".educe/output") / session_id[:16]
         base.mkdir(parents=True, exist_ok=True)
 
         # 路径解析策略：
@@ -1069,7 +1069,7 @@ class Orchestrator:
         new_string = old_match.group(2)
 
         # 解析文件路径
-        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        base = Path(".educe/output") / session_id[:16] if session_id else Path(".")
         if self.context.metadata.get("_project_context_path"):
             base = Path(self.context.metadata["_project_context_path"])
         base.mkdir(parents=True, exist_ok=True)
@@ -1150,7 +1150,7 @@ class Orchestrator:
 
         file_path, query = parts[0].strip(), parts[1].strip()
 
-        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        base = Path(".educe/output") / session_id[:16] if session_id else Path(".")
         if self.context.metadata.get("_project_context_path"):
             base = Path(self.context.metadata["_project_context_path"])
 
@@ -1193,7 +1193,7 @@ class Orchestrator:
         file_path = parts[0].strip()
         range_str = parts[1].strip()
 
-        base = Path(".deepforge/output") / session_id[:16] if session_id else Path(".")
+        base = Path(".educe/output") / session_id[:16] if session_id else Path(".")
         if self.context.metadata.get("_project_context_path"):
             base = Path(self.context.metadata["_project_context_path"])
 
@@ -1413,7 +1413,7 @@ class Orchestrator:
                 return {"success": False, "output": f"读取失败: {e}"}
 
         # Build file tree
-        IGNORE = {".git", "node_modules", "__pycache__", ".next", ".deepforge", "venv", ".venv", "dist", "build"}
+        IGNORE = {".git", "node_modules", "__pycache__", ".next", ".educe", "venv", ".venv", "dist", "build"}
         CODE_EXTS = {".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".java", ".go", ".rs", ".rb", ".sh"}
 
         lines = []
@@ -1647,7 +1647,7 @@ class Orchestrator:
             from deepforge.core.tool_registry import ToolRegistry
             self._tool_registry = ToolRegistry()
             from pathlib import Path
-            self._tool_registry.load_from_config(Path(".deepforge/tools.json"))
+            self._tool_registry.load_from_config(Path(".educe/tools.json"))
         return self._tool_registry
 
     def _get_connector_registry(self):
@@ -1662,7 +1662,7 @@ class Orchestrator:
             # 包装现有 ToolRegistry
             registry.register(BuiltinConnector(self._get_tool_registry()))
             # 加载 MCP 连接器
-            for mcp in load_mcp_connectors(Path(".deepforge/mcp.json")):
+            for mcp in load_mcp_connectors(Path(".educe/mcp.json")):
                 registry.register(mcp)
 
             self._connector_registry = registry
@@ -1674,7 +1674,7 @@ class Orchestrator:
             from deepforge.core.metabolism.ledger import LedgerStore
             from deepforge.core.metabolism.capturer import OutcomeCapturer
             from pathlib import Path
-            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            ledger = LedgerStore(Path(".educe/metabolism"))
             self._outcome_capturer = OutcomeCapturer(ledger)
         return self._outcome_capturer
 
@@ -1684,7 +1684,7 @@ class Orchestrator:
             from deepforge.core.metabolism.retriever import CausalRetriever
             from deepforge.core.metabolism.ledger import LedgerStore
             from pathlib import Path
-            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            ledger = LedgerStore(Path(".educe/metabolism"))
             self._causal_retriever = CausalRetriever(ledger)
         return self._causal_retriever
 
@@ -1719,7 +1719,7 @@ class Orchestrator:
         if not hasattr(self, '_iteration_state'):
             from deepforge.core.iteration_state import IterationState, StateLog
             from pathlib import Path
-            log_path = Path(f".deepforge/convergence/{session_id[:16]}.jsonl")
+            log_path = Path(f".educe/convergence/{session_id[:16]}.jsonl")
             state_log = StateLog(log_path)
             state_log.load()
             if state_log.latest():
@@ -1777,7 +1777,7 @@ class Orchestrator:
             from deepforge.core.metabolism.guardian import ActionGuardian
             from deepforge.core.metabolism.ledger import LedgerStore
             from pathlib import Path
-            ledger = LedgerStore(Path(".deepforge/metabolism"))
+            ledger = LedgerStore(Path(".educe/metabolism"))
             self._guardian = ActionGuardian(ledger)
         return self._guardian
 
@@ -1794,7 +1794,7 @@ class Orchestrator:
         if not hasattr(self, '_behavior_manifest'):
             from deepforge.core.behavior import BehaviorManifest
             from pathlib import Path
-            manifest_path = Path(".deepforge/behavior/manifest.json")
+            manifest_path = Path(".educe/behavior/manifest.json")
             if manifest_path.exists():
                 self._behavior_manifest = BehaviorManifest.load(manifest_path)
             else:
@@ -1812,7 +1812,7 @@ class Orchestrator:
             manifest = self._get_behavior_manifest()
             self._behavior_learner = BehaviorLearner(
                 manifest=manifest,
-                persist_path=Path(".deepforge/behavior/manifest.json"),
+                persist_path=Path(".educe/behavior/manifest.json"),
             )
         return self._behavior_learner
 
@@ -2582,7 +2582,7 @@ class Orchestrator:
             pass
         from deepforge.skills.registry import SkillRegistry
         try:
-            sr = SkillRegistry(".deepforge/skills", ".deepforge/community_skills")
+            sr = SkillRegistry(".educe/skills", ".educe/community_skills")
             results = sr.search(user_input)
             if results and results[0].prompt_template:
                 return results[0].prompt_template

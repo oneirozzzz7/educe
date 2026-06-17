@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 
 
-_LOG_DIR = Path(".deepforge/logs")
+_LOG_DIR = Path(".educe/logs")
 
 
 def _ensure_dir():

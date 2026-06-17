@@ -28,7 +28,7 @@ from deepforge.memory.store import MemoryStore
 from deepforge.skills.registry import SkillRegistry
 from deepforge.core.knowledge import LayeredCache
 
-LOG_DIR = Path(".deepforge/evolution")
+LOG_DIR = Path(".educe/evolution")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 TASKS = [
@@ -54,7 +54,7 @@ class EvolutionEngineV2:
         self.config = config
         self.client = client
         self.knowledge = LayeredCache()
-        self.memory = MemoryStore(".deepforge/memory")
+        self.memory = MemoryStore(".educe/memory")
         self.log_file = LOG_DIR / f"evo2_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
         self.stats = {
             "rounds": 0, "tests": 0, "passes": 0, "fails": 0,
@@ -379,8 +379,8 @@ class EvolutionEngineV2:
 
     def _create_orchestrator(self) -> Orchestrator:
         orch = Orchestrator(self.config, max_iterations=2)
-        ms = MemoryStore(".deepforge/memory")
-        sr = SkillRegistry(".deepforge/skills", ".deepforge/community_skills")
+        ms = MemoryStore(".educe/memory")
+        sr = SkillRegistry(".educe/skills", ".educe/community_skills")
         for ac in ALL_AGENTS:
             a = ac(config=self.config, model_client=self.client)
             if hasattr(a, "memory_store"):

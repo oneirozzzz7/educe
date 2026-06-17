@@ -283,8 +283,8 @@ async def run_evolution(max_gen: int = 5):
         output = {"baseline_train": BASELINE_SEED.fitness, "final_train": best.fitness,
                   "baseline_holdout": bl_ho, "final_holdout": best_ho,
                   "seed_replaced": best.id != "baseline", "final_seed": best.text, "history": history}
-        Path(".deepforge").mkdir(exist_ok=True)
-        Path(".deepforge/evolution_v04b_result.json").write_text(json.dumps(output, ensure_ascii=False, indent=2))
+        Path(".educe").mkdir(exist_ok=True)
+        Path(".educe/evolution_v04b_result.json").write_text(json.dumps(output, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

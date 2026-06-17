@@ -159,7 +159,7 @@ async def run_experiment(task_idx: int = None):
         print(f"  Task: {task['id']} — {task['prompt'][:40]}...")
         print(f"{'─' * 50}")
 
-        output_dir = Path(f".deepforge/output/eval-educe-{task['id']}")
+        output_dir = Path(f".educe/output/eval-educe-{task['id']}")
         result = await run_educe_task(task, output_dir)
 
         # Evaluate

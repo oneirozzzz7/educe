@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 
-SESSION_DIR = Path(".deepforge/sessions")
+SESSION_DIR = Path(".educe/sessions")
 
 
 class SessionStore:

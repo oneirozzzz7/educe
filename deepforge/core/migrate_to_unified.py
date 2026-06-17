@@ -1,7 +1,7 @@
 """
 数据迁移脚本：旧系统 → 统一知识系统
 
-将 knowledge.json + skills/*.json + domain_stats.json 迁移到 .deepforge/unified/
+将 knowledge.json + skills/*.json + domain_stats.json 迁移到 .educe/unified/
 
 幂等：已存在的 entries 跳过，可安全重复执行。
 """
@@ -21,7 +21,7 @@ from deepforge.core.unified_store import (
 )
 
 
-DEEPFORGE_DIR = Path(".deepforge")
+DEEPFORGE_DIR = Path(".educe")
 
 
 def _infer_maturity(usage_count: int, success_count: int) -> str:

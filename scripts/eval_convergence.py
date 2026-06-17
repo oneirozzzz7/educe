@@ -17,7 +17,7 @@ from pathlib import Path
 import websockets
 
 SERVER_URL = "ws://localhost:7860/ws/{session_id}"
-CONVERGENCE_DIR = Path(".deepforge/convergence")
+CONVERGENCE_DIR = Path(".educe/convergence")
 
 # 简单任务（高成功率，能快速完成）
 TEST_TASK = "创建一个 Python 文件 hello.py，内容是 print('hello world')，然后运行它。"

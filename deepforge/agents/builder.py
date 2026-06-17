@@ -80,7 +80,7 @@ class BuilderAgent(BaseAgent):
             messages = [{"role": "user", "content": prompt_content}]
 
         session_id = context.metadata.get("session_id", "default")
-        output_dir = Path(".deepforge/output") / session_id[:16]
+        output_dir = Path(".educe/output") / session_id[:16]
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 根据复杂度动态调整迭代深度

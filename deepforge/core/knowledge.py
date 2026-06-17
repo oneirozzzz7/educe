@@ -61,7 +61,7 @@ class LayeredCache:
     L4: 全文层——LLM辅助搜索（只在L1-L3 miss且卡住时用）
     """
 
-    def __init__(self, storage_dir: str = ".deepforge/knowledge"):
+    def __init__(self, storage_dir: str = ".educe/knowledge"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._entries: dict[str, KnowledgeEntry] = {}

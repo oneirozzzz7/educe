@@ -14,7 +14,7 @@ from typing import Any
 
 
 class ArtifactManager:
-    def __init__(self, work_dir: str = ".deepforge/output"):
+    def __init__(self, work_dir: str = ".educe/output"):
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self._server_proc: subprocess.Popen | None = None

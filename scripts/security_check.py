@@ -41,7 +41,7 @@ SAFE_PATTERNS = [
 ]
 
 SKIP_EXTENSIONS = {'.pyc', '.pyo', '.so', '.dylib', '.png', '.jpg', '.gif', '.ico', '.woff', '.ttf'}
-SKIP_DIRS = {'node_modules', '.git', '__pycache__', '.venv', 'venv', '.deepforge'}
+SKIP_DIRS = {'node_modules', '.git', '__pycache__', '.venv', 'venv', '.educe'}
 SKIP_FILES = {'security_check.py', 'pre-commit', 'package-lock.json', 'improvement_log.md'}
 
 

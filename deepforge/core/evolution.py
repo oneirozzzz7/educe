@@ -12,7 +12,7 @@ from datetime import datetime
 
 from deepforge.core.knowledge import LayeredCache
 
-LOG_DIR = Path(".deepforge/evolution")
+LOG_DIR = Path(".educe/evolution")
 
 
 def evolve_from_output(engineer_output: str, user_request: str,

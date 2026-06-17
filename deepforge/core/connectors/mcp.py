@@ -11,7 +11,7 @@ P0 健壮性保障：
 - 危险能力标记（write/delete 类）
 - 调用日志
 
-配置格式 (.deepforge/mcp.json):
+配置格式 (.educe/mcp.json):
 {
   "servers": [
     {

@@ -188,11 +188,11 @@ def init(provider):
     from pathlib import Path
     import shutil
 
-    config_dir = Path.cwd() / ".deepforge"
+    config_dir = Path.cwd() / ".educe"
     config_dir.mkdir(exist_ok=True)
 
-    template = Path(__file__).parent.parent / "templates" / "deepforge.example.yaml"
-    target = Path.cwd() / "deepforge.yaml"
+    template = Path(__file__).parent.parent / "templates" / "educe.example.yaml"
+    target = Path.cwd() / "educe.yaml"
 
     if template.exists():
         shutil.copy(template, target)

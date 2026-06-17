@@ -16,7 +16,7 @@ from deepforge.tools.toolbox import ToolBox
 
 
 class PreviewServer:
-    def __init__(self, work_dir: str = ".deepforge/preview"):
+    def __init__(self, work_dir: str = ".educe/preview"):
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self._process: subprocess.Popen | None = None
@@ -118,7 +118,7 @@ class PreviewServer:
         return {
             "status": "manual",
             "type": "node",
-            "message": "Node.js项目已生成，请运行: cd .deepforge/preview && npm install && npm start",
+            "message": "Node.js项目已生成，请运行: cd .educe/preview && npm install && npm start",
             "dir": str(self.work_dir),
         }
 

@@ -27,7 +27,7 @@ MODEL = os.environ.get("EDUCE_MODEL_NAME", "qwen36")
 
 if not API_KEY or not BASE_URL:
     try:
-        cfg = json.loads(Path(".deepforge/config.json").read_text())
+        cfg = json.loads(Path(".educe/config.json").read_text())
         API_KEY = cfg.get("default_model", {}).get("api_key", "")
         BASE_URL = cfg.get("default_model", {}).get("base_url", "")
         MODEL = cfg.get("default_model", {}).get("model", MODEL)
@@ -35,7 +35,7 @@ if not API_KEY or not BASE_URL:
         pass
 
 CONCURRENCY = 4
-OUTPUT_DIR = Path(".deepforge/experiments/marginal_data")
+OUTPUT_DIR = Path(".educe/experiments/marginal_data")
 
 
 # ═══════════════════════════════════════

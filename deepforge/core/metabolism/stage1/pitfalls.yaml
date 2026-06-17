@@ -62,7 +62,7 @@ pitfalls:
     trigger: "想给模型加新工具"
     naive_action: "修改 ToolRegistry 代码"
     failure: "重启后丢失 / 不知道注册格式"
-    correct_action: "POST /api/tools 或编辑 .deepforge/tools.json"
+    correct_action: "POST /api/tools 或编辑 .educe/tools.json"
     why: "工具注册有持久化机制，不该改代码"
     type: environment_specific
 
@@ -78,7 +78,7 @@ pitfalls:
     trigger: "想用 MCP 工具但不知道有哪些"
     naive_action: "随便猜工具名"
     failure: "工具不存在"
-    correct_action: "查看 .deepforge/mcp.json 配置，或发送 lookup_tools action"
+    correct_action: "查看 .educe/mcp.json 配置，或发送 lookup_tools action"
     why: "MCP 工具是动态发现的，需要先查询可用列表"
     type: environment_specific
 

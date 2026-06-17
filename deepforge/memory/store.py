@@ -24,7 +24,7 @@ class MemoryEntry(BaseModel):
 
 
 class MemoryStore:
-    def __init__(self, storage_dir: str = ".deepforge/memory"):
+    def __init__(self, storage_dir: str = ".educe/memory"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._entries: dict[str, MemoryEntry] = {}

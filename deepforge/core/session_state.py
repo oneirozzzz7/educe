@@ -12,7 +12,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 
-STATE_DIR = Path(".deepforge/state")
+STATE_DIR = Path(".educe/state")
 
 
 @dataclass

@@ -48,8 +48,8 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    # Preview output — each session writes to .deepforge/output/{session_id}/
-    preview_root = Path(".deepforge/output")
+    # Preview output — each session writes to .educe/output/{session_id}/
+    preview_root = Path(".educe/output")
     preview_root.mkdir(parents=True, exist_ok=True)
     app.mount("/preview", StaticFiles(directory=str(preview_root), html=True), name="preview")
 
@@ -131,13 +131,13 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     async def list_tools():
         from deepforge.core.tool_registry import ToolRegistry
         registry = ToolRegistry()
-        registry.load_from_config(Path(".deepforge/tools.json"))
+        registry.load_from_config(Path(".educe/tools.json"))
         return {"tools": [{"name": t.name, "description": t.description, "type": t.type} for t in registry.list_all()]}
 
     @app.post("/api/tools")
     async def register_tool(request: Request):
         data = await request.json()
-        tools_path = Path(".deepforge/tools.json")
+        tools_path = Path(".educe/tools.json")
         existing = []
         if tools_path.exists():
             try:
@@ -155,7 +155,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     async def get_knowledge():
         from deepforge.core.unified_store import UnifiedKnowledgeStore
         try:
-            store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+            store = UnifiedKnowledgeStore(Path(".educe/unified"))
             return {"entries": store._catalog}
         except Exception:
             return {"entries": []}
@@ -164,7 +164,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     async def delete_knowledge(entry_id: str):
         from deepforge.core.unified_store import UnifiedKnowledgeStore
         try:
-            store = UnifiedKnowledgeStore(Path(".deepforge/unified"))
+            store = UnifiedKnowledgeStore(Path(".educe/unified"))
             path = store.entries_dir / f"{entry_id}.json"
             if path.exists():
                 path.unlink()
@@ -185,7 +185,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     async def evolution_stats():
         """进化引擎运行状态——读最新的evo2日志"""
         import glob
-        evo_dir = Path(".deepforge/evolution")
+        evo_dir = Path(".educe/evolution")
         if not evo_dir.exists():
             return {"status": "not_started", "rounds": 0}
         logs = sorted(evo_dir.glob("evo2_*.jsonl"), reverse=True)
@@ -254,7 +254,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             for turn in turns:
                 if turn.get("type") == "code":
                     try:
-                        work_dir = Path(".deepforge/output") / task_id[:16]
+                        work_dir = Path(".educe/output") / task_id[:16]
                         if work_dir.exists():
                             html_files = sorted(work_dir.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
                             main_html = next((f for f in html_files if f.name != "index.html"), None) or (html_files[0] if html_files else None)
@@ -371,7 +371,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         if ext not in SUPPORTED_EXTENSIONS:
             return {"error": f"不支持的文件类型: {ext}", "supported": list(SUPPORTED_EXTENSIONS)}
 
-        upload_dir = Path(".deepforge/uploads") / session_id
+        upload_dir = Path(".educe/uploads") / session_id
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         dest = upload_dir / file.filename
@@ -446,7 +446,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         import io
         from fastapi.responses import StreamingResponse
 
-        output_dir = Path(".deepforge/output") / session_id[:16]
+        output_dir = Path(".educe/output") / session_id[:16]
         if not output_dir.exists():
             return {"error": "Session output not found"}
 
@@ -467,7 +467,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
         """Execute the main output file for a session and return stdout/stderr."""
         import subprocess
 
-        output_dir = Path(".deepforge/output") / session_id[:16]
+        output_dir = Path(".educe/output") / session_id[:16]
         if not output_dir.exists():
             return {"success": False, "output": "Session output not found"}
 
@@ -506,7 +506,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/versions/{session_id}")
     async def list_versions(session_id: str):
-        versions_dir = Path(".deepforge/output") / session_id[:16] / "versions"
+        versions_dir = Path(".educe/output") / session_id[:16] / "versions"
         if not versions_dir.exists():
             return {"versions": []}
         version_files: dict[int, list[str]] = {}
@@ -525,7 +525,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
 
     @app.get("/api/versions/{session_id}/{version}")
     async def get_version(session_id: str, version: int):
-        versions_dir = Path(".deepforge/output") / session_id[:16] / "versions"
+        versions_dir = Path(".educe/output") / session_id[:16] / "versions"
         files = {}
         for f in sorted(versions_dir.iterdir()):
             if f.is_file() and f.name.startswith("v{}_".format(version)):
@@ -538,7 +538,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     @app.get("/api/convergence/{session_id}")
     async def get_convergence(session_id: str):
         from deepforge.core.iteration_state import StateLog, IterationState
-        log_path = Path(f".deepforge/convergence/{session_id[:16]}.jsonl")
+        log_path = Path(f".educe/convergence/{session_id[:16]}.jsonl")
         if not log_path.exists():
             return {"curve": [], "claims": [], "convergence": 0, "has_edits": False}
         log = StateLog(log_path)
@@ -564,7 +564,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
     async def submit_feedback(request: Request):
         import json as _json
         body = await request.json()
-        feedback_dir = Path(".deepforge/feedback")
+        feedback_dir = Path(".educe/feedback")
         feedback_dir.mkdir(parents=True, exist_ok=True)
         feedback_file = feedback_dir / "feedback.jsonl"
         with open(feedback_file, "a", encoding="utf-8") as f:
@@ -719,7 +719,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
                 # Reset context — "新任务" button clears orchestrator state
                 if data.get("type") == "reset_context":
                     import shutil
-                    output_dir = Path(".deepforge/output") / session_id[:16]
+                    output_dir = Path(".educe/output") / session_id[:16]
                     if output_dir.exists():
                         shutil.rmtree(output_dir, ignore_errors=True)
                     orchestrator.context.artifacts.clear()
@@ -978,7 +978,7 @@ def create_app(config: DeepForgeConfig | None = None) -> Any:
             if session_id in session_files:
                 del session_files[session_id]
             import shutil
-            upload_dir = Path(".deepforge/uploads") / session_id
+            upload_dir = Path(".educe/uploads") / session_id
             if upload_dir.exists():
                 shutil.rmtree(upload_dir, ignore_errors=True)
 

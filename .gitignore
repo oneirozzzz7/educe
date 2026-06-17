@@ -1,4 +1,4 @@
-.deepforge/
+.educe/
 __pycache__/
 *.pyc
 *.pyo
@@ -22,7 +22,7 @@ node_modules/
 *credential*
 .local_test/
 tests/local_*
-deepforge.yaml
+educe.yaml
 
 # Agent原始输出日志 - 不上传到开源仓库
 docs/*_output_*.md
@@ -34,10 +34,10 @@ web/node_modules/
 web/out/
 
 # 进化引擎运行产物
-.deepforge/evolution/
-.deepforge/output/
-.deepforge/traces/
-.deepforge/preview/
+.educe/evolution/
+.educe/output/
+.educe/traces/
+.educe/preview/
 
 # 测试产生的临时文件
 data/

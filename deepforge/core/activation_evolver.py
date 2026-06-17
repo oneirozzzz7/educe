@@ -17,7 +17,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 
-FEEDBACK_DIR = Path(".deepforge/feedback")
+FEEDBACK_DIR = Path(".educe/feedback")
 EVOLVER_STATE_PATH = FEEDBACK_DIR / "evolver_state.json"
 
 SEED_POOL = [

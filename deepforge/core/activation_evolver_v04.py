@@ -267,7 +267,7 @@ async def run_evolution(max_generations: int = 5):
         "final_seed": best.text,
         "history": history,
     }
-    output_path = Path(".deepforge/evolution_v04_result.json")
+    output_path = Path(".educe/evolution_v04_result.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output, ensure_ascii=False, indent=2))
     print(f"\n  结果保存: {output_path}")

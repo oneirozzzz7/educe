@@ -16,7 +16,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 
 
-FEEDBACK_DIR = Path(".deepforge/feedback")
+FEEDBACK_DIR = Path(".educe/feedback")
 
 NEGATIVE_PATTERNS = re.compile(r"不对|错了|不是这样|不准确|重新|再说一遍|你说错了|回答有误")
 POSITIVE_PATTERNS = re.compile(r"谢谢|感谢|太好了|很棒|有帮助|学到了|👍")

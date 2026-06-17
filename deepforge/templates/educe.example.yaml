@@ -75,11 +75,11 @@ agents:
 # 记忆系统
 memory:
   enabled: true
-  storage_dir: ".deepforge/memory"
+  storage_dir: ".educe/memory"
   max_entries: 10000
 
 # 技能系统
 skills:
   enabled: true
-  skill_dir: ".deepforge/skills"
-  community_dir: ".deepforge/community_skills"
+  skill_dir: ".educe/skills"
+  community_dir: ".educe/community_skills"

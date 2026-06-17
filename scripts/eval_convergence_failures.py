@@ -13,7 +13,7 @@ from pathlib import Path
 import websockets
 
 SERVER_URL = "ws://localhost:7860/ws/{session_id}"
-CONVERGENCE_DIR = Path(".deepforge/convergence")
+CONVERGENCE_DIR = Path(".educe/convergence")
 
 # 会产生失败的任务（import 一个不存在的模块）
 FAILING_TASK = "创建 app.py 导入 nonexistent_module，然后运行 python app.py"

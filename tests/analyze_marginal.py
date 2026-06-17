@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-DATA_DIR = Path(".deepforge/experiments/marginal_data")
+DATA_DIR = Path(".educe/experiments/marginal_data")
 
 
 def analyze():

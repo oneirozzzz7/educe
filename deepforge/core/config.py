@@ -26,14 +26,14 @@ class AgentConfig(BaseModel):
 
 class MemoryConfig(BaseModel):
     enabled: bool = True
-    storage_dir: str = ".deepforge/memory"
+    storage_dir: str = ".educe/memory"
     max_entries: int = 10000
 
 
 class SkillConfig(BaseModel):
     enabled: bool = True
-    skill_dir: str = ".deepforge/skills"
-    community_dir: str = ".deepforge/community_skills"
+    skill_dir: str = ".educe/skills"
+    community_dir: str = ".educe/community_skills"
 
 
 class EvolutionConfig(BaseModel):
@@ -74,10 +74,10 @@ class DeepForgeConfig(BaseModel):
 
         if path is None:
             candidates = [
-                Path.cwd() / "deepforge.yaml",
+                Path.cwd() / "educe.yaml",
                 Path.cwd() / "deepforge.yml",
-                Path.cwd() / ".deepforge" / "config.yaml",
-                Path.home() / ".deepforge" / "config.yaml",
+                Path.cwd() / ".educe" / "config.yaml",
+                Path.home() / ".educe" / "config.yaml",
             ]
             for candidate in candidates:
                 if candidate.exists():
@@ -120,7 +120,7 @@ class DeepForgeConfig(BaseModel):
     @staticmethod
     def _load_dotenv():
         """从 .env 文件加载环境变量"""
-        env_candidates = [Path.cwd() / ".env", Path.home() / ".deepforge" / ".env"]
+        env_candidates = [Path.cwd() / ".env", Path.home() / ".educe" / ".env"]
         for env_path in env_candidates:
             if env_path.exists():
                 for line in env_path.read_text().strip().split("\n"):

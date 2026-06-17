@@ -33,7 +33,7 @@ MODEL = os.environ.get("EDUCE_MODEL_NAME", "qwen36")
 
 if not API_KEY or not BASE_URL:
     try:
-        cfg_path = Path(".deepforge/config.json")
+        cfg_path = Path(".educe/config.json")
         if cfg_path.exists():
             cfg = json.loads(cfg_path.read_text())
             API_KEY = cfg.get("default_model", {}).get("api_key", "")
@@ -43,7 +43,7 @@ if not API_KEY or not BASE_URL:
         pass
 
 if not API_KEY or not BASE_URL:
-    print("请设置 EDUCE_MODEL_KEY / EDUCE_MODEL_URL 或 .deepforge/config.json")
+    print("请设置 EDUCE_MODEL_KEY / EDUCE_MODEL_URL 或 .educe/config.json")
     exit(1)
 
 
@@ -345,7 +345,7 @@ async def run_experiment():
         print(f"  模型可能忽略了 system prompt 中的行为指令。{RESET}")
 
     # 保存详细数据
-    output_path = Path(".deepforge/experiments/influence_attribution.json")
+    output_path = Path(".educe/experiments/influence_attribution.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_data = {
         "timestamp": time.time(),

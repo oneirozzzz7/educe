@@ -10,7 +10,7 @@ from typing import Any
 
 
 class TaskStore:
-    def __init__(self, storage_dir: str = ".deepforge/tasks"):
+    def __init__(self, storage_dir: str = ".educe/tasks"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

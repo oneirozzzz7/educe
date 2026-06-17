@@ -27,7 +27,7 @@ from pathlib import Path
 import websockets
 
 SERVER_URL = "ws://localhost:7860/ws/{session_id}"
-CONVERGENCE_DIR = Path(".deepforge/convergence")
+CONVERGENCE_DIR = Path(".educe/convergence")
 
 
 async def send_and_wait(ws, message: str, timeout: float = 90) -> list[dict]:

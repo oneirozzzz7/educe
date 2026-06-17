@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 
 
-BENCHMARKS_DIR = Path(".deepforge/benchmarks")
+BENCHMARKS_DIR = Path(".educe/benchmarks")
 
 
 def record_benchmark(results: list, metadata: dict = None) -> Path:

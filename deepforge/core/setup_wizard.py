@@ -75,8 +75,8 @@ def detect_existing_config() -> dict | None:
         if p["env"] and os.environ.get(p["env"]):
             return p
     config_paths = [
-        Path.cwd() / "deepforge.yaml",
-        Path.home() / ".deepforge" / "config.yaml",
+        Path.cwd() / "educe.yaml",
+        Path.home() / ".educe" / "config.yaml",
     ]
     for path in config_paths:
         if path.exists():

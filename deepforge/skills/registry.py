@@ -23,7 +23,7 @@ class Skill(BaseModel):
 
 
 class SkillRegistry:
-    def __init__(self, skill_dir: str = ".deepforge/skills", community_dir: str = ".deepforge/community_skills"):
+    def __init__(self, skill_dir: str = ".educe/skills", community_dir: str = ".educe/community_skills"):
         self.skill_dir = Path(skill_dir)
         self.community_dir = Path(community_dir)
         self._skills: dict[str, Skill] = {}

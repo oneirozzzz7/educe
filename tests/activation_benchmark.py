@@ -261,7 +261,7 @@ async def main():
         print(row)
 
     # Save results
-    output_dir = Path(".deepforge/experiments")
+    output_dir = Path(".educe/experiments")
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     output_file = output_dir / f"activation_benchmark_{ts}.json"

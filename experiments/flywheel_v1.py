@@ -33,7 +33,7 @@ SEEDS = [
     "请把自己当作这个领域的研究者。先厘清核心概念，再展开分析，最后给出你的判断。",
 ]
 
-OUTPUT_DIR = Path(".deepforge/experiments/flywheel_v1")
+OUTPUT_DIR = Path(".educe/experiments/flywheel_v1")
 
 
 async def step1_collect_data(client, model, max_tokens):

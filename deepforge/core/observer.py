@@ -52,7 +52,7 @@ class TaskTrace(BaseModel):
 
 
 class Observer:
-    def __init__(self, storage_dir: str = ".deepforge/traces"):
+    def __init__(self, storage_dir: str = ".educe/traces"):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._current: TaskTrace | None = None

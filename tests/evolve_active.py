@@ -181,7 +181,7 @@ async def main():
     print()
 
     # Find weak domains from domain_stats
-    domain_stats_path = Path(".deepforge/feedback/domain_stats.json")
+    domain_stats_path = Path(".educe/feedback/domain_stats.json")
     if domain_stats_path.exists():
         domain_stats = json.loads(domain_stats_path.read_text())
         avg_quality = sum(d["avg_quality"] for d in domain_stats.values()) / len(domain_stats)
@@ -252,7 +252,7 @@ async def main():
             print(f"      新seed: \"{r['new_seed'][:60]}...\"")
 
     # Save report
-    output_dir = Path(".deepforge/experiments")
+    output_dir = Path(".educe/experiments")
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     report_path = output_dir / f"evolution_v04_{ts}.json"
