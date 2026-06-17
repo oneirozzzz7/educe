@@ -60,7 +60,7 @@ class ExplorationLedger:
 
         # 条件0：轮次过多无修改 → 强制 nudge（弱模型探索焦虑）
         total_actions = len(self.actions_history)
-        if total_actions >= 8 and not self.has_edit_action:
+        if total_actions >= 6 and not self.has_edit_action:
             return True
 
         # 条件1：最近 window 个 action 全是读类操作（无修改意图）
