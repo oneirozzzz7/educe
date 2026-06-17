@@ -648,12 +648,34 @@ class Orchestrator:
         _sid = self.context.metadata.get("session_id", "")
 
         # Action Normalizer: 框架识别自己的动词，无论模型用什么语法调用
+        # 模型可能用 use_tool read_lines 或 use_tool filesystem.search_in_file
+        # 统一归一化到内置 action type
         BUILTIN_ACTIONS = {"shell", "read_dir", "read_file", "write_file",
-                           "memorize", "build", "plan", "recall"}
+                           "edit_file", "search_in_file", "read_lines",
+                           "memorize", "build", "plan", "recall", "lookup_tools"}
         if action.type == "use_tool" and action.name:
+            # 处理 "filesystem.search_in_file" → "search_in_file"
             effective_name = action.name.split(".")[-1] if "." in action.name else action.name
+            # 处理常见别名: search_files → search_in_file, file_edit → edit_file
+            _TOOL_ALIASES = {
+                "search_files": "search_in_file",
+                "search": "search_in_file",
+                "file_edit": "edit_file",
+                "file_read": "read_file",
+                "file_write": "write_file",
+                "read": "read_file",
+                "write": "write_file",
+                "edit": "edit_file",
+                "execute": "shell",
+                "run_command": "shell",
+                "list_dir": "read_dir",
+                "list_directory": "read_dir",
+            }
+            effective_name = _TOOL_ALIASES.get(effective_name, effective_name)
             if effective_name in BUILTIN_ACTIONS:
-                action = ParsedAction(type=effective_name, params=action.params, name="")
+                # 参数归一化：JSON → 内置纯文本格式
+                normalized_params = self._normalize_tool_params(effective_name, action.params)
+                action = ParsedAction(type=effective_name, params=normalized_params, name="")
 
         # 执行层守卫：检查并可能改写 action
         guardian = self._get_guardian()
@@ -1215,6 +1237,60 @@ class Orchestrator:
                 return full
         return None
 
+    def _normalize_tool_params(self, action_type: str, params: str) -> str:
+        """将 JSON 格式参数转换为内置 action 的纯文本格式"""
+        if not params.strip().startswith("{"):
+            return params
+        try:
+            import json as _j
+            data = _j.loads(params)
+        except (ValueError, TypeError):
+            return params
+
+        if action_type == "read_lines":
+            path = data.get("path") or data.get("file") or data.get("file_path", "")
+            start = data.get("start") or data.get("from") or data.get("start_line", "")
+            end = data.get("end") or data.get("to") or data.get("end_line", "")
+            range_str = data.get("range", "")
+            if not range_str and start and end:
+                range_str = f"{start}-{end}"
+            return f"{path}\n{range_str}" if range_str else params
+
+        elif action_type == "search_in_file":
+            path = data.get("path") or data.get("file") or data.get("file_path", "")
+            query = data.get("query") or data.get("keyword") or data.get("pattern") or data.get("search", "")
+            return f"{path}\n{query}" if path and query else params
+
+        elif action_type == "edit_file":
+            path = data.get("path") or data.get("file") or data.get("file_path", "")
+            old = data.get("old") or data.get("old_string") or data.get("search", "")
+            new = data.get("new") or data.get("new_string") or data.get("replace", "")
+            if path and old is not None and new is not None:
+                return f"path: {path}\n<<<<<<< OLD\n{old}\n=======\n{new}\n>>>>>>> NEW"
+            return params
+
+        elif action_type == "read_dir":
+            path = data.get("path") or data.get("dir") or data.get("directory", "")
+            return path if path else params
+
+        elif action_type == "read_file":
+            path = data.get("path") or data.get("file") or data.get("file_path", "")
+            return path if path else params
+
+        elif action_type == "write_file":
+            path = data.get("path") or data.get("file") or data.get("file_path", "")
+            content = data.get("content") or data.get("text") or data.get("data", "")
+            if path and content:
+                import json as _j2
+                return _j2.dumps({"path": path, "content": content}, ensure_ascii=False)
+            return params
+
+        elif action_type == "shell":
+            cmd = data.get("cmd") or data.get("command") or data.get("script", "")
+            return cmd if cmd else params
+
+        return params
+
     async def _exec_plan(self, action, session_id: str) -> dict:
         """执行多步计划——逐步执行每个步骤，反馈结果"""
         import json as _json_plan
@@ -1412,7 +1488,22 @@ class Orchestrator:
 
     async def _exec_use_tool(self, action) -> dict:
         """执行外部工具调用（通过 ConnectorRegistry 路由）"""
-        return await self._get_connector_registry().invoke(action.name, action.params)
+        result = await self._get_connector_registry().invoke(action.name, action.params)
+        # 如果 connector 找不到，提供内置工具建议
+        if not result.get("success") and ("不存在" in result.get("output", "") or "not found" in result.get("output", "").lower()):
+            BUILTIN_HINTS = {
+                "read_lines": "读取文件指定行，格式：```read_lines\\n文件路径\\n行号范围```",
+                "search_in_file": "搜索文件内容，格式：```search_in_file\\n文件路径\\n关键词```",
+                "edit_file": "编辑文件，格式：```edit_file\\npath: 文件路径\\n<<<<<<< OLD\\n原文\\n=======\\n新文\\n>>>>>>> NEW```",
+                "shell": "执行命令，格式：```shell\\n命令```",
+                "read_dir": "读取目录，格式：```read_dir\\n目录路径```",
+                "read_file": "读取文件，格式：```read_file\\n文件路径```",
+                "write_file": "写入文件，格式：```write_file\\n{\"path\":\"...\",\"content\":\"...\"}```",
+            }
+            tool_name = action.name.split(".")[-1] if action.name else ""
+            if tool_name in BUILTIN_HINTS:
+                result["output"] += f"\n\n💡 '{tool_name}' 是内置操作，请直接使用：{BUILTIN_HINTS[tool_name]}"
+        return result
 
     async def _handle_action_confirm(self, user_input: str, pending: list) -> "WorkContext":
         """处理用户对待确认 action 的回应（确认/补充/取消）"""
