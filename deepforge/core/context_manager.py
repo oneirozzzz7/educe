@@ -119,8 +119,8 @@ def build_context(
     action_format = (
         '\n## 你可以做的事（用代码块格式）\n\n'
         '当你需要执行操作时，用 Markdown 代码块表达。框架会识别并执行。\n\n'
-        '⚠️ 路径规则：所有文件路径必须用相对路径（如 myproject/app.py），不要用 /tmp/ 或 /home/ 等绝对路径。\n'
-        'shell 命令也用相对路径（cd myproject && python app.py），不要 cd 到绝对路径。\n\n'
+        '⚠️ 路径规则：如果用户指定了项目路径（如 /tmp/xxx），用该路径作为基准。\n'
+        '否则用相对路径（如 myproject/app.py）。shell 命令中可用 cd 切换到项目目录。\n\n'
         '执行命令（可以连续多个，框架自动逐个执行）：\n'
         '```shell\nmkdir -p myproject\n```\n\n'
         '```shell\ncd myproject && pip install -e .\n```\n\n'
@@ -172,16 +172,16 @@ def build_context(
         '- 启动 HTTP 服务时用 8000 以上的端口（低端口可能被系统占用），启动后 sleep 1-2 秒再 curl\n'
     )
 
-    # 连接器概要（Level 1）
+    # 连接器概要（Level 1）— 放在 action_format 之后，避免干扰基础格式
     connectors_section = ""
     if connectors_summary:
         connectors_section = (
-            '\n## 可用连接器\n'
+            '\n## 扩展工具（连接器）\n'
             f'{connectors_summary}\n\n'
-            '调用连接器：\n'
+            '连接器工具也可以用代码块格式调用：\n'
             '```tool:connector名.工具名\n{{"参数":"值"}}\n```\n'
-            '例如：\n'
-            '```tool:filesystem.search_files\n{{"path":".","pattern":"关键词"}}\n```\n'
+            '注意：上面的 shell/read_dir/read_file/write_file/edit_file/search_in_file/read_lines 是内置操作，'
+            '直接用代码块格式即可，不需要通过连接器调用。\n'
         )
 
     # 输出渠道自知（SurfaceManifest）
@@ -211,6 +211,6 @@ def build_context(
         + pattern_section
         + knowledge_index
         + tools_section
-        + connectors_section
         + action_format
+        + connectors_section
     )
