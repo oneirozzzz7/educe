@@ -109,7 +109,7 @@ class ExplorationLedger:
         return total_overlap / total if total > 0 else 0.0
 
     def build_reflection(self) -> str:
-        """构建"已知信息"的反射镜注入"""
+        """构建收敛提示——第一次温和引导，第二次强制填空模板"""
         parts = ["[系统观察] 你已经检查了以下内容："]
 
         for path, ranges in self.files_read.items():
@@ -122,11 +122,27 @@ class ExplorationLedger:
             parts.append(f"- 找到的关键符号: {', '.join(symbols)}")
 
         parts.append("")
-        parts.append("基于这些信息，请选择：")
-        parts.append("(a) 直接执行修改（用 edit_file 代码块）")
-        parts.append("(b) 说明你还缺什么具体信息，以及为什么当前信息不够")
 
         self.nudge_count += 1
+
+        if self.nudge_count <= 1:
+            # 第一次：温和引导
+            parts.append("信息已经足够。请直接执行修改（用 edit_file），或说明你还缺什么。")
+        else:
+            # 第二次及以后：强制填空模板，剥夺继续探索的选项
+            parts.append("⚠️ 不允许再执行 read/search 操作。请直接填写以下模板执行修改：")
+            parts.append("")
+            parts.append("```edit_file")
+            # 用已知的第一个文件路径作为提示
+            first_file = next(iter(self.files_read.keys()), "目标文件路径")
+            parts.append(f"path: {first_file}")
+            parts.append("<<<<<<< OLD")
+            parts.append("（粘贴你要替换的原文，从你已读的内容中选取）")
+            parts.append("=======")
+            parts.append("（写入修改后的新代码）")
+            parts.append(">>>>>>> NEW")
+            parts.append("```")
+
         return "\n".join(parts)
 
     def _merge_ranges(self, ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
