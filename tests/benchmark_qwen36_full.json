@@ -1,0 +1,1128 @@
+{
+  "run_id": "20260617_184156",
+  "model": "qwen36",
+  "total_cases": 30,
+  "completed": 30,
+  "partial": 0,
+  "timeout": 0,
+  "error": 0,
+  "avg_wall_time_s": 30.93,
+  "avg_rounds": 7.3,
+  "total_nudges": 11,
+  "cases": [
+    {
+      "case_id": "CODE-01",
+      "level": "L1",
+      "instruction": "我本地有个 click 项目。click 有个 @click.version_option 装饰器，但它打印版本号时带了 \"version\" 前缀文字。我想要一个简洁版的，只输出纯数字版本号，不带任何前缀。帮我加一个类似的装饰器。",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 23.24,
+      "metrics": {
+        "total_rounds": 20,
+        "llm_time_s": 21.96,
+        "tool_call_count": 54,
+        "action_dist": {
+          "unknown": 34,
+          "read_dir": 3,
+          "shell": 14,
+          "read_file": 1,
+          "read_lines": 2
+        },
+        "nudge_count": 1,
+        "safety_net_count": 0,
+        "error_count": 3,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 4,
+        "redundant_read_ratio": 0.5,
+        "total_reads": 6
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未找到新版本打印装饰器"
+          }
+        ]
+      },
+      "session_id": "1058d000e241444a",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "CODE-02",
+      "level": "L1",
+      "instruction": "这个项目的 core.py 里 BaseCommand 类没 docstring，补一个",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 9.38,
+      "metrics": {
+        "total_rounds": 10,
+        "llm_time_s": 8.27,
+        "tool_call_count": 19,
+        "action_dist": {
+          "unknown": 10,
+          "shell": 1,
+          "read_file": 1,
+          "search_in_file": 3,
+          "read_lines": 3,
+          "edit_file": 1
+        },
+        "nudge_count": 2,
+        "safety_net_count": 0,
+        "error_count": 1,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.571,
+        "total_reads": 7
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "BaseCommand 仍无 docstring"
+          }
+        ]
+      },
+      "session_id": "142ed28918514b19",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "CODE-03",
+      "level": "L2",
+      "instruction": "帮我给 Command 类加个 aliases 支持，一个命令可以用多个名字调用",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 14.92,
+      "metrics": {
+        "total_rounds": 20,
+        "llm_time_s": 13.51,
+        "tool_call_count": 54,
+        "action_dist": {
+          "unknown": 34,
+          "shell": 14,
+          "read_lines": 6
+        },
+        "nudge_count": 4,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.833,
+        "total_reads": 6
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未找到 aliases 实现"
+          }
+        ]
+      },
+      "session_id": "ed4416d9743f45b0",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "CODE-04",
+      "level": "L2",
+      "instruction": "这个项目里有个函数特别长看着头疼，帮我拆一下",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 39.21,
+      "metrics": {
+        "total_rounds": 20,
+        "llm_time_s": 37.68,
+        "tool_call_count": 53,
+        "action_dist": {
+          "unknown": 33,
+          "read_dir": 3,
+          "shell": 13,
+          "read_file": 2,
+          "read_lines": 2
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 6,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 3,
+        "redundant_read_ratio": 0.571,
+        "total_reads": 7
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未执行任何修改"
+          }
+        ]
+      },
+      "session_id": "58d87d61ddfd4512",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "CODE-05",
+      "level": "L3",
+      "instruction": "这个项目的错误处理太分散了，能整理统一一点吗？",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 13.2,
+      "metrics": {
+        "total_rounds": 20,
+        "llm_time_s": 11.91,
+        "tool_call_count": 48,
+        "action_dist": {
+          "unknown": 28,
+          "read_dir": 2,
+          "read_file": 3,
+          "shell": 8,
+          "read_lines": 6,
+          "search_in_file": 1
+        },
+        "nudge_count": 4,
+        "safety_net_count": 1,
+        "error_count": 4,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 4,
+        "redundant_read_ratio": 0.667,
+        "total_reads": 12
+      },
+      "acceptance": {
+        "score": 0.3,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.3,
+            "detail": "未 clarify 也未动手"
+          }
+        ]
+      },
+      "session_id": "d747f496e7674193",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/CODE-05/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "FIN-01",
+      "level": "L1",
+      "instruction": "帮我算下这笔房贷：300万，30年，利率3.5%，等额本息，月供多少",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 10.53,
+      "metrics": {
+        "total_rounds": 3,
+        "llm_time_s": 9.25,
+        "tool_call_count": 6,
+        "action_dist": {
+          "unknown": 4,
+          "shell": 2
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "月供 13471 正确"
+          }
+        ]
+      },
+      "session_id": "33911380a2354502",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/FIN-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "FIN-02",
+      "level": "L1",
+      "instruction": "把这个 CSV 里的交易记录按月汇总支出，存成新文件",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 40.87,
+      "metrics": {
+        "total_rounds": 12,
+        "llm_time_s": 39.43,
+        "tool_call_count": 29,
+        "action_dist": {
+          "unknown": 18,
+          "shell": 7,
+          "write_file": 2,
+          "read_file": 2
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 2,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.5,
+        "total_reads": 2
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "生成了 CSV: ['transactions.csv', 'monthly_expenses_summary.csv']"
+          }
+        ]
+      },
+      "session_id": "2da191c120324530",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/FIN-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "FIN-03",
+      "level": "L2",
+      "instruction": "我有10万，想做个简单的资产配置，风险中等，给个方案",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 24.92,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 23.71,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.3,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.3,
+            "detail": "未主动 clarify"
+          }
+        ]
+      },
+      "session_id": "abb14fd9fd0a4460",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/FIN-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "FIN-04",
+      "level": "L2",
+      "instruction": "对比这三家公司近三年的营收增长，做个表",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 2.86,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 1.75,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.7,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.7,
+            "detail": "有表格结构（需 judge 确认质量）"
+          }
+        ]
+      },
+      "session_id": "507b84645e6a47b1",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/FIN-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "FIN-05",
+      "level": "L3",
+      "instruction": "做一个可交互的复利计算器网页，能调本金/利率/年限看曲线",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 71.25,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 7.46,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "build": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未生成 HTML"
+          }
+        ]
+      },
+      "session_id": "0b0520e00f294da7",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/FIN-05/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-01",
+      "level": "L1",
+      "instruction": "查下这台机器的内存和磁盘占用",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 23.59,
+      "metrics": {
+        "total_rounds": 16,
+        "llm_time_s": 16.78,
+        "tool_call_count": 45,
+        "action_dist": {
+          "unknown": 30,
+          "shell": 15
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 8,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "执行了 shell 命令"
+          }
+        ]
+      },
+      "session_id": "67d4f104a3ea4c67",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/TECH-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-02",
+      "level": "L1",
+      "instruction": "帮我把这个 log 里所有 ERROR 行提取出来计数",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 7.24,
+      "metrics": {
+        "total_rounds": 8,
+        "llm_time_s": 6.04,
+        "tool_call_count": 14,
+        "action_dist": {
+          "unknown": 7,
+          "clarify": 7
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 8,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未执行 grep"
+          }
+        ]
+      },
+      "session_id": "17af9644e6c14e2a",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/TECH-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-03",
+      "level": "L2",
+      "instruction": "帮我把这个项目的依赖列一下，看有没有过时的",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 3.25,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 2.26,
+        "tool_call_count": 3,
+        "action_dist": {
+          "unknown": 2,
+          "shell": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.5,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.5,
+            "detail": "读了文件但分析不完整"
+          }
+        ]
+      },
+      "session_id": "ea0f68c1631447ba",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/TECH-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-04",
+      "level": "L2",
+      "instruction": "我想给团队介绍一下 Docker，做个要点提纲，记下来",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 28.6,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 27.63,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "memorize": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 1,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 2,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "memorize 成功"
+          }
+        ]
+      },
+      "session_id": "be01dd3527ae4435",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/TECH-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "TECH-05",
+      "level": "L3",
+      "instruction": "搭一个最小的 REST API demo，有 GET/POST 两个接口，能跑起来",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 48.03,
+      "metrics": {
+        "total_rounds": 20,
+        "llm_time_s": 28.17,
+        "tool_call_count": 62,
+        "action_dist": {
+          "unknown": 40,
+          "shell": 18,
+          "write_file": 1,
+          "read_file": 2,
+          "edit_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 4,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.5,
+        "total_reads": 2
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "REST API 代码: app.py"
+          }
+        ]
+      },
+      "session_id": "08d16022aa99493c",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/TECH-05/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-01",
+      "level": "L1",
+      "instruction": "用初中生能懂的话解释什么是函数",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 16.62,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 15.36,
+        "tool_call_count": 3,
+        "action_dist": {
+          "unknown": 2,
+          "shell": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.8,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.8,
+            "detail": "有回复（需 judge 确认通俗度）"
+          }
+        ]
+      },
+      "session_id": "68f7ffe978d5410a",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/EDU-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-02",
+      "level": "L1",
+      "instruction": "给我出5道二元一次方程练习题，带答案",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 45.17,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 44.05,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "找到 49 个等式"
+          }
+        ]
+      },
+      "session_id": "c4b618cd13014416",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/EDU-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-03",
+      "level": "L2",
+      "instruction": "帮我备一节关于光合作用的课，记一下重点和板书安排",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 29.97,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 28.81,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.4,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.4,
+            "detail": "给了内容但未 memorize"
+          }
+        ]
+      },
+      "session_id": "271e4b1670674121",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/EDU-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-04",
+      "level": "L2",
+      "instruction": "我想学 Python，但完全零基础，给个4周计划",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 26.59,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 25.47,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.7,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.7,
+            "detail": "问了时间但非正式 clarify"
+          }
+        ]
+      },
+      "session_id": "3e29082cd3a643d2",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/EDU-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "EDU-05",
+      "level": "L3",
+      "instruction": "做个交互式九九乘法表网页，点击格子高亮整行整列",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 47.47,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 46.38,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未生成 HTML"
+          }
+        ]
+      },
+      "session_id": "c357d2a23be44ba3",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/EDU-05/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-01",
+      "level": "L1",
+      "instruction": "帮我把这周的待办整理成清单存起来：周一交报告，周三开会，周五团建",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 3.22,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 2.12,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "创建了文件: ['weekly_todo.md']"
+          }
+        ]
+      },
+      "session_id": "66db01e04f1d4651",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/LIFE-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-02",
+      "level": "L1",
+      "instruction": "算下北京到上海开车大概多少油钱，油耗8升百公里",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 7.55,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 6.42,
+        "tool_call_count": 3,
+        "action_dist": {
+          "unknown": 2,
+          "shell": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "计算结果 650 元在合理范围"
+          }
+        ]
+      },
+      "session_id": "71a686bb4ea84cab",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/LIFE-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-03",
+      "level": "L2",
+      "instruction": "我下周要搬家，帮我列个准备清单，别漏东西",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 25.66,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 24.68,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "有时间线分阶段"
+          }
+        ]
+      },
+      "session_id": "52f4ab8ff17e423a",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/LIFE-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-04",
+      "level": "L2",
+      "instruction": "帮我写封英文邮件，跟导师请两天假，理由是家里有事，语气正式但不卑微",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 6.73,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 5.52,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "英文邮件，语气适当"
+          }
+        ]
+      },
+      "session_id": "5d45af7bbe7e4725",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/LIFE-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "LIFE-05",
+      "level": "L3",
+      "instruction": "做一个精美的个人待办网页，支持添加/完成/删除，数据本地存",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 75.58,
+      "metrics": {
+        "total_rounds": 2,
+        "llm_time_s": 3.81,
+        "tool_call_count": 2,
+        "action_dist": {
+          "unknown": 1,
+          "build": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未生成 HTML"
+          }
+        ]
+      },
+      "session_id": "7d7864d851f74426",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/LIFE-05/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-01",
+      "level": "L1",
+      "instruction": "写一段 Python 代码画正弦函数图像，保存成图片",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 26.6,
+      "metrics": {
+        "total_rounds": 11,
+        "llm_time_s": 17.51,
+        "tool_call_count": 28,
+        "action_dist": {
+          "unknown": 18,
+          "shell": 8,
+          "write_file": 1,
+          "read_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 3,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 1
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未完成"
+          }
+        ]
+      },
+      "session_id": "8ec4e59f05d546b5",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/SCI-01/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-02",
+      "level": "L1",
+      "instruction": "这个 CSV 数据集有多少行、多少列、各列的类型分布",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 4.44,
+      "metrics": {
+        "total_rounds": 3,
+        "llm_time_s": 3.28,
+        "tool_call_count": 5,
+        "action_dist": {
+          "unknown": 3,
+          "shell": 1,
+          "clarify": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.5,
+        "checks": [
+          {
+            "passed": true,
+            "score": 0.5,
+            "detail": "执行了命令但输出不确定"
+          }
+        ]
+      },
+      "session_id": "d23eb62e33ff4aa8",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/SCI-02/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-03",
+      "level": "L2",
+      "instruction": "帮我对这组实验数据做个 t 检验，看两组有没有显著差异",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 3.55,
+      "metrics": {
+        "total_rounds": 1,
+        "llm_time_s": 2.59,
+        "tool_call_count": 0,
+        "action_dist": {},
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 0.0,
+        "checks": [
+          {
+            "passed": false,
+            "score": 0.0,
+            "detail": "未完成"
+          }
+        ]
+      },
+      "session_id": "8802a9597b9f4c8f",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/SCI-03/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-04",
+      "level": "L2",
+      "instruction": "用拉丁方设计一个8人品鉴实验的分组方案",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 93.7,
+      "metrics": {
+        "total_rounds": 19,
+        "llm_time_s": 90.45,
+        "tool_call_count": 54,
+        "action_dist": {
+          "unknown": 36,
+          "shell": 18
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 0,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "给出了具体分组方案"
+          }
+        ]
+      },
+      "session_id": "ecb9660f4e7c4f2b",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/SCI-04/workspace",
+      "error": ""
+    },
+    {
+      "case_id": "SCI-05",
+      "level": "L3",
+      "instruction": "做个数据可视化面板，展示三组实验数据的箱线图对比",
+      "model": "qwen36",
+      "status": "completed",
+      "wall_time_s": 153.94,
+      "metrics": {
+        "total_rounds": 12,
+        "llm_time_s": 137.25,
+        "tool_call_count": 31,
+        "action_dist": {
+          "unknown": 20,
+          "build": 1,
+          "shell": 9,
+          "write_file": 1
+        },
+        "nudge_count": 0,
+        "safety_net_count": 0,
+        "error_count": 2,
+        "continuation_count": 0,
+        "rounds_to_first_meaningful": 1,
+        "redundant_read_ratio": 0.0,
+        "total_reads": 0
+      },
+      "acceptance": {
+        "score": 1.0,
+        "checks": [
+          {
+            "passed": true,
+            "score": 1.0,
+            "detail": "箱线图 HTML"
+          }
+        ]
+      },
+      "session_id": "c5e87be527714852",
+      "workspace": ".educe/benchmark_runs/20260617_184156/qwen36/SCI-05/workspace",
+      "error": ""
+    }
+  ]
+}
