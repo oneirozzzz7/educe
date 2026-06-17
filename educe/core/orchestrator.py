@@ -1339,35 +1339,47 @@ class Orchestrator:
         return {"success": True, "output": output[:3000]}
 
     def _infer_project_path(self, relative_path: str):
-        """从 shell 历史推断项目根路径，解析相对文件路径"""
+        """从 shell 历史推断项目根路径，解析相对文件路径。
+
+        安全约束：
+        - 拒绝含 .. 的路径（防遍历）
+        - 只允许 /tmp/ 和用户目录下的路径
+        - 不跟踪符号链接
+        """
         from pathlib import Path
-        # 从 conversation 中提取最近 cd 到的目录
+
+        if ".." in relative_path:
+            return None
+
         history = self.conversation.get_history_for_llm() if hasattr(self, 'conversation') else []
         import re
         candidates = set()
+        SAFE_PREFIXES = ("/tmp/", "/private/tmp/", str(Path.home()) + "/")
+
         for msg in reversed(history[-10:]):
             content = msg.get("content", "")
-            # 匹配 shell output 中的 cwd 或 cd 命令
             for m in re.finditer(r'cd\s+(/[^\s;&|]+)', content):
-                candidates.add(m.group(1).rstrip('/'))
-            # 匹配 "$ cmd\n[cwd: /path]" 模式
+                path_str = m.group(1).rstrip('/')
+                if any(path_str.startswith(p) for p in SAFE_PREFIXES):
+                    candidates.add(path_str)
             for m in re.finditer(r'\[cwd:\s*(/[^\]]+)\]', content):
-                candidates.add(m.group(1).rstrip('/'))
-            # 匹配绝对路径中包含的目录
+                path_str = m.group(1).rstrip('/')
+                if any(path_str.startswith(p) for p in SAFE_PREFIXES):
+                    candidates.add(path_str)
             for m in re.finditer(r'(/tmp/[^\s\]"\']+)', content):
                 p = Path(m.group(1))
-                if p.is_dir():
+                if p.is_dir() and not p.is_symlink():
                     candidates.add(str(p))
-                elif p.parent.is_dir():
+                elif p.parent.is_dir() and not p.parent.is_symlink():
                     candidates.add(str(p.parent))
 
-        # 尝试每个候选目录
         for cand in candidates:
             full = Path(cand) / relative_path
-            if full.exists():
-                # 记住这个路径供后续使用
-                self.context.metadata["_project_context_path"] = cand
-                return full
+            if full.exists() and not full.is_symlink():
+                resolved = full.resolve()
+                if any(str(resolved).startswith(p.rstrip('/')) for p in SAFE_PREFIXES):
+                    self.context.metadata["_project_context_path"] = cand
+                    return full
         return None
 
     def _normalize_tool_params(self, action_type: str, params: str) -> str:
