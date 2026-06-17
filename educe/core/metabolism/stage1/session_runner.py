@@ -23,7 +23,7 @@ from typing import Optional
 from educe.core.metabolism.ledger import LedgerStore, ConsequenceRecord, OutcomeType
 from educe.core.metabolism.reward import immediate_reward
 
-log = logging.getLogger("deepforge.stage1")
+log = logging.getLogger("educe.stage1")
 
 import os
 

@@ -10,7 +10,7 @@ import re
 from typing import AsyncIterator
 from pathlib import Path
 
-log = logging.getLogger("deepforge.builder")
+log = logging.getLogger("educe.builder")
 
 from educe.core.agent import BaseAgent
 from educe.core.message import Message, MessageType, WorkContext
@@ -275,7 +275,7 @@ class BuilderAgent(BaseAgent):
 
         if final_files:
             import logging
-            logging.getLogger("deepforge").info("builder: final_files=%s", list(final_files.keys()))
+            logging.getLogger("educe").info("builder: final_files=%s", list(final_files.keys()))
             # Ensure index.html exists for preview server
             html_files = [f for f in final_files if f.endswith(".html")]
             if html_files and "index.html" not in final_files:
@@ -313,7 +313,7 @@ class BuilderAgent(BaseAgent):
             yield self.emit("user", code_content)
         else:
             import logging
-            logging.getLogger("deepforge").warning("builder: final_files EMPTY, complexity=%s, user_request=%s",
+            logging.getLogger("educe").warning("builder: final_files EMPTY, complexity=%s, user_request=%s",
                 context.metadata.get("_task_complexity"), user_request[:60])
             yield self.emit("user", "未能生成代码文件，请更具体描述需求。")
 

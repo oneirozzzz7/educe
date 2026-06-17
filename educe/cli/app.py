@@ -106,6 +106,17 @@ def chat(config):
 
     orchestrator = create_orchestrator(cfg)
 
+    # Initialize structured session logger for CLI
+    import uuid as _uuid
+    from educe.core.logging import SessionLogger
+    _cli_session_id = _uuid.uuid4().hex[:16]
+    _cli_logger = SessionLogger(
+        session_id=_cli_session_id,
+        model=cfg.default_model.model,
+        config={"base_url": cfg.default_model.base_url},
+    )
+    orchestrator.session_logger = _cli_logger
+
     console.print("\n[bold green]✅ DeepForge 已就绪！[/bold green]")
     console.print("[dim]输入你想要创建的东西，DeepForge会帮你完成。[/dim]")
     console.print("[dim]输入 /help 查看帮助，/quit 退出[/dim]\n")
@@ -179,6 +190,9 @@ def chat(config):
             pass
 
         console.print()
+
+    # Close session logger on CLI exit
+    _cli_logger.close("completed")
 
 
 @main.command()

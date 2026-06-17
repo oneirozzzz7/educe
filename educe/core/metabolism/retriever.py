@@ -18,7 +18,7 @@ from typing import Optional
 
 from educe.core.metabolism.ledger import LedgerStore, ConsequenceRecord, OutcomeType
 
-log = logging.getLogger("deepforge.metabolism")
+log = logging.getLogger("educe.metabolism")
 
 
 class CausalRetriever:

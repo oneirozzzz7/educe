@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator
 import httpx
 from openai import AsyncOpenAI
 
-log = logging.getLogger("deepforge.model")
+log = logging.getLogger("educe.model")
 
 
 class ModelClient:

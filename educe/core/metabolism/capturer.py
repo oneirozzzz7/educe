@@ -16,7 +16,7 @@ from educe.core.metabolism.ledger import (
 )
 from educe.core.metabolism.reward import immediate_reward
 
-log = logging.getLogger("deepforge.metabolism")
+log = logging.getLogger("educe.metabolism")
 
 
 class OutcomeCapturer:

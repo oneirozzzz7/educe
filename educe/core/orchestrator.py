@@ -12,9 +12,10 @@ import uuid
 from pathlib import Path
 from typing import Callable
 
-log = logging.getLogger("deepforge.orchestrator")
+log = logging.getLogger("educe.orchestrator")
 
 from educe.core.activity_log import log_activity
+from educe.core.logging import SessionLogger, get_logger as get_session_logger
 
 from rich.console import Console
 from rich.panel import Panel
@@ -41,6 +42,7 @@ class Orchestrator:
         self.task_store = TaskStore()
         self.bus = EventBus()
         self.knowledge = LayeredCache()
+        self.session_logger: SessionLogger | None = None
 
         from educe.core.unified_store import UnifiedKnowledgeStore
         self.unified_store = None
@@ -123,6 +125,12 @@ class Orchestrator:
         for cb in self._on_chunk:
             cb(agent_name, chunk)
 
+    def _slog(self, type: str, name: str, **kwargs) -> None:
+        """Structured log event via SessionLogger (noop if no logger)."""
+        sl = self.session_logger or get_session_logger()
+        if sl:
+            sl.event(type=type, name=name, **kwargs)
+
     def _display(self, msg: Message) -> None:
         icon = {"builder": "💻", "tester": "🧪", "planner": "📋", "assistant": "💬"}.get(msg.sender, "🤖")
         console.print(Panel(Markdown(msg.content[:500]), title=f"{icon} {msg.sender}", border_style="cyan", padding=(0, 1)))
@@ -136,6 +144,13 @@ class Orchestrator:
         _sid = self.context.metadata.get("session_id", "")
         log_activity(_sid, "user_input", input=user_input[:200],
                      has_file=bool(file_content))
+
+        sl = self.session_logger or get_session_logger()
+        if sl:
+            sl.set_task(user_input)
+            self._slog("framework", "session_start",
+                       summary=f"user: {user_input[:80]}",
+                       data={"has_file": bool(file_content)})
 
         # ═══ 反馈回填（检测用户对上一轮回答的信号）═══
         prev_assistant = ""
@@ -220,6 +235,9 @@ class Orchestrator:
         if self.context.metadata.get("_clarify_pending"):
             original = self.context.metadata.pop("_pending_user_input", "")
             self.context.metadata.pop("_clarify_pending", None)
+            self._slog("user", "clarify_resume",
+                       summary=f"answer: {user_input[:80]}",
+                       data={"answer": user_input[:200]})
             combined = f"{original}\n\n用户补充：{user_input}"
             self.conversation.add_user(user_input)
             if hasattr(self, 'state'):
@@ -417,7 +435,13 @@ class Orchestrator:
         ledger = ExplorationLedger()
 
         for round_idx in range(max_rounds):
+            self._slog("framework", "turn_start",
+                       summary=f"round {round_idx}",
+                       data={"round": round_idx, "messages_len": len(messages)},
+                       trace_payload=[m.get("content", "")[:200] for m in messages[-3:]],
+                       trace_kind="messages")
             # 模型调用（action 轮次用非流式，避免标签被流式推送到前端）
+            _t0 = __import__("time").time()
             try:
                 raw = await client.chat(
                     messages=messages,
@@ -426,9 +450,20 @@ class Orchestrator:
                 )
             except Exception as e:
                 log.error("_action_loop | round %d model call failed: %s", round_idx, str(e)[:100])
+                self._slog("llm_call", "llm_response", status="error",
+                           summary=f"model call failed: {str(e)[:60]}",
+                           data={"round": round_idx, "error": str(e)[:200]})
                 raw = ""
+            _llm_ms = (__import__("time").time() - _t0) * 1000
 
             log.info("_action_loop | round=%d raw_len=%d", round_idx, len(raw) if raw else 0)
+
+            if raw:
+                self._slog("llm_call", "llm_response",
+                           duration_ms=_llm_ms,
+                           summary=f"round {round_idx}, {len(raw)} chars",
+                           data={"round": round_idx, "raw_len": len(raw)},
+                           trace_payload=raw, trace_kind="llm_output")
 
             # 解析 action
             reply_text, actions = parse_actions(raw)
@@ -437,6 +472,11 @@ class Orchestrator:
                         has_actions=len(actions),
                         action_types=[a.type for a in actions],
                         reply_preview=reply_text[:80])
+
+            if actions:
+                self._slog("framework", "actions_parsed",
+                           summary=f"{len(actions)} actions: {[a.type for a in actions]}",
+                           data={"count": len(actions), "types": [a.type for a in actions]})
 
             if not actions:
                 # 无 action = 纯回复
@@ -469,6 +509,10 @@ class Orchestrator:
                             '{"path": "文件路径", "old": "要替换的原文", "new": "替换后的新文"}\n'
                             "或者用 shell 执行 python 脚本来修改。不需要再解释，直接执行。"})
                         log.info("_action_loop | round %d continuation detected, prompting execution", round_idx)
+                        matched = [sig for sig in _CONTINUATION_SIGNALS if sig in raw]
+                        self._slog("framework", "continuation",
+                                   summary=f"round {round_idx}, signal: {matched[0] if matched else '?'}",
+                                   data={"signal_text": matched[0] if matched else ""})
                         continue
 
                     for i in range(0, len(raw), 20):
@@ -558,6 +602,14 @@ class Orchestrator:
                             type=action.type,
                             success=result.get("success", False),
                             output_preview=result.get("output", "")[:80])
+                output_str = result.get("output", "")
+                self._slog("tool_call", "tool_result",
+                           status="ok" if result.get("success") else "error",
+                           summary=f"{action.type}: {'ok' if result.get('success') else 'fail'}",
+                           data={"action_type": action.type, "action_name": action.name or "",
+                                 "success": result.get("success", False), "round": round_idx},
+                           trace_payload=output_str if len(output_str) > 500 else None,
+                           trace_kind="tool_result")
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
@@ -575,6 +627,9 @@ class Orchestrator:
                     # 保存上下文供用户回复后续接
                     self.context.metadata["_clarify_pending"] = True
                     self.context.metadata["_pending_user_input"] = user_input
+                    self._slog("framework", "clarify_pause",
+                               summary=f"asking: {question[:80]}",
+                               data={"question": question[:200]})
                     final_reply = question
                     break
                 if not result.get("success"):
@@ -623,6 +678,10 @@ class Orchestrator:
                 reflection = ledger.build_reflection()
                 messages.append({"role": "user", "content": reflection})
                 log.info("_action_loop | round %d nudge injected (nudge_count=%d)", round_idx, ledger.nudge_count)
+                self._slog("framework", "nudge_triggered",
+                           summary=f"nudge #{ledger.nudge_count}",
+                           data={"nudge_count": ledger.nudge_count,
+                                 "redundancy_score": getattr(ledger, '_last_redundancy', 0)})
 
             # 安全网：nudge 反复失败后，拒绝纯 read 类 action
             if ledger.should_restrict_actions(max_rounds, round_idx):
@@ -632,6 +691,9 @@ class Orchestrator:
                     messages.append({"role": "user", "content":
                         "[系统] 探索预算已用尽。请直接执行修改（edit_file），或告知用户你无法完成此任务。"})
                     log.info("_action_loop | round %d safety net triggered", round_idx)
+                    self._slog("framework", "safety_net",
+                               summary=f"round {round_idx}, nudge_count={ledger.nudge_count}",
+                               data={"round": round_idx, "nudge_count": ledger.nudge_count})
 
             # 需要确认的 action → 暂存，发确认请求给前端，返回等待
             if pending_actions:
@@ -700,6 +762,13 @@ class Orchestrator:
 
             # Output-Metric Attribution: 记录输出特征到对应 units
             self._record_output_metrics(final_reply)
+
+        reason = "no_action" if final_reply else "max_rounds"
+        if self.context.metadata.get("_clarify_pending"):
+            reason = "clarify"
+        self._slog("framework", "turn_end",
+                   summary=f"ended: {reason}",
+                   data={"reason": reason})
 
         return self.context
 

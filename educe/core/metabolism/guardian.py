@@ -22,7 +22,7 @@ from typing import Optional
 
 from educe.core.metabolism.ledger import LedgerStore, OutcomeType
 
-log = logging.getLogger("deepforge.guardian")
+log = logging.getLogger("educe.guardian")
 
 
 @dataclass

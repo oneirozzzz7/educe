@@ -35,7 +35,7 @@ from typing import Any
 
 from educe.core.connector import Connector, Capability
 
-log = logging.getLogger("deepforge.mcp")
+log = logging.getLogger("educe.mcp")
 
 # 默认的危险能力关键词（模糊匹配）
 DANGEROUS_KEYWORDS = {"write", "delete", "remove", "move", "create", "edit", "append"}

@@ -18,7 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-log = logging.getLogger("deepforge.metabolism")
+log = logging.getLogger("educe.metabolism")
 
 
 class OutcomeType(str, Enum):

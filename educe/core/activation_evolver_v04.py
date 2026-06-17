@@ -19,7 +19,7 @@ from typing import Optional
 
 import aiohttp
 
-log = logging.getLogger("deepforge.evolution")
+log = logging.getLogger("educe.evolution")
 
 BASE_URL = os.environ.get("DEEPFORGE_BASE_URL", "")
 API_KEY = os.environ.get("DEEPFORGE_API_KEY", "")

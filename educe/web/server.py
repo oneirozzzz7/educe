@@ -84,6 +84,15 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     agent.skill_registry = skill_registry
                 orchestrator.register(agent)
 
+            # Initialize structured session logger
+            from educe.core.logging import SessionLogger
+            session_logger = SessionLogger(
+                session_id=session_id,
+                model=model_cfg.model,
+                config={"base_url": model_cfg.base_url, "max_tokens": model_cfg.max_tokens},
+            )
+            orchestrator.session_logger = session_logger
+
             # Load or create SessionState — single source of truth
             from educe.core.session_state import SessionState
             state = SessionState.load_or_create(session_id)
@@ -669,7 +678,7 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     accumulated_chunks["text"] = accumulated_chunks["text"].split(step_match.group(0))[-1]
             except Exception as e:
                 import logging
-                logging.getLogger("deepforge.ws").warning("send_chunk failed: %s", str(e)[:80])
+                logging.getLogger("educe.ws").warning("send_chunk failed: %s", str(e)[:80])
 
         orchestrator.on_chunk(lambda a, c: asyncio.ensure_future(send_chunk(a, c)))
 
@@ -968,6 +977,9 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     await websocket.send_json({"type": "status", "content": "idle"})
 
         except WebSocketDisconnect:
+            # Close session logger
+            if orchestrator and orchestrator.session_logger:
+                orchestrator.session_logger.close("completed")
             # Clean up stuck building state
             if orchestrator and hasattr(orchestrator, 'state') and orchestrator.state.phase == "building":
                 code_files = orchestrator.context.artifacts.get("code_files", [])
