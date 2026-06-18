@@ -303,6 +303,9 @@ class Orchestrator:
             self.conversation.add_assistant(clarification)
             return self.context
 
+        # 阶段3: ReflexRouter — LLM 入口前分诊（L3+ skill 直接执行）
+        reflex_hint = await self._try_reflex(user_input)
+
         # 构建 context（索引式知识呈现 + 作用域隔离）
         seed = ""
         if self.unified_store:
@@ -380,6 +383,10 @@ class Orchestrator:
         skill_prompt = self._match_composite_skills(user_input, round_idx=0)
         if skill_prompt:
             system += skill_prompt
+
+        # 阶段3: ReflexRouter 降级提示（守卫失败或准反射时附加）
+        if reflex_hint:
+            system += reflex_hint
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
@@ -1849,6 +1856,25 @@ class Orchestrator:
             from pathlib import Path
             self._skill_registry = SkillRegistry(Path(".educe/skills"))
         return self._skill_registry
+
+    async def _try_reflex(self, user_input: str) -> str:
+        """阶段3: ReflexRouter 尝试反射执行，返回降级提示或空字符串"""
+        try:
+            from educe.core.metabolism.reflex_router import ReflexRouter
+            if not hasattr(self, '_reflex_router'):
+                self._reflex_router = ReflexRouter(self._get_skill_registry())
+            result = await self._reflex_router.try_reflex(user_input)
+            if result.handled:
+                # L3/L4 完全反射（阶段3完整实现后生效）
+                self._slog("framework", "reflex_hit",
+                           summary=f"reflex executed skill={result.skill_id}",
+                           data={"skill_id": result.skill_id})
+                return ""
+            if result.escalation_hint:
+                return result.escalation_hint
+        except Exception:
+            pass
+        return ""
 
     def _match_composite_skills(self, user_input: str, round_idx: int = 0) -> str:
         """匹配已编译的 CompositeSkill，返回注入文本"""
