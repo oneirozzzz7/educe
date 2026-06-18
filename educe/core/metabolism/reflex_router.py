@@ -118,8 +118,9 @@ class ReflexRouter:
                     return False
 
             elif kind == "param_check":
-                # 检查输入是否匹配预期参数范围
-                if expr and expr not in user_input.lower():
+                # 检查输入是否匹配预期参数范围（支持 | 分隔的多关键词）
+                import re
+                if expr and not re.search(expr, user_input.lower()):
                     return False
 
             elif kind == "file_exists":
@@ -136,23 +137,108 @@ class ReflexRouter:
         """
         执行反射动作。
 
-        当前版本：L3/L4 skill 尚未产生可执行 graph，
-        返回 handled=False 让系统走正常路径但附带加速提示。
-        阶段3完整实现后，这里会直接调用 action_executor。
+        L3 readonly skill: 从 user_input 提取路径/关键词，直接执行搜索/读取。
+        L3 其他/L4: 当前返回加速提示，阶段3后期完整实现。
         """
-        # TODO: 阶段3 — 直接执行 skill.steps 里的 action 序列
-        # 当前：标记为"准反射"——告诉 LLM "我已经知道该怎么做"
-        skill.record_outcome(success=True, accepted=True)
-        self._registry._save()
+        import re
+        import subprocess
 
-        return ReflexResult(
-            handled=False,  # 当前仍走 LLM，但带加速提示
-            skill_id=best.skill_id if 'best' in dir() else skill.skill_id,
-            escalation_hint=(
-                f"\n[系统反射提示] 此任务匹配已验证路径'{skill.name}'(L{skill.level})，"
-                f"请直接执行，无需探索。"
-            ),
-        )
+        # 只有 readonly 才真正直接执行
+        if skill.safety_class != "readonly":
+            skill.record_outcome(success=True, accepted=True)
+            self._registry._save()
+            return ReflexResult(
+                handled=False,
+                skill_id=skill.skill_id,
+                escalation_hint=(
+                    f"\n[系统反射提示] 此任务匹配已验证路径'{skill.name}'(L{skill.level})，"
+                    f"请直接执行，无需探索。"
+                ),
+            )
+
+        # readonly L3: 尝试从 user_input 提取搜索目标
+        import re
+        # 1. 提取文件路径
+        path_match = re.search(r'(/[\w./\-]+\.\w{1,4})', user_input)
+        target_path = path_match.group(1) if path_match else "."
+
+        # 2. 提取搜索关键词（排除路径本身）
+        keyword = ""
+        # 尝试："里的 X"、"中的 X"、引号内容、英文标识符
+        kw_patterns = [
+            r'里的\s*([A-Za-z_]\w+)',
+            r'中的\s*([A-Za-z_]\w+)',
+            r'["\']([^"\']+)["\']',
+            r'搜索[^/]*?([A-Za-z_]\w{2,})',
+            r'查找[^/]*?([A-Za-z_]\w{2,})',
+        ]
+        for pat in kw_patterns:
+            m = re.search(pat, user_input)
+            if m:
+                keyword = m.group(1)
+                break
+        # fallback: 最后一个英文标识符（排除文件扩展名）
+        if not keyword:
+            identifiers = re.findall(r'\b([A-Za-z_]\w{2,})\b', user_input)
+            # 过滤掉路径组件和常见停用词
+            stop = {"帮我", "看看", "搜索", "查找", "里的", "中的", "代码", "内容", "函数", "文件"}
+            identifiers = [i for i in identifiers if i not in stop and not i.endswith(("py", "js", "ts"))]
+            if identifiers:
+                keyword = identifiers[-1]
+
+        # 构造搜索命令
+        if keyword and target_path and target_path != ".":
+            # 如果 keyword 是文件名的一部分，用户可能想看整个文件
+            if keyword.lower() in target_path.lower():
+                cmd = f"cat {target_path} 2>/dev/null | head -50"
+            else:
+                cmd = f"grep -rn '{keyword}' {target_path} 2>/dev/null | head -20"
+        elif target_path and target_path != ".":
+            cmd = f"cat {target_path} 2>/dev/null | head -50"
+        else:
+            # 无法确定具体操作 → 降级
+            return ReflexResult(
+                handled=False,
+                skill_id=skill.skill_id,
+                escalation_hint=f"\n[反射] 路径'{skill.name}'匹配但无法确定参数，正常处理。",
+            )
+
+        # 执行！
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=10,
+                cwd=context.get("cwd", "."),
+            )
+            output = result.stdout.strip() or "(无输出)"
+            success = result.returncode == 0
+
+            skill.record_outcome(success=success, accepted=True)
+            self._registry._save()
+
+            if success and output:
+                log.info(f"ReflexRouter: L3 direct execution SUCCESS for '{skill.name}'")
+                return ReflexResult(
+                    handled=True,
+                    response=f"[反射执行] {cmd}\n\n```\n{output}\n```",
+                    actions_executed=[{"type": "shell", "cmd": cmd, "exit": result.returncode}],
+                    skill_id=skill.skill_id,
+                )
+            else:
+                # 执行失败 → 降级
+                return ReflexResult(
+                    handled=False,
+                    skill_id=skill.skill_id,
+                    escalation_hint=f"\n[反射失败] 命令 `{cmd}` 返回码={result.returncode}，请正常处理。",
+                )
+
+        except Exception as e:
+            skill.record_outcome(success=False)
+            self._registry._save()
+            return ReflexResult(
+                handled=False,
+                skill_id=skill.skill_id,
+                escalation_hint=f"\n[反射异常] {e}，降级到 LLM 处理。",
+            )
 
     @property
     def stats(self) -> dict:
