@@ -1865,8 +1865,13 @@ class Orchestrator:
             if not matched:
                 return ""
 
-            # 最多注入 3 个最相关的 skill
-            top_skills = matched[:3]
+            # 相关性过滤：只注入与 user_input 动词相关的 skill
+            relevant = self._filter_relevant_skills(matched, user_input)
+            if not relevant:
+                return ""
+
+            # 最多注入 2 个最相关的 skill（节省 prompt token）
+            top_skills = relevant[:2]
             lines = ["\n\n## 已掌握的多步技能（可一口气执行）\n"]
             for skill in top_skills:
                 lines.append(skill.render_for_prompt())
@@ -1883,6 +1888,25 @@ class Orchestrator:
             return "\n".join(lines)
         except Exception:
             return ""
+
+    def _filter_relevant_skills(self, skills: list, user_input: str) -> list:
+        """根据 user_input 过滤出真正相关的 skills"""
+        lower = user_input.lower()
+        # 动词-skill 名称关联矩阵
+        _RELEVANCE = {
+            "编写并运行": ["写", "脚本", "运行", "执行", "python", "代码", "程序"],
+            "文件脚手架": ["创建", "项目", "目录", "初始化", "脚手架", "搭建"],
+            "项目初始化": ["创建", "项目", "初始化", "安装", "依赖"],
+            "连续代码阅读": ["看", "读", "查看", "分析", "代码", "实现", "逻辑"],
+            "代码探索": ["找", "搜索", "定位", "哪里", "在哪"],
+            "代码修改": ["改", "修改", "修复", "重构", "优化"],
+        }
+        relevant = []
+        for skill in skills:
+            keywords = _RELEVANCE.get(skill.name, [])
+            if not keywords or any(kw in lower for kw in keywords):
+                relevant.append(skill)
+        return relevant
 
     def _l1_clarification_check(self, user_input: str) -> str | None:
         """L1 澄清：检测不可逆高危意图，要求用户确认方向。
