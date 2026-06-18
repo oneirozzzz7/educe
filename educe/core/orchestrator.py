@@ -142,6 +142,12 @@ class Orchestrator:
     async def run(self, user_input: str, file_content: str | None = None) -> WorkContext:
         self.context.user_request = user_input
         _sid = self.context.metadata.get("session_id", "")
+
+        # 确保 shell 执行的 cwd 默认为项目根（启动时的工作目录）
+        if not self.context.metadata.get("_project_context_path"):
+            import os
+            self.context.metadata["_project_context_path"] = os.getcwd()
+
         log_activity(_sid, "user_input", input=user_input[:200],
                      has_file=bool(file_content))
 
