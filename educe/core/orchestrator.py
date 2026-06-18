@@ -1872,18 +1872,28 @@ class Orchestrator:
 
             # 最多注入 2 个最相关的 skill（节省 prompt token）
             top_skills = relevant[:2]
-            lines = ["\n\n## 已掌握的多步技能（可一口气执行）\n"]
-            for skill in top_skills:
-                lines.append(skill.render_for_prompt())
-                lines.append("")
+
+            # 按最高 level 选择渲染模式
+            best = top_skills[0]
+            if best.level >= 2:
+                # L2+: Plan-Graph 模式 — LLM 一次性审批
+                lines = ["\n\n## 执行计划（一次性审批）\n"]
+                lines.append(best.render_plan_graph())
+                lines.append("\n如果计划合适，请直接按步骤输出所有 action。如需调整参数，修改后输出。")
+            else:
+                # L0/L1: 提示/模板模式
+                lines = ["\n\n## 已掌握的多步技能（可一口气执行）\n"]
+                for skill in top_skills:
+                    lines.append(skill.render_for_prompt())
+                    lines.append("")
 
             # 记录本轮激活的 skill ids
             self.context.metadata["_activated_skill_ids"] = [s.skill_id for s in top_skills]
 
             self._slog("framework", "skill_matched",
-                       summary=f"matched {len(top_skills)} skills for scope={scope}",
+                       summary=f"matched {len(top_skills)} skills for scope={scope} (L{best.level})",
                        data={"scope": scope, "skill_names": [s.name for s in top_skills],
-                             "is_start": is_start})
+                             "best_level": best.level, "is_start": is_start})
 
             return "\n".join(lines)
         except Exception:
