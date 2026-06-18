@@ -135,15 +135,17 @@ class ReflexRouter:
         self, skill: CompositeSkill, user_input: str, context: dict
     ) -> ReflexResult:
         """
-        执行反射动作。
+        执行反射动作（公理五：Schema 驱动 + 事实验证 + LLM 降级）
 
-        L3 readonly skill: 从 user_input 提取路径/关键词，直接执行搜索/读取。
-        L3 其他/L4: 当前返回加速提示，阶段3后期完整实现。
+        不用正则猜测自然语言。而是：
+        1. 从 user_input 中提取候选 token
+        2. 用事实验证（os.path.exists）确认 filepath
+        3. 剩余 token 中取标识符作为 keyword
+        4. 抠不到 → 诚实降级到 LLM
         """
-        import re
+        import os
         import subprocess
 
-        # 只有 readonly 才真正直接执行
         if skill.safety_class != "readonly":
             skill.record_outcome(success=True, accepted=True)
             self._registry._save()
@@ -156,54 +158,26 @@ class ReflexRouter:
                 ),
             )
 
-        # readonly L3: 尝试从 user_input 提取搜索目标
-        import re
-        # 1. 提取文件路径
-        path_match = re.search(r'(/[\w./\-]+\.\w{1,4})', user_input)
-        target_path = path_match.group(1) if path_match else "."
+        # === Schema 驱动参数提取 ===
+        # 不猜"什么长得像路径"，而是验证"什么真实存在"
+        target_path, keyword = self._extract_params_by_probe(user_input)
 
-        # 2. 提取搜索关键词（排除路径本身）
-        keyword = ""
-        # 尝试："里的 X"、"中的 X"、引号内容、英文标识符
-        kw_patterns = [
-            r'里的\s*([A-Za-z_]\w+)',
-            r'中的\s*([A-Za-z_]\w+)',
-            r'["\']([^"\']+)["\']',
-            r'搜索[^/]*?([A-Za-z_]\w{2,})',
-            r'查找[^/]*?([A-Za-z_]\w{2,})',
-        ]
-        for pat in kw_patterns:
-            m = re.search(pat, user_input)
-            if m:
-                keyword = m.group(1)
-                break
-        # fallback: 最后一个英文标识符（排除文件扩展名）
-        if not keyword:
-            identifiers = re.findall(r'\b([A-Za-z_]\w{2,})\b', user_input)
-            # 过滤掉路径组件和常见停用词
-            stop = {"帮我", "看看", "搜索", "查找", "里的", "中的", "代码", "内容", "函数", "文件"}
-            identifiers = [i for i in identifiers if i not in stop and not i.endswith(("py", "js", "ts"))]
-            if identifiers:
-                keyword = identifiers[-1]
-
-        # 构造搜索命令
-        if keyword and target_path and target_path != ".":
-            # 如果 keyword 是文件名的一部分，用户可能想看整个文件
-            if keyword.lower() in target_path.lower():
+        # 构造命令
+        if keyword and target_path:
+            if keyword.lower() in os.path.basename(target_path).lower():
                 cmd = f"cat {target_path} 2>/dev/null | head -50"
             else:
                 cmd = f"grep -rn '{keyword}' {target_path} 2>/dev/null | head -20"
-        elif target_path and target_path != ".":
+        elif target_path:
             cmd = f"cat {target_path} 2>/dev/null | head -50"
         else:
-            # 无法确定具体操作 → 降级
             return ReflexResult(
                 handled=False,
                 skill_id=skill.skill_id,
-                escalation_hint=f"\n[反射] 路径'{skill.name}'匹配但无法确定参数，正常处理。",
+                escalation_hint=f"\n[反射] 无法从输入中验证出真实路径，降级到 LLM。",
             )
 
-        # 执行！
+        # 执行
         try:
             result = subprocess.run(
                 cmd, shell=True, capture_output=True, text=True, timeout=10,
@@ -224,11 +198,10 @@ class ReflexRouter:
                     skill_id=skill.skill_id,
                 )
             else:
-                # 执行失败 → 降级
                 return ReflexResult(
                     handled=False,
                     skill_id=skill.skill_id,
-                    escalation_hint=f"\n[反射失败] 命令 `{cmd}` 返回码={result.returncode}，请正常处理。",
+                    escalation_hint=f"\n[反射失败] 命令返回码={result.returncode}，降级到 LLM。",
                 )
 
         except Exception as e:
@@ -237,8 +210,53 @@ class ReflexRouter:
             return ReflexResult(
                 handled=False,
                 skill_id=skill.skill_id,
-                escalation_hint=f"\n[反射异常] {e}，降级到 LLM 处理。",
+                escalation_hint=f"\n[反射异常] {e}，降级到 LLM。",
             )
+
+    def _extract_params_by_probe(self, user_input: str) -> tuple[str, str]:
+        """
+        事实验证式参数提取（公理五：验证真实存在，不猜测）
+
+        从 user_input 的 token 中：
+        1. 找到真实存在于文件系统的路径 → target_path
+        2. 从剩余 token 中提取英文标识符 → keyword
+        """
+        import os
+
+        tokens = user_input.replace("，", " ").replace("。", " ").split()
+        target_path = ""
+        keyword = ""
+        used_indices = set()
+
+        # Pass 1: 事实验证——哪个 token 是真实存在的文件路径
+        for i, tok in enumerate(tokens):
+            candidate = tok.strip("\"'`，。！？")
+            if "/" in candidate or "." in candidate:
+                if os.path.exists(candidate):
+                    target_path = candidate
+                    used_indices.add(i)
+                    break
+                # 尝试常见前缀
+                for prefix in ["/tmp/", "./", os.getcwd() + "/"]:
+                    full = prefix + candidate.lstrip("./")
+                    if os.path.exists(full):
+                        target_path = full
+                        used_indices.add(i)
+                        break
+                if target_path:
+                    break
+
+        # Pass 2: 从剩余 token 提取英文标识符
+        for i, tok in enumerate(tokens):
+            if i in used_indices:
+                continue
+            clean = tok.strip("\"'`，。！？")
+            if len(clean) >= 3 and clean[0].isalpha() and clean.replace("_", "").isalnum():
+                if not clean.endswith(("py", "js", "ts", "md")):
+                    keyword = clean
+                    break
+
+        return target_path, keyword
 
     @property
     def stats(self) -> dict:
