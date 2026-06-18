@@ -564,9 +564,10 @@ class Orchestrator:
                 return False
 
             def _is_dangerous_shell(params: str) -> bool:
-                """安全命令自动执行，危险命令需确认"""
-                import re, json as _j
-                # 解析 JSON 格式的 params
+                """安全命令自动执行，危险命令需确认。
+                利用 shell_taxonomy + resource_delta 声明式配置判断（公理五）。
+                """
+                import json as _j
                 cmd = params.strip()
                 try:
                     parsed = _j.loads(cmd)
@@ -574,20 +575,24 @@ class Orchestrator:
                 except (ValueError, TypeError, AttributeError):
                     pass
                 cmd = cmd.strip()
-                safe_patterns = [
-                    r"^git\s+(clone|pull|fetch|status|log|diff|branch|checkout)",
-                    r"^pip\s+install",
-                    r"^npm\s+install",
-                    r"^python\s+",
-                    r"^node\s+",
-                    r"^ls\b", r"^cat\b", r"^find\b", r"^grep\b",
-                    r"^mkdir\b", r"^cd\b", r"^pwd\b", r"^echo\b",
-                    r"^pytest", r"^python\s+-m\s+(pytest|unittest)",
-                ]
-                for pattern in safe_patterns:
-                    if re.match(pattern, cmd):
-                        return False  # 安全，不需确认
-                return True  # 未匹配已知安全模式，需确认
+
+                from educe.core.metabolism.context_sig import shell_subclass, _rdelta_classifier
+                subclass = shell_subclass(cmd)
+                # 安全类别：来自 YAML 配置的语义分类
+                safe_categories = {
+                    "shell.git", "shell.pkg", "shell.python", "shell.node",
+                    "shell.search", "shell.read", "shell.nav", "shell.test",
+                    "shell.build", "shell.open", "shell.source",
+                }
+                if subclass in safe_categories:
+                    return False
+
+                # mutate 类进一步判断：创建(+file)安全，删除(-file)危险
+                rdelta = _rdelta_classifier.classify(cmd)
+                if subclass == "shell.mutate" and rdelta != "-file":
+                    return False
+
+                return True
 
             # 检查 use_tool 是否调用危险能力
             def _is_dangerous_use_tool(action) -> bool:
