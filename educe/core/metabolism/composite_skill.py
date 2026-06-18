@@ -243,7 +243,9 @@ class CompositeSkill:
             if s.acceptance_rate >= 0.8 and s.patch_rate <= 0.2:
                 return min(2, effective_max)
         elif self.level == 2 and s.invocations >= 30:
-            if s.acceptance_rate >= 0.95 and s.success_rate >= 0.95 and self.guards:
+            # L2→L3: acceptance_rate 是主要信号（LLM 采纳率），
+            # success_rate 放宽到 90%（底层命令失败含正常探索试错）
+            if s.acceptance_rate >= 0.95 and s.success_rate >= 0.90 and self.guards:
                 return min(3, effective_max)
 
         return None
@@ -262,10 +264,10 @@ class CompositeSkill:
             return base
 
         s = self.get_stats()
-        # readonly 自动审批条件：inv≥50, acc≥98%, success≥98%, 近30次无failure
+        # readonly 自动审批条件：inv≥50, acc≥98%, success≥90%（底层失败含正常探索）
         if (s.invocations >= 50
             and s.acceptance_rate >= 0.98
-            and s.success_rate >= 0.98
+            and s.success_rate >= 0.90
             and (time.time() - s.last_failure_ts > 300 or s.outcome_failures == 0)):
             auto_max = min(base + 1, 3)  # 硬顶 L3，不自动到 L4
             return auto_max
