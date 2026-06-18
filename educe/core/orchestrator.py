@@ -1898,8 +1898,13 @@ class Orchestrator:
         """阶段3: ReflexRouter 尝试反射执行。
         返回 None = handled（已短路），str = 降级提示，"" = passthrough。
 
+        多任务请求不短路——反射只处理单一明确的 readonly 请求。
         Shadow mode 时：handled 不短路，记录到 shadow_ab.jsonl 供后续对比。
         """
+        # 多任务检测：包含枚举模式的请求不走反射
+        if any(marker in user_input for marker in ["1)", "2)", "3)", "第一", "第二", "第三", "首先", "然后", "最后"]):
+            return ""
+
         try:
             from educe.core.metabolism.reflex_router import ReflexRouter
             if not hasattr(self, '_reflex_router'):
