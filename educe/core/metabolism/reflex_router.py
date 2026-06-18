@@ -195,6 +195,14 @@ class ReflexRouter:
         # 不猜"什么长得像路径"，而是验证"什么真实存在"
         target_path, keyword = self._extract_params_by_probe(user_input)
 
+        # 安全边界：反射只允许读取项目目录内或 /tmp 下的文件
+        if target_path and not self._is_safe_path(target_path, context.get("cwd", ".")):
+            return ReflexResult(
+                handled=False,
+                skill_id=skill.skill_id,
+                escalation_hint=f"\n[反射] 路径 '{target_path}' 超出安全边界，降级到 LLM。",
+            )
+
         # 构造命令
         if keyword and target_path:
             if keyword.lower() in os.path.basename(target_path).lower():
@@ -294,6 +302,28 @@ class ReflexRouter:
                 break
 
         return target_path, keyword
+
+    @staticmethod
+    def _is_safe_path(target_path: str, cwd: str) -> bool:
+        """
+        安全边界检查：反射只允许读取项目目录内或 /tmp 下的文件。
+        阻止读取系统文件（/etc, /var, ~/ 等）。
+        """
+        import os
+        abs_path = os.path.abspath(target_path)
+        abs_cwd = os.path.abspath(cwd)
+
+        # 允许：项目目录内（cwd 及其子目录）
+        if abs_path.startswith(abs_cwd):
+            return True
+        # 允许：/tmp 下
+        if abs_path.startswith("/tmp"):
+            return True
+        # 允许：相对路径（隐含在项目内）
+        if not target_path.startswith("/"):
+            return True
+
+        return False
 
     @property
     def stats(self) -> dict:
