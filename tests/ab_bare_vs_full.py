@@ -47,25 +47,39 @@ async def run_single_task(config: EduceConfig, task: dict, bare_mode: bool) -> d
     """执行单个任务并收集指标"""
     os.environ["EDUCE_BARE_MODE"] = "1" if bare_mode else "0"
 
+    from educe.agents import ALL_AGENTS
+    from educe.models.router import ModelClient
+
     orchestrator = Orchestrator(config)
     orchestrator.context.metadata["session_id"] = f"ab_{'bare' if bare_mode else 'full'}_{int(time.time())}"
 
+    # 初始化 model client 和 agents（和 web server 相同方式）
+    model_cfg = config.default_model
+    client = ModelClient(
+        api_key=model_cfg.api_key,
+        base_url=model_cfg.base_url,
+    )
+    for agent_cls in ALL_AGENTS:
+        agent = agent_cls(config=config, model_client=client, knowledge=orchestrator.knowledge)
+        orchestrator.register(agent)
+
     t0 = time.time()
     try:
+        # Capture output via chunks AND messages (reflex uses messages, not chunks)
+        chunks = []
+        messages = []
+        orchestrator.on_chunk(lambda agent, chunk: chunks.append(chunk))
+        orchestrator.on_message(lambda msg: messages.append(msg))
+
         result = await orchestrator.run(task["input"])
         latency = time.time() - t0
 
-        # 收集指标
-        messages = result.messages if hasattr(result, 'messages') else []
-        final_reply = ""
-        for msg in reversed(messages):
-            if hasattr(msg, 'content') and msg.content:
-                final_reply = msg.content
-                break
-
-        # 从 session logger 获取 token 计数
-        token_count = orchestrator.context.metadata.get("_total_tokens", 0)
-        action_count = orchestrator.context.metadata.get("_action_count", 0)
+        final_reply = "".join(chunks)
+        # Also check messages for reflex output
+        for msg in messages:
+            if hasattr(msg, 'content') and msg.sender == "assistant" and msg.content:
+                if not final_reply or len(msg.content) > len(final_reply):
+                    final_reply = msg.content
 
         success = bool(final_reply and len(final_reply) > 10)
 
@@ -74,11 +88,10 @@ async def run_single_task(config: EduceConfig, task: dict, bare_mode: bool) -> d
             "category": task["category"],
             "mode": "bare" if bare_mode else "full",
             "latency_s": round(latency, 2),
-            "token_count": token_count,
             "reply_len": len(final_reply),
             "success": success,
-            "has_reflex": "[反射执行]" in final_reply if final_reply else False,
-            "has_organ": "[器官修复]" in final_reply if final_reply else False,
+            "has_reflex": "[反射执行]" in final_reply,
+            "has_organ": "[器官修复]" in final_reply or "[🔧 器官修复]" in final_reply,
         }
     except Exception as e:
         return {
