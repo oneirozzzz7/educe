@@ -252,7 +252,8 @@ class ReflexRouter:
 
         从 user_input 的 token 中：
         1. 找到真实存在于文件系统的路径 → target_path
-        2. 从剩余 token 中提取英文标识符 → keyword
+        2. 从剩余 token 中提取英文标识符（≥3字符、字母开头） → keyword
+        中文 token 不应被当作 keyword（它们是自然语言描述，不是搜索目标）
         """
         import os
 
@@ -279,15 +280,18 @@ class ReflexRouter:
                 if target_path:
                     break
 
-        # Pass 2: 从剩余 token 提取英文标识符
+        # Pass 2: 从剩余 token 提取英文标识符作为搜索 keyword
+        # 只取纯 ASCII 标识符，排除中文（中文是自然语言描述不是 grep 目标）
         for i, tok in enumerate(tokens):
             if i in used_indices:
                 continue
             clean = tok.strip("\"'`，。！？")
-            if len(clean) >= 3 and clean[0].isalpha() and clean.replace("_", "").isalnum():
-                if not clean.endswith(("py", "js", "ts", "md")):
-                    keyword = clean
-                    break
+            if (len(clean) >= 3
+                and clean[0].isascii() and clean[0].isalpha()
+                and clean.replace("_", "").replace("-", "").isalnum()
+                and not clean.endswith(("py", "js", "ts", "md", "yaml", "json"))):
+                keyword = clean
+                break
 
         return target_path, keyword
 
