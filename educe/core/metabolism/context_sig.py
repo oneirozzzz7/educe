@@ -34,38 +34,81 @@ class StepSig:
 
 
 # ═══════════════════════════════════════
-#  Shell 子分类规则
+#  Shell 子分类 — 纯数据配置（公理五：机制与认知分离）
+#  引擎持有匹配机制，这张表只含声明性的领域知识。
+#  可外置为 YAML，引擎不依赖具体值。
 # ═══════════════════════════════════════
 
-_SHELL_RULES: list[tuple[str, Any]] = [
-    ("git",     lambda h, full: h == "git"),
-    ("test",    lambda h, full: (h in {"pytest", "jest", "go"} and "test" in full)
-                                or (h in {"npm", "yarn", "pnpm"} and "test" in full)
-                                or (h == "cargo" and "test" in full)),
-    ("build",   lambda h, full: h in {"make", "cargo", "go", "tsc", "webpack", "vite"}
-                                or (h in {"npm", "yarn", "pnpm"} and "build" in full)),
-    ("serve",   lambda h, full: "uvicorn" in full or "nohup" in full or "gunicorn" in full
-                                or "flask run" in full or "npm start" in full
-                                or "npm run dev" in full),
-    ("heredoc", lambda h, full: "EOF" in full
-                                or ("cat" in full and ">" in full and "<<" in full)),
-    ("pkg",     lambda h, full: h in {"pip", "pip3", "npm", "yarn", "pnpm", "apt", "brew", "cargo"}
-                                and any(k in full for k in ("install", "add", "uninstall"))),
-    ("search",  lambda h, full: h in {"grep", "rg", "ag", "find", "fd", "ack"}),
-    ("read",    lambda h, full: h in {"cat", "less", "head", "tail", "bat", "sed", "awk"}
-                                and ">" not in full),
-    ("nav",     lambda h, full: h in {"ls", "cd", "pwd", "tree", "stat", "du", "wc"}),
-    ("mutate",  lambda h, full: h in {"mv", "cp", "rm", "mkdir", "touch", "chmod", "ln"}),
-    ("write",   lambda h, full: (h in {"echo", "sed", "tee"} and (">" in full or "-i" in full))
-                                or (h == "cat" and ">" in full)
-                                or (h == "echo")),
-    ("net",     lambda h, full: h in {"curl", "wget", "ssh", "scp", "docker", "kubectl"}),
-    ("proc",    lambda h, full: h in {"ps", "kill", "top", "systemctl", "service", "pkill", "lsof"}),
-    ("python",  lambda h, full: h in {"python", "python3"}),
-    ("node",    lambda h, full: h in {"node", "npx", "tsx"}),
-    ("open",    lambda h, full: h in {"open", "xdg-open"}),
-    ("source",  lambda h, full: h in {"source", "."} or "activate" in full),
-]
+SHELL_TAXONOMY: dict[str, dict] = {
+    "git":     {"match": "head", "values": ["git"]},
+    "test":    {"match": "head_and_contains", "values": ["pytest", "jest"],
+                "contains": ["test"],
+                "alt_heads": ["npm", "yarn", "pnpm", "cargo", "go"]},
+    "build":   {"match": "head_or_contains", "values": ["make", "cargo", "go", "tsc", "webpack", "vite"],
+                "alt_heads": ["npm", "yarn", "pnpm"], "contains": ["build"]},
+    "serve":   {"match": "full_contains_any", "values": ["uvicorn", "nohup", "gunicorn",
+                "flask run", "npm start", "npm run dev"]},
+    "heredoc": {"match": "full_contains_any", "values": ["EOF"]},
+    "pkg":     {"match": "head_and_contains", "values": ["pip", "pip3", "npm", "yarn", "pnpm", "apt", "brew", "cargo"],
+                "contains": ["install", "add", "uninstall"]},
+    "search":  {"match": "head", "values": ["grep", "rg", "ag", "find", "fd", "ack"]},
+    "read":    {"match": "head_not_contains", "values": ["cat", "less", "head", "tail", "bat", "sed", "awk"],
+                "not_contains": [">"]},
+    "nav":     {"match": "head", "values": ["ls", "cd", "pwd", "tree", "stat", "du", "wc"]},
+    "mutate":  {"match": "head", "values": ["mv", "cp", "rm", "mkdir", "touch", "chmod", "ln"]},
+    "write":   {"match": "head_and_contains", "values": ["echo", "sed", "tee"],
+                "contains": [">", "-i"],
+                "alt_heads": ["cat", "echo"]},
+    "net":     {"match": "head", "values": ["curl", "wget", "ssh", "scp", "docker", "kubectl"]},
+    "proc":    {"match": "head", "values": ["ps", "kill", "top", "systemctl", "service", "pkill", "lsof"]},
+    "python":  {"match": "head", "values": ["python", "python3"]},
+    "node":    {"match": "head", "values": ["node", "npx", "tsx"]},
+    "open":    {"match": "head", "values": ["open", "xdg-open"]},
+    "source":  {"match": "head_or_contains", "values": ["source", "."],
+                "contains": ["activate"]},
+}
+
+
+class _ShellClassifier:
+    """引擎机制（L1）：统一的分类匹配逻辑，不认识任何具体命令值。"""
+
+    def classify(self, head: str, full: str) -> str:
+        for cat, rule in SHELL_TAXONOMY.items():
+            if self._matches(head, full, rule):
+                return f"shell.{cat}"
+        return "shell.other"
+
+    def _matches(self, head: str, full: str, rule: dict) -> bool:
+        match_type = rule["match"]
+        values = rule.get("values", [])
+
+        if match_type == "head":
+            return head in values
+
+        elif match_type == "head_and_contains":
+            contains = rule.get("contains", [])
+            alt_heads = rule.get("alt_heads", [])
+            if head in values and any(c in full for c in contains):
+                return True
+            if head in alt_heads and any(c in full for c in contains):
+                return True
+            return False
+
+        elif match_type == "head_or_contains":
+            contains = rule.get("contains", [])
+            return head in values or any(c in full for c in contains)
+
+        elif match_type == "head_not_contains":
+            not_contains = rule.get("not_contains", [])
+            return head in values and not any(c in full for c in not_contains)
+
+        elif match_type == "full_contains_any":
+            return any(v in full for v in values)
+
+        return False
+
+
+_classifier = _ShellClassifier()
 
 
 def shell_subclass(params: str) -> str:
@@ -94,13 +137,7 @@ def shell_subclass(params: str) -> str:
         if parts:
             head = parts[0].rsplit("/", 1)[-1]
 
-    for name, fn in _SHELL_RULES:
-        try:
-            if fn(head, full):
-                return f"shell.{name}"
-        except Exception:
-            continue
-    return "shell.other"
+    return _classifier.classify(head, full)
 
 
 # ═══════════════════════════════════════
