@@ -253,6 +253,89 @@ REPAIR_ORGAN = OrganModel(
 
 
 # ═══════════════════════════════════════
+#  器官注册表
+# ═══════════════════════════════════════
+
+class OrganRegistry:
+    """
+    器官注册表——持久化管理所有已验证的器官。
+
+    职责：
+    - 注册/卸载器官
+    - 根据触发模式匹配器官
+    - 持久化到 JSON
+    - 启动时自动注册预定义器官
+    """
+
+    def __init__(self, base_dir: Path | None = None):
+        self._dir = base_dir or Path(".educe/organs")
+        self._dir.mkdir(parents=True, exist_ok=True)
+        self._file = self._dir / "registry.json"
+        self._organs: dict[str, OrganModel] = {}
+        self._load()
+        self._ensure_builtins()
+
+    def _load(self) -> None:
+        if self._file.exists():
+            try:
+                data = json.loads(self._file.read_text(encoding="utf-8"))
+                for d in data:
+                    organ = OrganModel.from_dict(d)
+                    self._organs[organ.organ_id] = organ
+            except Exception:
+                pass
+
+    def _save(self) -> None:
+        data = [o.to_dict() for o in self._organs.values()]
+        self._file.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    def _ensure_builtins(self) -> None:
+        """确保预定义器官已注册"""
+        if REPAIR_ORGAN.organ_id not in self._organs:
+            self._organs[REPAIR_ORGAN.organ_id] = REPAIR_ORGAN
+            self._save()
+
+    def register(self, organ: OrganModel) -> bool:
+        """注册器官（需通过验证）"""
+        verifier = OrganVerifier()
+        result = verifier.verify(organ)
+        if not result["is_organ"]:
+            log.warning(f"OrganRegistry: rejected '{organ.name}' — failed verification")
+            return False
+        self._organs[organ.organ_id] = organ
+        self._save()
+        log.info(f"OrganRegistry: registered '{organ.name}' ({organ.organ_id})")
+        return True
+
+    def unregister(self, organ_id: str) -> None:
+        self._organs.pop(organ_id, None)
+        self._save()
+
+    def match(self, output: str, exit_code: int) -> OrganModel | None:
+        """根据执行结果匹配可触发的器官"""
+        if exit_code == 0:
+            return None
+
+        for organ in self._organs.values():
+            pattern = organ.trigger_pattern
+            if not pattern:
+                continue
+            if OrganExecutor._evaluate_condition(pattern, output, exit_code, {}):
+                return organ
+
+        return None
+
+    def all(self) -> list[OrganModel]:
+        return list(self._organs.values())
+
+    @property
+    def count(self) -> int:
+        return len(self._organs)
+
+
+# ═══════════════════════════════════════
 #  器官验证器：涌现性判定
 # ═══════════════════════════════════════
 

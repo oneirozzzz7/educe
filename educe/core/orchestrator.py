@@ -1047,11 +1047,12 @@ class Orchestrator:
                         if cd_path.is_dir():
                             self.context.metadata["_project_context_path"] = str(cd_path)
 
-                # 阶段4: 修复器官 — ModuleNotFoundError 自动修复+重试
-                if proc.returncode != 0 and ("ModuleNotFoundError" in stderr or "No module named" in stderr):
-                    repair_result = await self._try_organ_repair(cmd, output, stderr, work_dir, session_id)
-                    if repair_result:
-                        return repair_result
+                # 阶段4: 器官系统 — 根据错误模式自动匹配并执行器官
+                if proc.returncode != 0:
+                    full_output = output + "\n" + stderr
+                    organ_result = await self._try_organ(cmd, full_output, proc.returncode, work_dir, session_id)
+                    if organ_result:
+                        return organ_result
 
                 return {
                     "success": proc.returncode == 0,
@@ -2091,85 +2092,83 @@ class Orchestrator:
             self._process_supervisor.start_watchdog()
         return self._process_supervisor
 
-    async def _try_organ_repair(
-        self, cmd: str, output: str, stderr: str, work_dir, session_id: str
+    async def _try_organ(
+        self, cmd: str, full_output: str, exit_code: int, work_dir, session_id: str
     ) -> dict | None:
         """
-        阶段4: 修复器官 — 自动修复 ModuleNotFoundError 并重试。
+        阶段4: 器官系统 — 根据错误模式匹配器官并执行反馈环。
 
-        反馈环：run→检测→install→retry，跨节点状态传递（pkg 变量）。
+        通用化：不再硬编码 ModuleNotFoundError，而是用 OrganRegistry 匹配。
         """
         try:
-            from educe.core.metabolism.organ import OrganExecutor, REPAIR_ORGAN
+            from educe.core.metabolism.organ import OrganExecutor, OrganRegistry
 
-            executor = OrganExecutor(REPAIR_ORGAN)
-            state = executor.start({"cmd": cmd})
+            if not hasattr(self, '_organ_registry'):
+                self._organ_registry = OrganRegistry()
 
-            # 第一步已经执行了（就是触发这个方法的那次执行），直接 advance
-            full_output = output + "\n" + stderr
-            executor.advance(state, output=full_output, exit_code=1)
-
-            if state.current_node == "escalate" or state.is_done:
-                return None  # 不是模块错误或无法处理
-
-            # 执行 install
-            action = executor.get_next_action(state)
-            if not action or action["action_type"] != "shell":
+            organ = self._organ_registry.match(full_output, exit_code)
+            if not organ:
                 return None
 
-            install_cmd = action["command"]
-            log.info(f"Organ repair: installing '{state.variables.get('pkg')}' via: {install_cmd}")
-            self._slog("framework", "organ_repair",
-                       summary=f"auto-install: {install_cmd}",
-                       data={"pkg": state.variables.get("pkg"), "original_cmd": cmd})
+            executor = OrganExecutor(organ)
+            state = executor.start({"cmd": cmd})
+
+            # 第一步已执行（触发此方法的那次），直接 advance
+            executor.advance(state, output=full_output, exit_code=exit_code)
+
+            if state.current_node == "escalate" or state.is_done:
+                return None
 
             import asyncio as _aio, os as _os
             env = {**_os.environ, "PATH": _os.environ.get("PATH", "")}
-            install_proc = await _aio.create_subprocess_shell(
-                install_cmd, cwd=str(work_dir), env=env,
-                stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
-            )
-            i_stdout, i_stderr = await _aio.wait_for(install_proc.communicate(), timeout=60)
-            install_output = i_stdout.decode(errors="ignore") + i_stderr.decode(errors="ignore")
-            executor.advance(state, output=install_output, exit_code=install_proc.returncode)
+            steps_log = []
 
-            if state.current_node == "escalate" or state.is_done:
-                return None  # install 失败
+            # 通用执行循环：沿图遍历直到终态
+            while not state.is_done and state.iteration < state.max_iterations:
+                action = executor.get_next_action(state)
+                if not action:
+                    break
+                if action["action_type"] != "shell":
+                    break
 
-            # 执行 retry
-            action = executor.get_next_action(state)
-            if not action or action["action_type"] != "shell":
+                step_cmd = action["command"]
+                log.info(f"Organ '{organ.name}' step: {step_cmd}")
+
+                proc = await _aio.create_subprocess_shell(
+                    step_cmd, cwd=str(work_dir), env=env,
+                    stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+                )
+                stdout, stderr = await _aio.wait_for(proc.communicate(), timeout=60)
+                step_output = stdout.decode(errors="ignore") + stderr.decode(errors="ignore")
+                steps_log.append((step_cmd, proc.returncode, step_output[:500]))
+
+                executor.advance(state, output=step_output, exit_code=proc.returncode)
+
+            if not steps_log:
                 return None
 
-            retry_cmd = action["command"]
-            log.info(f"Organ repair: retrying original command: {retry_cmd}")
-            retry_proc = await _aio.create_subprocess_shell(
-                retry_cmd, cwd=str(work_dir), env=env,
-                stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
-            )
-            r_stdout, r_stderr = await _aio.wait_for(retry_proc.communicate(), timeout=30)
-            retry_output = r_stdout.decode(errors="ignore")
-            retry_stderr = r_stderr.decode(errors="ignore")
-            combined = retry_output + ("\n[stderr]\n" + retry_stderr if retry_stderr else "")
+            # 构造输出日志
+            last_cmd, last_exit, last_output = steps_log[-1]
+            vars_str = ", ".join(f"{k}={v}" for k, v in state.variables.items())
+            repair_log = f"$ {cmd}\n[cwd: .]\n[🔧 器官修复] {organ.name}\n"
+            for s_cmd, s_exit, s_out in steps_log:
+                status = "成功" if s_exit == 0 else "失败"
+                repair_log += f"  → {s_cmd}: {status}\n"
+            repair_log += f"\n{last_output[:3000] or '（无输出）'}\n[exit: {last_exit}]"
 
-            executor.advance(state, output=combined, exit_code=retry_proc.returncode)
-
-            pkg = state.variables.get("pkg", "?")
-            repair_log = (
-                f"$ {cmd}\n[cwd: .]\n"
-                f"[🔧 器官修复] 检测到缺失模块 '{pkg}'，自动安装并重试\n"
-                f"  → pip install {pkg}: {'成功' if install_proc.returncode == 0 else '失败'}\n"
-                f"  → 重试 {retry_cmd}: exit={retry_proc.returncode}\n\n"
-                f"{combined[:3000] or '（无输出）'}\n[exit: {retry_proc.returncode}]"
-            )
+            self._slog("framework", "organ_execute",
+                       summary=f"organ '{organ.name}': {len(steps_log)} steps, final_exit={last_exit}",
+                       data={"organ_id": organ.organ_id, "steps": len(steps_log),
+                             "variables": state.variables, "final_exit": last_exit})
 
             return {
-                "success": retry_proc.returncode == 0,
+                "success": last_exit == 0,
                 "output": repair_log,
             }
 
         except Exception as e:
-            log.warning(f"Organ repair failed: {e}")
+            log.warning(f"Organ execution failed: {e}")
+            return None
             return None
 
     def _get_behavior_manifest(self):
