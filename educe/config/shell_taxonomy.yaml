@@ -85,3 +85,13 @@ source:
   match: head_or_contains
   values: [source, "."]
   contains: [activate]
+
+sysinfo:
+  match: head
+  values: [df, free, top, uptime, uname, hostname, sysctl, vm_stat,
+           system_profiler, diskutil, lscpu, lsblk, ifconfig, ip, mount]
+
+util:
+  match: head
+  values: [which, whereis, type, file, readlink, basename, dirname,
+           realpath, date, cal, env, printenv, id, whoami]

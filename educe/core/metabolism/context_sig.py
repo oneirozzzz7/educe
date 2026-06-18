@@ -97,10 +97,14 @@ SHELL_TAXONOMY: dict[str, dict] = _load_taxonomy()
 class _ShellClassifier:
     """引擎机制（L1）：统一的分类匹配逻辑，不认识任何具体命令值。"""
 
+    def __init__(self):
+        self._other_counter: dict[str, int] = {}
+
     def classify(self, head: str, full: str) -> str:
         for cat, rule in SHELL_TAXONOMY.items():
             if self._matches(head, full, rule):
                 return f"shell.{cat}"
+        self._other_counter[head] = self._other_counter.get(head, 0) + 1
         return "shell.other"
 
     def _matches(self, head: str, full: str, rule: dict) -> bool:
@@ -131,6 +135,45 @@ class _ShellClassifier:
             return any(v in full for v in values)
 
         return False
+
+    def suggest_new_categories(self, min_count: int = 5) -> list[dict]:
+        """
+        环境适应：从 other 积累中建议新分类。
+
+        当某个命令头在 other 中出现超过 min_count 次，
+        说明当前环境频繁使用了 taxonomy 未覆盖的命令。
+        返回建议的新 YAML 条目（不自动写入，需人工/LLM 审批）。
+        """
+        suggestions = []
+        for head, count in sorted(self._other_counter.items(), key=lambda x: -x[1]):
+            if count >= min_count:
+                suggestions.append({
+                    "head": head,
+                    "count": count,
+                    "suggested_category": self._guess_category(head),
+                    "yaml_entry": {
+                        "match": "head",
+                        "values": [head],
+                    },
+                })
+        return suggestions
+
+    @staticmethod
+    def _guess_category(head: str) -> str:
+        """启发式猜测命令的语义类别（仅作为建议，不直接使用）"""
+        sysinfo_cmds = {"df", "free", "top", "uptime", "uname", "hostname",
+                        "sysctl", "vm_stat", "system_profiler", "diskutil",
+                        "lscpu", "lsblk", "mount", "ifconfig", "ip"}
+        if head in sysinfo_cmds:
+            return "sysinfo"
+        util_cmds = {"which", "whereis", "type", "file", "readlink",
+                     "basename", "dirname", "realpath", "date", "cal"}
+        if head in util_cmds:
+            return "util"
+        wait_cmds = {"sleep", "wait"}
+        if head in wait_cmds:
+            return "wait"
+        return "unknown"
 
 
 _classifier = _ShellClassifier()
