@@ -244,6 +244,134 @@ REPAIR_ORGAN = OrganModel(
         {"from": "install", "to": "retry", "condition": "exit_ok", "extract": ""},
         {"from": "install", "to": "escalate", "condition": "exit_fail", "extract": ""},
         {"from": "retry", "to": "done", "condition": "exit_ok", "extract": ""},
+        {"from": "retry", "to": "install",
+         "condition": "exit_fail_and_contains:No module named",
+         "extract": "regex:No module named ['\"]?(?P<pkg>\\w+)"},
         {"from": "retry", "to": "escalate", "condition": "exit_fail", "extract": ""},
     ],
 )
+
+
+# ═══════════════════════════════════════
+#  器官验证器：涌现性判定
+# ═══════════════════════════════════════
+
+class OrganVerifier:
+    """
+    验证 OrganModel 是否满足"器官"的形式化判据。
+
+    判据（Opus 4.8 确认）：
+    1. 含反馈环（有回边，不是纯 DAG）
+    2. 移除任意非终端节点，整体功能崩溃（涌现性）
+    3. 跨节点状态传递（至少一条边有 extract）
+    """
+
+    def verify(self, organ: OrganModel) -> dict:
+        """返回验证报告"""
+        results = {
+            "organ_id": organ.organ_id,
+            "name": organ.name,
+            "has_feedback_loop": self._check_feedback_loop(organ),
+            "has_state_transfer": self._check_state_transfer(organ),
+            "node_removal_test": self._check_node_removal(organ),
+            "is_organ": False,
+        }
+        results["is_organ"] = (
+            results["has_feedback_loop"]
+            and results["has_state_transfer"]
+            and results["node_removal_test"]["all_critical"]
+        )
+        return results
+
+    def _check_feedback_loop(self, organ: OrganModel) -> bool:
+        """检测图中是否有环（回边）"""
+        adj: dict[str, list[str]] = {}
+        for edge in organ.edges:
+            adj.setdefault(edge["from"], []).append(edge["to"])
+
+        visited: set[str] = set()
+        in_stack: set[str] = set()
+
+        def dfs(node: str) -> bool:
+            visited.add(node)
+            in_stack.add(node)
+            for neighbor in adj.get(node, []):
+                if neighbor in in_stack:
+                    return True  # 回边 = 环
+                if neighbor not in visited:
+                    if dfs(neighbor):
+                        return True
+            in_stack.discard(node)
+            return False
+
+        for node_d in organ.nodes:
+            nid = node_d["id"]
+            if nid not in visited:
+                if dfs(nid):
+                    return True
+        return False
+
+    def _check_state_transfer(self, organ: OrganModel) -> bool:
+        """检测是否有跨节点状态传递（边含 extract）"""
+        return any(e.get("extract", "") for e in organ.edges)
+
+    def _check_node_removal(self, organ: OrganModel) -> dict:
+        """
+        移除节点测试：对每个非终端节点，检查移除后是否削弱器官功能。
+
+        "削弱" = 从 entry 到 done 的路径数减少（某条执行路径断裂）。
+        全部节点都"关键"（移除任何一个都减少路径数） = 涌现性成立。
+        """
+        terminal_ids = {n["id"] for n in organ.nodes if n.get("is_terminal")}
+        non_terminal = [n["id"] for n in organ.nodes if not n.get("is_terminal")]
+
+        # 基线：完整图中的路径数
+        base_paths = self._count_paths(organ, exclude_node=None, terminal_ids=terminal_ids)
+
+        removal_results = {}
+        for remove_id in non_terminal:
+            reduced_paths = self._count_paths(organ, exclude_node=remove_id, terminal_ids=terminal_ids)
+            is_critical = reduced_paths < base_paths
+            removal_results[remove_id] = {
+                "critical": is_critical,
+                "base_paths": base_paths,
+                "reduced_paths": reduced_paths,
+            }
+
+        all_critical = all(r["critical"] for r in removal_results.values())
+        return {
+            "all_critical": all_critical,
+            "details": removal_results,
+        }
+
+    def _count_paths(
+        self, organ: OrganModel, exclude_node: str | None, terminal_ids: set[str]
+    ) -> int:
+        """计算从 entry 到任意终端的路径数（简单 DFS，有上限防爆）"""
+        if organ.entry_node == exclude_node:
+            return 0
+
+        adj: dict[str, list[str]] = {}
+        for edge in organ.edges:
+            if exclude_node and (edge["from"] == exclude_node or edge["to"] == exclude_node):
+                continue
+            adj.setdefault(edge["from"], []).append(edge["to"])
+
+        count = 0
+        max_count = 100
+
+        def dfs(node: str, visited: set[str]) -> None:
+            nonlocal count
+            if count >= max_count:
+                return
+            if node in terminal_ids:
+                count += 1
+                return
+            if node in visited:
+                return
+            visited.add(node)
+            for neighbor in adj.get(node, []):
+                dfs(neighbor, visited.copy())
+
+        dfs(organ.entry_node, set())
+        return count
