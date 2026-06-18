@@ -22,22 +22,23 @@
 
 ```bash
 # 1. 克隆
-git clone https://github.com/oneirozzzz7/deepforge.git educe
+git clone https://github.com/oneirozzzz7/educe.git
 cd educe
 
 # 2. 安装
 pip install -e ".[web]"
 
 # 3. 配置模型（任选一个）
-export DEEPFORGE_API_KEY=your-api-key
-export DEEPFORGE_BASE_URL=https://api.deepseek.com/v1
-export DEEPFORGE_MODEL=deepseek-chat
+export EDUCE_API_KEY=your-api-key
+export EDUCE_BASE_URL=https://api.deepseek.com/v1
+export EDUCE_MODEL=deepseek-chat
 
 # 4. 启动
-python -c "from deepforge.web.server import run_web; run_web()"
+./start.sh
+# 或手动：python -c "from educe.web.server import run_web; run_web()"
 
 # 5. 打开浏览器
-# http://localhost:7860
+# http://localhost:3001 (前端) 或 http://localhost:7860 (API)
 ```
 
 前端（可选，更好的 UI）：
@@ -52,10 +53,10 @@ cd web && npm install && npm run dev
 
 | 模型 | 推荐场景 | 配置 |
 |------|---------|------|
-| DeepSeek-V3 | 日常使用，便宜 | `DEEPFORGE_BASE_URL=https://api.deepseek.com/v1` |
+| DeepSeek-V3 | 日常使用，便宜 | `EDUCE_BASE_URL=https://api.deepseek.com/v1` |
 | Qwen3 系列 | 中文任务 | 通义千问 API |
 | GPT-4o-mini | 快速可靠 | OpenAI API |
-| 本地模型(Ollama) | 离线/隐私 | `DEEPFORGE_BASE_URL=http://localhost:11434/v1` |
+| 本地模型(Ollama) | 离线/隐私 | `EDUCE_BASE_URL=http://localhost:11434/v1` |
 
 ## 核心机制
 
@@ -93,9 +94,12 @@ cd web && npm install && npm run dev
 - [x] 诚实退出（停滞检测 + 用户告知）
 - [x] Web 前端（收敛可视化 + 确认机制）
 - [x] 行为学习（BehaviorManifest）
+- [x] 因果账本 + 路径挖掘器（阶段2：分化）
+- [x] CompositeSkill 编译（L0-L4 多级形态）
+- [x] ReflexRouter 反射弧（阶段3：零 token 执行高频只读情境）
+- [ ] 多反射弧协同（阶段4：器官）
 - [ ] Electron 桌面应用（一键安装）
 - [ ] Windows 支持
-- [ ] 非编程场景扩展
 
 ## License
 

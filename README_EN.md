@@ -1,12 +1,12 @@
 # Educe
 
-**The governance layer between humans and models — steering wheel, brakes, and dashboard.**
+**A runtime compiler from deliberation to reflex — making AI behavior cost decrease monotonically with experience.**
 
 [中文](./README.md) | English
 
 ---
 
-DeepForge enables open-source/affordable LLMs (DeepSeek, Qwen, GLM, Kimi, etc.) to accomplish complex tasks—previously only achievable by flagship models like Claude or GPT-4—through a 7-agent collaborative pipeline. It evolves and gets stronger with every use.
+Educe gives any LLM (DeepSeek, Qwen, Kimi, etc.) an external learning pathway beyond frozen weights. Repeated successful behaviors are compiled from expensive LLM deliberation into zero-cost reflexes. The system gets cheaper and faster with every use — not by changing the model, but by accumulating verified behavioral shortcuts.
 
 ## Key Features
 
@@ -33,29 +33,20 @@ pip install -e ".[web]"
 
 ```bash
 # Option 1: Environment variable (fastest)
-export DEEPSEEK_API_KEY=your-api-key
+export EDUCE_API_KEY=your-api-key
+export EDUCE_BASE_URL=https://api.deepseek.com/v1
+export EDUCE_MODEL=deepseek-chat
 
-# Option 2: Config file
-deepforge init
-# Edit the generated deepforge.yaml
+# Option 2: Use start.sh (auto-loads .env)
+./start.sh
 ```
 
 ### Usage
 
 ```bash
-# CLI interactive mode (recommended for developers)
-deepforge chat
-
-# Web UI (recommended for non-technical users)
-deepforge web
-# Open http://localhost:7860 in your browser
-
-# One-shot task (non-interactive)
-deepforge run "Build me a Pomodoro timer web app"
-
-# Short alias
-df chat
-df web
+# One-command start (backend + frontend)
+./start.sh
+# Open http://localhost:3001 in your browser
 ```
 
 ## Agent Team
@@ -86,47 +77,40 @@ Compatible with any OpenAI-compatible API endpoint.
 ## Project Structure
 
 ```
-deepforge/
+educe/
 ├── core/               # Core engine
+│   ├── orchestrator.py # Behavior loop + reflex router
+│   ├── metabolism/     # Causal ledger, path miner, skill compiler
 │   ├── agent.py        # Base agent class
-│   ├── config.py       # Configuration (YAML + env vars)
-│   ├── message.py      # Message protocol & task model
-│   └── orchestrator.py # Orchestrator (pipeline + free routing)
-├── agents/             # 7 agent implementations
+│   └── config.py       # Configuration (YAML + env vars)
+├── config/             # Declarative knowledge (shell taxonomy, resource delta)
 ├── models/             # Model router (multi-model adapter)
-├── memory/             # Memory system (JSON persistence)
-├── skills/             # Skill registry (builtin + user + community)
 ├── tools/              # Toolbox (file I/O, shell, search)
-├── cli/                # CLI interface (Rich-powered)
-└── web/                # Web UI (FastAPI + WebSocket)
+└── web/                # Web UI (FastAPI + Next.js)
 ```
 
 ## Evolution Mechanism
 
-DeepForge's core differentiator — **it gets stronger with use**:
+Educe's core differentiator — **behavior cost decreases monotonically with experience**:
 
 ```
-1st use   → Complete task → Memory Agent distills knowledge
-2nd use   → Retrieve relevant memory → Faster & better results
-Nth use   → Accumulated Skill templates → Near one-click completion
-Community → Shared Skills → Everyone benefits
+Experience (causal ledger) → Patterns (path mining) → Skills (compilation) → Reflexes (zero-cost execution)
 ```
 
-1. **Memory Distillation**: Auto-extracts reusable knowledge after each project
-2. **Skill Generation**: Recurring workflows become Skill templates
-3. **Community Sharing**: User-contributed Skills benefit the entire community
-4. **Prompt Self-Optimization**: Auto-tunes agent prompts based on success/failure signals
+1. **Causal Ledger**: Every action-outcome pair is recorded with context signatures
+2. **Path Mining**: Recurring multi-step sequences are discovered across sessions
+3. **Skill Compilation**: Stable paths are compiled into L0→L4 composite skills
+4. **Reflex Takeover**: L3+ skills bypass the LLM entirely for verified scenarios
 
 ## Comparison
 
-| Feature | DeepForge | MetaGPT | CrewAI | OpenCode |
-|---------|-----------|---------|--------|----------|
-| Weak-model optimization | ✅ Core design | ❌ | ❌ | ❌ |
-| Crowd user testing | ✅ | ❌ | ❌ | ❌ |
-| Memory evolution | ✅ | Partial | ❌ | ❌ |
-| Chinese model native support | ✅ | Partial | ❌ | ❌ |
-| Web UI | ✅ | ❌ | ❌ | ❌ |
-| Lightweight | ✅ | ❌ (heavy) | ✅ | ✅ |
+| Feature | Educe | Claude Code | LangChain | AutoGen |
+|---------|-------|-------------|-----------|---------|
+| Cost decreases with use | ✅ Core design | ❌ (flat) | ❌ | ❌ |
+| Zero-token reflex execution | ✅ L3+ | ❌ | ❌ | ❌ |
+| Model-agnostic | ✅ | ❌ (Anthropic) | ✅ | ✅ |
+| Self-evolving skills | ✅ | ❌ | ❌ | ❌ |
+| Honest convergence tracking | ✅ | ❌ | ❌ | ❌ |
 
 ## Roadmap
 
