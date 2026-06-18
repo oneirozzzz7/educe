@@ -178,12 +178,66 @@ def action_verb(record: dict) -> str:
 
 
 # ═══════════════════════════════════════
-#  Resource Delta 投影
+#  Resource Delta 投影 — 声明式配置（公理五）
+#  引擎持有匹配机制，具体分类规则来自 YAML 声明。
 # ═══════════════════════════════════════
 
-_RE_DESTRUCTIVE = re.compile(r"\brm\b")
-_RE_CREATIVE = re.compile(r"[>]{1,2}|tee|touch|mkdir|cp\b|mv\b")
-_RE_READING = re.compile(r"\b(cat|less|head|tail|grep|find|ls|awk|sed)\b")
+_RESOURCE_DELTA_PATHS = [
+    Path(".educe/config/resource_delta.yaml"),
+    Path(__file__).parent.parent.parent / "config" / "resource_delta.yaml",
+    Path.home() / ".educe/config/resource_delta.yaml",
+]
+
+_DEFAULT_RESOURCE_DELTA: dict[str, dict] = {
+    "destructive": {"delta": "-file", "match": "word_boundary", "values": ["rm", "rmdir", "shred", "unlink"]},
+    "creative": {"delta": "+file", "match": "contains_any", "values": [">>", ">", "tee", "touch", "mkdir", "cp", "mv"]},
+    "reading": {"delta": "read", "match": "word_boundary", "values": ["cat", "less", "head", "tail", "grep", "find", "ls", "awk", "sed", "bat", "rg", "ag", "fd"]},
+}
+
+
+def _load_resource_delta() -> dict[str, dict]:
+    """加载资源分类配置，失败时使用内置默认值"""
+    for p in _RESOURCE_DELTA_PATHS:
+        if p.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and len(data) >= 2:
+                    return data
+            except Exception:
+                pass
+    return _DEFAULT_RESOURCE_DELTA
+
+
+RESOURCE_DELTA_RULES: dict[str, dict] = _load_resource_delta()
+
+
+class _ResourceDeltaClassifier:
+    """引擎机制：统一的资源变化判断逻辑，不认识任何具体命令。"""
+
+    def classify(self, params: str) -> str:
+        for _cat, rule in RESOURCE_DELTA_RULES.items():
+            if self._matches(params, rule):
+                return rule.get("delta", "none")
+        return "none"
+
+    def _matches(self, params: str, rule: dict) -> bool:
+        match_type = rule.get("match", "word_boundary")
+        values = rule.get("values", [])
+
+        if match_type == "word_boundary":
+            for v in values:
+                if re.search(r"\b" + re.escape(v) + r"\b", params):
+                    return True
+            return False
+
+        elif match_type == "contains_any":
+            return any(v in params for v in values)
+
+        return False
+
+
+_rdelta_classifier = _ResourceDeltaClassifier()
 
 
 def resource_delta(record: dict) -> str:
@@ -196,12 +250,7 @@ def resource_delta(record: dict) -> str:
     if cap in ("read_lines", "read_file", "read_dir", "search_in_file"):
         return "read"
     if cap == "shell":
-        if _RE_DESTRUCTIVE.search(params):
-            return "-file"
-        if _RE_CREATIVE.search(params):
-            return "+file"
-        if _RE_READING.search(params):
-            return "read"
+        return _rdelta_classifier.classify(params)
     return "none"
 
 

@@ -1,0 +1,28 @@
+# Resource Delta — 声明式分类配置
+# 判断 shell 命令对文件系统资源状态的影响方向。
+# 引擎用统一匹配机制消费此表，不依赖任何具体命令名。
+#
+# 分类结果：
+#   +file  — 创建/写入/复制（资源增加）
+#   -file  — 删除/移除（资源减少）
+#   read   — 纯读取（资源不变，但消费了信息）
+#   none   — 无法判断 / 不涉及文件系统
+#
+# match 类型（与 shell_taxonomy 共用匹配引擎）：
+#   word_boundary  — \b 单词边界匹配任一 values
+#   contains_any   — 全文包含任一 values（无边界）
+
+destructive:
+  delta: "-file"
+  match: word_boundary
+  values: [rm, rmdir, shred, unlink]
+
+creative:
+  delta: "+file"
+  match: contains_any
+  values: [">>", ">", tee, touch, mkdir, cp, mv]
+
+reading:
+  delta: "read"
+  match: word_boundary
+  values: [cat, less, head, tail, grep, find, ls, awk, sed, bat, rg, ag, fd]
