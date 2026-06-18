@@ -2106,6 +2106,20 @@ class Orchestrator:
             self._process_supervisor.start_watchdog()
         return self._process_supervisor
 
+    @staticmethod
+    def _is_pip_installable(pkg: str) -> bool:
+        """检查包名是否可通过 pip 安装（运行时探测 stdlib，公理五合规）"""
+        import sys
+        # 用 Python 自身的 stdlib_module_names（运行时事实，不硬编码）
+        if hasattr(sys, 'stdlib_module_names'):
+            if pkg in sys.stdlib_module_names:
+                return False
+        # 子模块也检查（如 importlib.metadata → importlib 是 stdlib）
+        top_level = pkg.split(".")[0]
+        if hasattr(sys, 'stdlib_module_names') and top_level in sys.stdlib_module_names:
+            return False
+        return True
+
     async def _try_organ(
         self, cmd: str, full_output: str, exit_code: int, work_dir, session_id: str
     ) -> dict | None:
@@ -2131,6 +2145,12 @@ class Orchestrator:
             executor.advance(state, output=full_output, exit_code=exit_code)
 
             if state.current_node == "escalate" or state.is_done:
+                return None
+
+            # 预检查：提取的包名是否可 pip 安装？
+            pkg = state.variables.get("pkg", "")
+            if pkg and not self._is_pip_installable(pkg):
+                log.info(f"Organ skip: '{pkg}' is not pip-installable (stdlib or known-bad)")
                 return None
 
             import asyncio as _aio, os as _os
