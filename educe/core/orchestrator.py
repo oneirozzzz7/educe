@@ -305,6 +305,8 @@ class Orchestrator:
 
         # 阶段3: ReflexRouter — LLM 入口前分诊（L3+ skill 直接执行）
         reflex_hint = await self._try_reflex(user_input)
+        if reflex_hint is None:
+            return self.context  # 反射完成，跳过 LLM
 
         # 构建 context（索引式知识呈现 + 作用域隔离）
         seed = ""
@@ -1857,19 +1859,26 @@ class Orchestrator:
             self._skill_registry = SkillRegistry(Path(".educe/skills"))
         return self._skill_registry
 
-    async def _try_reflex(self, user_input: str) -> str:
-        """阶段3: ReflexRouter 尝试反射执行，返回降级提示或空字符串"""
+    async def _try_reflex(self, user_input: str) -> str | None:
+        """阶段3: ReflexRouter 尝试反射执行。
+        返回 None = handled（已短路），str = 降级提示，"" = passthrough。
+        """
         try:
             from educe.core.metabolism.reflex_router import ReflexRouter
             if not hasattr(self, '_reflex_router'):
                 self._reflex_router = ReflexRouter(self._get_skill_registry())
             result = await self._reflex_router.try_reflex(user_input)
             if result.handled:
-                # L3/L4 完全反射（阶段3完整实现后生效）
                 self._slog("framework", "reflex_hit",
-                           summary=f"reflex executed skill={result.skill_id}",
-                           data={"skill_id": result.skill_id})
-                return ""
+                           summary=f"reflex bypassed LLM, skill={result.skill_id}",
+                           data={"skill_id": result.skill_id, "response_len": len(result.response)})
+                # 直接发送反射结果给用户
+                msg = Message(type=MessageType.RESULT, sender="assistant",
+                              receiver="user", content=result.response)
+                self.context.add_message(msg)
+                self._notify(msg)
+                self.conversation.add_assistant(result.response)
+                return None  # 信号：已短路
             if result.escalation_hint:
                 return result.escalation_hint
         except Exception:
@@ -1926,20 +1935,11 @@ class Orchestrator:
             return ""
 
     def _filter_relevant_skills(self, skills: list, user_input: str) -> list:
-        """根据 user_input 过滤出真正相关的 skills"""
+        """根据 skill 自声明的 trigger_keywords 过滤相关性（公理五：认知来自声明）"""
         lower = user_input.lower()
-        # 动词-skill 名称关联矩阵
-        _RELEVANCE = {
-            "编写并运行": ["写", "脚本", "运行", "执行", "python", "代码", "程序"],
-            "文件脚手架": ["创建", "项目", "目录", "初始化", "脚手架", "搭建"],
-            "项目初始化": ["创建", "项目", "初始化", "安装", "依赖"],
-            "连续代码阅读": ["看", "读", "查看", "分析", "代码", "实现", "逻辑"],
-            "代码探索": ["找", "搜索", "定位", "哪里", "在哪"],
-            "代码修改": ["改", "修改", "修复", "重构", "优化"],
-        }
         relevant = []
         for skill in skills:
-            keywords = _RELEVANCE.get(skill.name, [])
+            keywords = skill.trigger_keywords
             if not keywords or any(kw in lower for kw in keywords):
                 relevant.append(skill)
         return relevant
