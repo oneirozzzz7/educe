@@ -310,9 +310,14 @@ class Orchestrator:
             return self.context
 
         # 阶段3: ReflexRouter — LLM 入口前分诊（L3+ skill 直接执行）
-        reflex_hint = await self._try_reflex(user_input)
-        if reflex_hint is None:
-            return self.context  # 反射完成，跳过 LLM
+        import os as _os_flag
+        _bare_mode = _os_flag.environ.get("EDUCE_BARE_MODE", "0") == "1"
+
+        reflex_hint = ""
+        if not _bare_mode:
+            reflex_hint = await self._try_reflex(user_input)
+            if reflex_hint is None:
+                return self.context  # 反射完成，跳过 LLM
 
         # 构建 context（索引式知识呈现 + 作用域隔离）
         seed = ""
@@ -383,17 +388,19 @@ class Orchestrator:
                 self.context.metadata["_withheld_behavior_units"] = withheld_ids
 
         # 阶段1: 决策前因果检索 — 从账本中提取相关经验注入 prompt
-        causal_experience = await self._get_causal_retriever().retrieve_experience(user_input)
-        if causal_experience:
-            system += causal_experience
+        if not _bare_mode:
+            causal_experience = await self._get_causal_retriever().retrieve_experience(user_input)
+            if causal_experience:
+                system += causal_experience
 
         # 阶段2: CompositeSkill 注入 — 匹配已编译技能，引导一口气执行
-        skill_prompt = self._match_composite_skills(user_input, round_idx=0)
-        if skill_prompt:
-            system += skill_prompt
+        if not _bare_mode:
+            skill_prompt = self._match_composite_skills(user_input, round_idx=0)
+            if skill_prompt:
+                system += skill_prompt
 
         # 阶段3: ReflexRouter 降级提示（守卫失败或准反射时附加）
-        if reflex_hint:
+        if not _bare_mode and reflex_hint:
             system += reflex_hint
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
@@ -1049,10 +1056,12 @@ class Orchestrator:
 
                 # 阶段4: 器官系统 — 根据错误模式自动匹配并执行器官
                 if proc.returncode != 0:
-                    full_output = output + "\n" + stderr
-                    organ_result = await self._try_organ(cmd, full_output, proc.returncode, work_dir, session_id)
-                    if organ_result:
-                        return organ_result
+                    import os as _os_organ
+                    if _os_organ.environ.get("EDUCE_BARE_MODE", "0") != "1":
+                        full_output = output + "\n" + stderr
+                        organ_result = await self._try_organ(cmd, full_output, proc.returncode, work_dir, session_id)
+                        if organ_result:
+                            return organ_result
 
                 return {
                     "success": proc.returncode == 0,
