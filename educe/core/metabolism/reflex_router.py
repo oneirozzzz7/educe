@@ -6,20 +6,24 @@ ReflexRouter — LLM 入口前的分诊器（阶段3基础设施）
 - 命中 L3 → 检查守卫，通过则执行，失败则降级唤醒 LLM
 - 未命中 → 透传，正常进入 LLM 路径
 
-当前版本：框架 + 透传。L3/L4 skill 尚未产生时 passthrough。
-接口已预留，阶段3 实现 Guard 编译器后可直接接入。
+Shadow mode：反射和 LLM 都执行，仅采用 LLM 输出。
+反射输出记录到 shadow_log 供 A/B 对比。
 """
 from __future__ import annotations
 
+import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from educe.core.metabolism.composite_skill import CompositeSkill, SkillRegistry
 from educe.core.metabolism.context_sig import task_type
 
 log = logging.getLogger("educe.reflex")
+
+SHADOW_LOG_PATH = Path(".educe/metabolism/shadow_ab.jsonl")
 
 
 @dataclass
@@ -31,6 +35,7 @@ class ReflexResult:
     skill_id: str = ""              # 匹配的 skill
     guard_failed: bool = False      # 守卫失败（需降级到 LLM）
     escalation_hint: str = ""       # 降级时给 LLM 的提示
+    shadow_record: dict = field(default_factory=dict)  # shadow mode 时记录反射输出
 
     def __post_init__(self):
         if self.actions_executed is None:
@@ -50,11 +55,18 @@ class ReflexRouter:
             # 把失败信息附加到 LLM prompt
             system += result.escalation_hint
         # else: 正常走 LLM
+
+    Shadow mode（A/B 验证期）：
+        router = ReflexRouter(registry, shadow=True)
+        # 此时 result.handled 始终 False，但 result.shadow_record 记录了反射输出
+        # 调用方正常走 LLM，后续对比 shadow_record vs LLM 实际输出
     """
 
-    def __init__(self, registry: SkillRegistry):
+    def __init__(self, registry: SkillRegistry, shadow: bool = False):
         self._registry = registry
-        self._stats = {"attempts": 0, "hits": 0, "guard_fails": 0, "passthrough": 0}
+        self._shadow = shadow
+        self._stats = {"attempts": 0, "hits": 0, "guard_fails": 0,
+                       "passthrough": 0, "shadow_hits": 0}
 
     async def try_reflex(
         self,
@@ -95,8 +107,29 @@ class ReflexRouter:
             )
 
         # 守卫通过 → 执行反射
-        self._stats["hits"] += 1
         result = await self._execute_reflex(best, user_input, context or {})
+
+        # Shadow mode：记录但不短路
+        if self._shadow and result.handled:
+            self._stats["shadow_hits"] += 1
+            shadow_record = {
+                "ts": time.time(),
+                "user_input": user_input,
+                "scope": scope,
+                "skill_id": best.skill_id,
+                "skill_name": best.name,
+                "reflex_response": result.response,
+                "reflex_cmd": result.actions_executed[0].get("cmd", "") if result.actions_executed else "",
+            }
+            self._write_shadow_log(shadow_record)
+            return ReflexResult(
+                handled=False,
+                skill_id=best.skill_id,
+                shadow_record=shadow_record,
+                escalation_hint="",
+            )
+
+        self._stats["hits"] += 1
         return result
 
     def _check_guards(
@@ -261,3 +294,114 @@ class ReflexRouter:
     @property
     def stats(self) -> dict:
         return self._stats.copy()
+
+    def _write_shadow_log(self, record: dict) -> None:
+        """记录 shadow 反射结果到 JSONL 文件"""
+        SHADOW_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(SHADOW_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def record_llm_actual(self, user_input: str, llm_actions: list[dict]) -> None:
+        """
+        Shadow mode 回填：记录 LLM 在同一情境下的实际决策。
+        调用方在 LLM 执行完后调用，用于计算接管精确率。
+        """
+        if not self._shadow or not SHADOW_LOG_PATH.exists():
+            return
+        llm_record = {
+            "ts": time.time(),
+            "user_input": user_input,
+            "llm_actions": llm_actions[:3],
+            "type": "llm_actual",
+        }
+        with open(SHADOW_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(llm_record, ensure_ascii=False) + "\n")
+
+    @staticmethod
+    def compute_takeover_precision() -> dict:
+        """
+        从 shadow_ab.jsonl 计算接管精确率。
+
+        精确率 = 反射命中情境中，LLM 也做了相同动作的比例。
+        "相同动作" = LLM 的第一个 action 也是 readonly shell 命令且目标文件一致。
+        """
+        if not SHADOW_LOG_PATH.exists():
+            return {"error": "no shadow log found"}
+
+        reflex_hits = []
+        llm_actuals = []
+        with open(SHADOW_LOG_PATH, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                    if r.get("type") == "llm_actual":
+                        llm_actuals.append(r)
+                    else:
+                        reflex_hits.append(r)
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+        if not reflex_hits:
+            return {"precision": None, "n_reflex": 0, "n_llm": 0, "msg": "no shadow hits yet"}
+
+        # 按 user_input 匹配 reflex hit 和 llm actual
+        matched = 0
+        same_action = 0
+        for rh in reflex_hits:
+            rinp = rh.get("user_input", "")
+            for la in llm_actuals:
+                if la.get("user_input", "") == rinp:
+                    matched += 1
+                    llm_first = la.get("llm_actions", [{}])[0] if la.get("llm_actions") else {}
+                    llm_cmd = llm_first.get("params", "") or llm_first.get("cmd", "")
+                    reflex_cmd = rh.get("reflex_cmd", "")
+                    if _cmds_semantically_same(reflex_cmd, llm_cmd):
+                        same_action += 1
+                    break
+
+        precision = same_action / max(matched, 1)
+        return {
+            "precision": precision,
+            "n_reflex": len(reflex_hits),
+            "n_llm": len(llm_actuals),
+            "n_matched": matched,
+            "n_same_action": same_action,
+            "verdict": "PASS" if precision >= 0.99 else "NEEDS_REVIEW" if precision >= 0.95 else "FAIL",
+        }
+
+
+def _cmds_semantically_same(reflex_cmd: str, llm_cmd: str) -> bool:
+    """
+    判断反射命令和 LLM 命令是否语义等价。
+    不要求字面完全相同——只要动作类型+目标一致即可。
+    """
+    if not reflex_cmd or not llm_cmd:
+        return False
+
+    r_parts = reflex_cmd.split()
+    l_parts = llm_cmd.split()
+    if not r_parts or not l_parts:
+        return False
+
+    r_head = r_parts[0].rsplit("/", 1)[-1]
+    l_head = l_parts[0].rsplit("/", 1)[-1]
+
+    # 同族 readonly 命令视为等价
+    readonly_families = [
+        {"grep", "rg", "ag", "ack"},
+        {"cat", "head", "tail", "less", "bat"},
+        {"find", "fd"},
+        {"ls", "tree"},
+    ]
+
+    r_family = l_family = None
+    for fam in readonly_families:
+        if r_head in fam:
+            r_family = fam
+        if l_head in fam:
+            l_family = fam
+
+    if r_family and l_family and r_family == l_family:
+        return True
+
+    return r_head == l_head

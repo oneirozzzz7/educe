@@ -232,17 +232,68 @@ class CompositeSkill:
         if self.frozen:
             return None
         s = self.get_stats()
-        max_allowed = min(self.approved_max_level, MAX_LEVEL_BY_SAFETY.get(self.safety_class, 1))
+
+        # 自动审批逻辑：readonly 类在统计证据充分时自动提升天花板到 L3
+        effective_max = self._effective_max_level()
 
         if self.level == 0 and s.invocations >= 5:
             if len(self.steps) > 0:
                 return 1
         elif self.level == 1 and s.invocations >= 10:
             if s.acceptance_rate >= 0.8 and s.patch_rate <= 0.2:
-                return min(2, max_allowed)
+                return min(2, effective_max)
         elif self.level == 2 and s.invocations >= 30:
             if s.acceptance_rate >= 0.95 and s.success_rate >= 0.95 and self.guards:
-                return min(3, max_allowed)
+                return min(3, effective_max)
+
+        return None
+
+    def _effective_max_level(self) -> int:
+        """
+        计算有效天花板（考虑自动审批）。
+
+        规则（Opus 4.8 讨论确认）：
+        - readonly + 统计证据充分 → 自动 +1（每次只升一级），硬顶 L3
+        - 其他 safety_class → 维持 approved_max_level（需人工审批）
+        - L4 无论如何需人工
+        """
+        base = min(self.approved_max_level, MAX_LEVEL_BY_SAFETY.get(self.safety_class, 1))
+        if self.safety_class != "readonly":
+            return base
+
+        s = self.get_stats()
+        # readonly 自动审批条件：inv≥50, acc≥98%, success≥98%, 近30次无failure
+        if (s.invocations >= 50
+            and s.acceptance_rate >= 0.98
+            and s.success_rate >= 0.98
+            and (time.time() - s.last_failure_ts > 300 or s.outcome_failures == 0)):
+            auto_max = min(base + 1, 3)  # 硬顶 L3，不自动到 L4
+            return auto_max
+
+        return base
+
+    def check_demotion(self) -> int | None:
+        """
+        对称降级检查（L3 守卫）。
+
+        L3 运行中：
+        - 单次 failure → 立即降回 L2
+        - 滑动窗口 acc < 97%（近20次中 patches > 0.6） → 降回 L2
+        返回目标 level（降级）或 None（不变）。
+        """
+        if self.level < 3:
+            return None
+
+        s = self.get_stats()
+
+        # 条件1：最近有 failure（5分钟内）
+        if s.outcome_failures > 0 and (time.time() - s.last_failure_ts < 300):
+            return 2
+
+        # 条件2：近期 acc 滑窗跌破阈值
+        recent_total = s.llm_acceptances + s.llm_patches
+        if recent_total >= 20 and s.acceptance_rate < 0.97:
+            return 2
 
         return None
 
@@ -261,7 +312,14 @@ class CompositeSkill:
             s.llm_patches += 1
         self.set_stats(s)
 
-        # 自动降级：单次失败
+        # 对称降级：L3 出现 failure 立即降
+        if self.level >= 3:
+            demotion = self.check_demotion()
+            if demotion is not None:
+                self.level = demotion
+                return
+
+        # 通用降级：单次失败降一级
         if not success and self.level > 0:
             self.level = max(0, self.level - 1)
 

@@ -495,6 +495,12 @@ class Orchestrator:
                            summary=f"{len(actions)} actions: {[a.type for a in actions]}",
                            data={"count": len(actions), "types": [a.type for a in actions]})
 
+                # Shadow A/B: 记录 LLM 在反射命中情境下的实际决策
+                shadow_input = self.context.metadata.pop("_shadow_reflex_input", None)
+                if shadow_input and hasattr(self, '_reflex_router') and round_idx == 0:
+                    llm_actions = [{"type": a.type, "params": getattr(a, 'params', '')} for a in actions[:3]]
+                    self._reflex_router.record_llm_actual(shadow_input, llm_actions)
+
             if not actions:
                 # 无 action = 纯回复
                 if not raw or not raw.strip():
@@ -1862,17 +1868,29 @@ class Orchestrator:
     async def _try_reflex(self, user_input: str) -> str | None:
         """阶段3: ReflexRouter 尝试反射执行。
         返回 None = handled（已短路），str = 降级提示，"" = passthrough。
+
+        Shadow mode 时：handled 不短路，记录到 shadow_ab.jsonl 供后续对比。
         """
         try:
             from educe.core.metabolism.reflex_router import ReflexRouter
             if not hasattr(self, '_reflex_router'):
-                self._reflex_router = ReflexRouter(self._get_skill_registry())
+                import os
+                shadow = os.environ.get("EDUCE_REFLEX_SHADOW", "0") == "1"
+                self._reflex_router = ReflexRouter(self._get_skill_registry(), shadow=shadow)
             result = await self._reflex_router.try_reflex(user_input)
+
+            # Shadow mode: 反射输出已记录，不短路
+            if result.shadow_record:
+                self._slog("framework", "reflex_shadow",
+                           summary=f"shadow hit: skill={result.skill_id}",
+                           data=result.shadow_record)
+                self.context.metadata["_shadow_reflex_input"] = user_input
+                return ""
+
             if result.handled:
                 self._slog("framework", "reflex_hit",
                            summary=f"reflex bypassed LLM, skill={result.skill_id}",
                            data={"skill_id": result.skill_id, "response_len": len(result.response)})
-                # 直接发送反射结果给用户
                 msg = Message(type=MessageType.RESULT, sender="assistant",
                               receiver="user", content=result.response)
                 self.context.add_message(msg)
