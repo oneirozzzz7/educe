@@ -1870,6 +1870,25 @@ class Orchestrator:
             self._skill_registry = SkillRegistry(Path(".educe/skills"))
         return self._skill_registry
 
+    def _get_knowledge_signals(self) -> dict:
+        """加载知识蒸馏与领域检测的声明式配置（公理五）"""
+        if not hasattr(self, '_knowledge_signals'):
+            from pathlib import Path
+            paths = [
+                Path(".educe/config/knowledge_signals.yaml"),
+                Path(__file__).parent.parent / "config" / "knowledge_signals.yaml",
+            ]
+            self._knowledge_signals = {}
+            for p in paths:
+                if p.exists():
+                    try:
+                        import yaml
+                        self._knowledge_signals = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+                        break
+                    except Exception:
+                        pass
+        return self._knowledge_signals
+
     async def _try_reflex(self, user_input: str) -> str | None:
         """阶段3: ReflexRouter 尝试反射执行。
         返回 None = handled（已短路），str = 降级提示，"" = passthrough。
@@ -2887,21 +2906,18 @@ class Orchestrator:
         if not self.knowledge or len(response) < 100:
             return
 
-        # 提取回答中的关键句（含分析性表达的句子更有价值）
+        insight_markers = self._get_knowledge_signals().get("insight_markers", [])
+        pattern = "|".join(re.escape(m) for m in insight_markers) if insight_markers else r"本质|核心|关键"
+
         sentences = re.split(r'[。\n]', response)
         valuable = []
         for s in sentences:
             s = s.strip()
             if len(s) < 15 or len(s) > 150:
                 continue
-            has_insight = bool(re.search(
-                r'本质|核心|关键|原理|根本|因为|所以|这意味着|区别在于|值得注意',
-                s
-            ))
-            if has_insight:
+            if re.search(pattern, s):
                 valuable.append(s)
 
-        # 取最有价值的前3句存入知识库
         for sent in valuable[:3]:
             triggers = self.knowledge._tokenize(question + " " + domain)
             self.knowledge.add(
@@ -2914,27 +2930,12 @@ class Orchestrator:
         import re
         combined = question + " " + response[:500]
 
-        domain_signals = {
-            "医学": r"症状|治疗|诊断|药物|发烧|疼痛|医院|病|就医|处方|剂量|手术",
-            "法律": r"法律|合同|赔偿|维权|法院|诉讼|劳动法|违约|法条",
-            "数学": r"证明|方程|概率|计算|公式|定理|求解|数学",
-            "技术": r"代码|编程|算法|API|数据库|服务器|框架|Python|Java|bug|报错",
-            "金融": r"投资|理财|基金|股票|贷款|利率|保险|收益|风险",
-            "写作": r"写一篇|写一段|文案|文章|润色|演讲|致辞|开场白",
-            "心理": r"焦虑|压力|情绪|迷茫|自卑|失眠|心理|抑郁|倦怠",
-            "历史": r"朝代|历史|战争|皇帝|古代|王朝|革命|变法",
-            "科学": r"物理|化学|生物|原子|量子|光速|DNA|基因|进化",
-            "烹饪": r"做法|食材|火候|炒|煮|烤|蒸|菜|肉|汤|调料",
-            "教育": r"学习|考试|备考|成绩|提分|方法|复习",
-            "宠物": r"猫|狗|宠物|喂养|疫苗|绝育|呕吐|驱虫",
-            "生活": r"装修|家电|清洗|维修|马桶|空调|洗衣机|甲醛",
-            "健身": r"减肥|减脂|跑步|健身|蛋白粉|训练|增肌",
-            "职场": r"简历|面试|跳槽|转行|加薪|晋升|职业",
-        }
+        domain_signals = self._get_knowledge_signals().get("domain_signals", {})
 
         best_domain = "通用"
         best_score = 0
-        for domain, pattern in domain_signals.items():
+        for domain, keywords in domain_signals.items():
+            pattern = "|".join(re.escape(k) for k in keywords)
             score = len(re.findall(pattern, combined, re.IGNORECASE))
             if score > best_score:
                 best_score = score
@@ -3191,13 +3192,12 @@ class Orchestrator:
     def _is_text_task(self, user_input: str) -> bool:
         """只有明确要做工具/网页/游戏才走code，其他全部走text"""
         import re
-        code_patterns = [
-            r"做一个|创建一个|生成一个|开发一个|搭建一个",
-            r"做个|写个|弄个|搞个",
-            r"网页|网站|工具|游戏|扩展|脚本|程序|应用|APP|app",
-            r"可视化|图表|看板|仪表盘|dashboard",
-        ]
-        code_score = sum(1 for p in code_patterns if re.search(p, user_input))
+        code_patterns = self._get_knowledge_signals().get("code_intent_patterns", [])
+        code_score = 0
+        for group in code_patterns:
+            pattern = "|".join(re.escape(k) for k in group)
+            if re.search(pattern, user_input):
+                code_score += 1
         return code_score == 0
 
     async def _direct_reply(self, user_input: str, file_hint: str = "") -> dict:
