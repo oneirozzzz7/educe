@@ -777,6 +777,22 @@ class Orchestrator:
         reason = "no_action" if final_reply else "max_rounds"
         if self.context.metadata.get("_clarify_pending"):
             reason = "clarify"
+
+        # 阶段2: CompositeSkill activation 反馈
+        activated_ids = self.context.metadata.get("_activated_skill_ids", [])
+        if activated_ids:
+            has_errors = any(
+                e.get("status") == "error"
+                for e in (self.context.metadata.get("_failed_actions") or [])
+            )
+            success = (reason == "no_action" and not has_errors)
+            try:
+                registry = self._get_skill_registry()
+                for sid in activated_ids:
+                    registry.record_activation(sid, success=success)
+            except Exception:
+                pass
+
         self._slog("framework", "turn_end",
                    summary=f"ended: {reason}",
                    data={"reason": reason})

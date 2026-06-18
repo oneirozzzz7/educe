@@ -207,6 +207,8 @@ class SkillRegistry:
                 continue
             if skill.position_hint == "starter" and not is_start:
                 continue
+            if skill.confidence < 0.1:
+                continue  # 淘汰：置信度过低不再注入
             matched.append(skill)
         matched.sort(key=lambda s: -s.confidence)
         return matched
@@ -217,6 +219,11 @@ class SkillRegistry:
             skill.times_activated += 1
             if success:
                 skill.times_succeeded += 1
+            # 淘汰机制：激活 5 次以上且成功率 < 30% → 降低置信度
+            if skill.times_activated >= 5:
+                rate = skill.times_succeeded / skill.times_activated
+                if rate < 0.3:
+                    skill.confidence *= 0.5  # 置信度衰减
             self._save()
 
     @property
