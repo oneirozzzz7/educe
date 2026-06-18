@@ -2005,7 +2005,7 @@ class Orchestrator:
             (["删除所有", "删除全部", "rm -rf", "清空"], "删除操作不可逆"),
             (["部署到生产", "部署到线上", "deploy to prod"], "生产部署影响线上用户"),
             (["推送到 main", "push to main", "force push"], "推送到主分支影响团队"),
-            (["格式化", "重装", "初始化数据库"], "数据可能丢失"),
+            (["格式化磁盘", "格式化硬盘", "格式化分区", "重装系统", "初始化数据库"], "数据可能丢失"),
         ]
 
         for keywords, risk_desc in HIGH_RISK_PATTERNS:
