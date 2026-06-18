@@ -1047,13 +1047,11 @@ class Orchestrator:
                         if cd_path.is_dir():
                             self.context.metadata["_project_context_path"] = str(cd_path)
 
-                # Auto-detect missing packages
+                # 阶段4: 修复器官 — ModuleNotFoundError 自动修复+重试
                 if proc.returncode != 0 and ("ModuleNotFoundError" in stderr or "No module named" in stderr):
-                    import re
-                    match = re.search(r"No module named ['\"]?(\w+)", stderr)
-                    if match:
-                        pkg = match.group(1)
-                        output += f"\n\n💡 检测到缺失模块: {pkg}\n建议执行: pip install {pkg}"
+                    repair_result = await self._try_organ_repair(cmd, output, stderr, work_dir, session_id)
+                    if repair_result:
+                        return repair_result
 
                 return {
                     "success": proc.returncode == 0,
@@ -2092,6 +2090,87 @@ class Orchestrator:
             self._process_supervisor = ProcessSupervisor()
             self._process_supervisor.start_watchdog()
         return self._process_supervisor
+
+    async def _try_organ_repair(
+        self, cmd: str, output: str, stderr: str, work_dir, session_id: str
+    ) -> dict | None:
+        """
+        阶段4: 修复器官 — 自动修复 ModuleNotFoundError 并重试。
+
+        反馈环：run→检测→install→retry，跨节点状态传递（pkg 变量）。
+        """
+        try:
+            from educe.core.metabolism.organ import OrganExecutor, REPAIR_ORGAN
+
+            executor = OrganExecutor(REPAIR_ORGAN)
+            state = executor.start({"cmd": cmd})
+
+            # 第一步已经执行了（就是触发这个方法的那次执行），直接 advance
+            full_output = output + "\n" + stderr
+            executor.advance(state, output=full_output, exit_code=1)
+
+            if state.current_node == "escalate" or state.is_done:
+                return None  # 不是模块错误或无法处理
+
+            # 执行 install
+            action = executor.get_next_action(state)
+            if not action or action["action_type"] != "shell":
+                return None
+
+            install_cmd = action["command"]
+            log.info(f"Organ repair: installing '{state.variables.get('pkg')}' via: {install_cmd}")
+            self._slog("framework", "organ_repair",
+                       summary=f"auto-install: {install_cmd}",
+                       data={"pkg": state.variables.get("pkg"), "original_cmd": cmd})
+
+            import asyncio as _aio, os as _os
+            env = {**_os.environ, "PATH": _os.environ.get("PATH", "")}
+            install_proc = await _aio.create_subprocess_shell(
+                install_cmd, cwd=str(work_dir), env=env,
+                stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+            )
+            i_stdout, i_stderr = await _aio.wait_for(install_proc.communicate(), timeout=60)
+            install_output = i_stdout.decode(errors="ignore") + i_stderr.decode(errors="ignore")
+            executor.advance(state, output=install_output, exit_code=install_proc.returncode)
+
+            if state.current_node == "escalate" or state.is_done:
+                return None  # install 失败
+
+            # 执行 retry
+            action = executor.get_next_action(state)
+            if not action or action["action_type"] != "shell":
+                return None
+
+            retry_cmd = action["command"]
+            log.info(f"Organ repair: retrying original command: {retry_cmd}")
+            retry_proc = await _aio.create_subprocess_shell(
+                retry_cmd, cwd=str(work_dir), env=env,
+                stdout=_aio.subprocess.PIPE, stderr=_aio.subprocess.PIPE,
+            )
+            r_stdout, r_stderr = await _aio.wait_for(retry_proc.communicate(), timeout=30)
+            retry_output = r_stdout.decode(errors="ignore")
+            retry_stderr = r_stderr.decode(errors="ignore")
+            combined = retry_output + ("\n[stderr]\n" + retry_stderr if retry_stderr else "")
+
+            executor.advance(state, output=combined, exit_code=retry_proc.returncode)
+
+            pkg = state.variables.get("pkg", "?")
+            repair_log = (
+                f"$ {cmd}\n[cwd: .]\n"
+                f"[🔧 器官修复] 检测到缺失模块 '{pkg}'，自动安装并重试\n"
+                f"  → pip install {pkg}: {'成功' if install_proc.returncode == 0 else '失败'}\n"
+                f"  → 重试 {retry_cmd}: exit={retry_proc.returncode}\n\n"
+                f"{combined[:3000] or '（无输出）'}\n[exit: {retry_proc.returncode}]"
+            )
+
+            return {
+                "success": retry_proc.returncode == 0,
+                "output": repair_log,
+            }
+
+        except Exception as e:
+            log.warning(f"Organ repair failed: {e}")
+            return None
 
     def _get_behavior_manifest(self):
         """获取 BehaviorManifest（Agent 行为仓库）"""
