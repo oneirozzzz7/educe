@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -34,12 +35,19 @@ class StepSig:
 
 
 # ═══════════════════════════════════════
-#  Shell 子分类 — 纯数据配置（公理五：机制与认知分离）
-#  引擎持有匹配机制，这张表只含声明性的领域知识。
-#  可外置为 YAML，引擎不依赖具体值。
+#  Shell 子分类 — 外置 YAML 配置（公理五：机制与认知分离）
+#  引擎持有匹配机制，配置表只含声明性领域知识。
+#  优先从 .educe/config/shell_taxonomy.yaml 加载，
+#  加载失败时使用内置默认值（保证引擎始终可启动）。
 # ═══════════════════════════════════════
 
-SHELL_TAXONOMY: dict[str, dict] = {
+_TAXONOMY_PATHS = [
+    Path(".educe/config/shell_taxonomy.yaml"),
+    Path(__file__).parent.parent.parent / "config" / "shell_taxonomy.yaml",
+    Path.home() / ".educe/config/shell_taxonomy.yaml",
+]
+
+_DEFAULT_TAXONOMY: dict[str, dict] = {
     "git":     {"match": "head", "values": ["git"]},
     "test":    {"match": "head_and_contains", "values": ["pytest", "jest"],
                 "contains": ["test"],
@@ -67,6 +75,23 @@ SHELL_TAXONOMY: dict[str, dict] = {
     "source":  {"match": "head_or_contains", "values": ["source", "."],
                 "contains": ["activate"]},
 }
+
+
+def _load_taxonomy() -> dict[str, dict]:
+    """加载 YAML 配置，失败时使用内置默认值"""
+    for p in _TAXONOMY_PATHS:
+        if p.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and len(data) > 5:
+                    return data
+            except Exception:
+                pass
+    return _DEFAULT_TAXONOMY
+
+
+SHELL_TAXONOMY: dict[str, dict] = _load_taxonomy()
 
 
 class _ShellClassifier:
