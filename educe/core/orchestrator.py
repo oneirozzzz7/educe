@@ -1101,8 +1101,9 @@ class Orchestrator:
 
 
     async def _exec_read_file(self, action, session_id: str = "") -> dict:
-        """读取指定文件内容"""
+        """读取指定文件内容（诚实降级：二进制文件返回元信息而非乱码）"""
         from pathlib import Path
+        import mimetypes
 
         target = action.params.strip()
         if not target:
@@ -1122,8 +1123,32 @@ class Orchestrator:
             return {"success": False, "output": f"文件不存在: {target}"}
         if not path.is_file():
             return {"success": False, "output": f"不是文件: {target}（如果是目录请用 read_dir）"}
-        if path.stat().st_size > 100_000:
-            return {"success": False, "output": f"文件过大 ({path.stat().st_size}B)，最大支持 100KB"}
+
+        size = path.stat().st_size
+        mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        ext = path.suffix.lower()
+
+        # 诚实降级：二进制文件返回元信息+能力建议
+        binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
+                       ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mov",
+                       ".zip", ".tar", ".gz", ".rar", ".7z",
+                       ".exe", ".dll", ".so", ".dylib", ".bin"}
+        if ext in binary_exts or (mime and not mime.startswith("text/")):
+            info = f"文件: {path.name}\n类型: {mime}\n大小: {size} bytes ({size//1024}KB)"
+            if ext in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+                info += "\n\n这是图片文件。可以：\n- 用 shell: `file {path}` 查看详细信息\n- 用 shell: `python3 -c \"from PIL import Image; img=Image.open('{path}'); print(img.size, img.mode)\"` 查看尺寸\n- 如果需要分析图片内容，请通过前端上传（支持视觉模型）"
+            elif ext == ".pdf":
+                info += "\n\n这是 PDF 文件。可以用 shell: `python3 -c \"from PyPDF2 import PdfReader; r=PdfReader('{path}'); print(len(r.pages), '页')\"` 查看页数"
+            elif ext in {".xlsx", ".xls"}:
+                info += "\n\n这是 Excel 文件。可以用 shell: `python3 -c \"import openpyxl; wb=openpyxl.load_workbook('{path}'); print(wb.sheetnames)\"` 查看 sheet"
+            elif ext in {".zip", ".tar", ".gz"}:
+                info += "\n\n这是压缩文件。可以用 shell: `file {path}` 或 `tar -tzf {path} | head` 查看内容列表"
+            else:
+                info += "\n\n这是二进制文件，无法直接读取文本内容。可以用 shell: `file {path}` 查看类型，或 `xxd {path} | head` 查看十六进制"
+            return {"success": True, "output": info}
+
+        if size > 100_000:
+            return {"success": False, "output": f"文件过大 ({size}B)，最大支持 100KB。可以用 read_lines 读取部分行。"}
 
         try:
             content = path.read_text(encoding="utf-8", errors="ignore")[:10000]
