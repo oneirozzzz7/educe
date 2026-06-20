@@ -11,6 +11,7 @@ import { ConvergencePanel } from "@/components/convergence-panel";
 import { FeedbackButton } from "@/components/feedback-button";
 import { ToolStreamCard } from "@/components/tool-stream-card";
 import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
+import { EvolutionStatusPanel } from "@/components/evolution-status";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -464,6 +465,7 @@ function ArtifactCardBuilding({ file, fileCount, elapsed }: {
 
 export default function Home() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const [showEvolution, setShowEvolution] = useState(false);
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -598,6 +600,11 @@ export default function Home() {
               onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
               onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
               title="知识管理">🧠</button>
+            <button onClick={() => setShowEvolution(true)}
+              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14, padding: 4, transition: "color 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#22d3ee")}
+              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
+              title="进化状态">⚡</button>
           </div>
         </div>
 
@@ -811,6 +818,9 @@ export default function Home() {
 
       {/* 反馈按钮 */}
       <FeedbackButton sessionId={state.sessionId} />
+
+      {/* 进化状态面板 */}
+      <EvolutionStatusPanel open={showEvolution} onClose={() => setShowEvolution(false)} />
     </div>
   );
 }

@@ -580,6 +580,42 @@ def create_app(config: EduceConfig | None = None) -> Any:
             f.write(_json.dumps(body, ensure_ascii=False) + "\n")
         return {"status": "ok"}
 
+    @app.get("/api/evolution/status")
+    async def evolution_status():
+        """返回所有器官的当前状态（Status 面板数据源）"""
+        from educe.core.organ_verbosity import ConfidenceStore
+        store = ConfidenceStore()
+        organs = []
+        for pid, ps in store._states.items():
+            hint = None
+            if ps.state == "crystallized" and "short" in pid:
+                hint = "核心答案控制在 3 句以内"
+            organs.append({
+                "id": pid,
+                "family": pid.split(":")[0] if ":" in pid else pid,
+                "state": ps.state,
+                "confidence": round(ps.confidence, 3),
+                "observe_count": ps.observe_count,
+                "confirm_count": ps.confirm_count,
+                "hint": hint,
+                "last_updated": ps.last_updated,
+            })
+        return {"organs": organs}
+
+    @app.post("/api/evolution/revert/{organ_id}")
+    async def evolution_revert(organ_id: str):
+        """手动撤销一个器官的结晶状态"""
+        from educe.core.organ_verbosity import ConfidenceStore
+        store = ConfidenceStore()
+        ps = store.get(organ_id)
+        if ps.state not in ("crystallized", "revert_proposed", "proposed"):
+            return {"status": "error", "message": f"Organ {organ_id} is in state '{ps.state}', cannot revert"}
+        store.update(organ_id, -1.0, new_state="idle")
+        store._states[organ_id].observe_count = 0
+        store._states[organ_id].confirm_count = 0
+        store._save()
+        return {"status": "ok", "organ_id": organ_id, "new_state": "idle"}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
