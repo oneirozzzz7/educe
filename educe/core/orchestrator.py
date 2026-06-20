@@ -126,10 +126,31 @@ class Orchestrator:
             cb(agent_name, chunk)
 
     def _slog(self, type: str, name: str, **kwargs) -> None:
-        """Structured log event via SessionLogger (noop if no logger)."""
+        """Structured log + EvolutionEvent 总线投影。
+
+        无条件先写日志（零丢失），然后查注册表决定是否进总线。
+        """
+        # 1. 日志无条件先写（向后兼容）
         sl = self.session_logger or get_session_logger()
         if sl:
             sl.event(type=type, name=name, **kwargs)
+
+        # 2. 查注册表，命中才进总线
+        from educe.core.evolution_bus import EVOLUTION_BUILDERS
+        builder = EVOLUTION_BUILDERS.get((type, name))
+        if builder:
+            event = builder.build(kwargs)
+            if event and event.passes_three_gates():
+                bus = self._get_evolution_bus()
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.ensure_future(bus.emit(event))
+                    else:
+                        loop.run_until_complete(bus.emit(event))
+                except RuntimeError:
+                    pass
 
     def _display(self, msg: Message) -> None:
         icon = {"builder": "💻", "tester": "🧪", "planner": "📋", "assistant": "💬"}.get(msg.sender, "🤖")
@@ -1908,6 +1929,13 @@ class Orchestrator:
             from pathlib import Path
             self._skill_registry = SkillRegistry(Path(".educe/skills"))
         return self._skill_registry
+
+    def _get_evolution_bus(self):
+        """获取 EvolutionEvent 总线"""
+        if not hasattr(self, '_evolution_bus'):
+            from educe.core.evolution_bus import EvolutionBus
+            self._evolution_bus = EvolutionBus()
+        return self._evolution_bus
 
     def _get_knowledge_signals(self) -> dict:
         """加载知识蒸馏与领域检测的声明式配置（公理五）"""
