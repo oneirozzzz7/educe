@@ -70,6 +70,12 @@ TASK_ENTITY_PATTERNS = re.compile(
     re.IGNORECASE
 )
 
+# 短输入中含评价/态度词（说明用户在表达观点而非跳过）
+OPINION_PATTERNS = re.compile(
+    r'(但是|不过|觉得|认为|其实|没关系|刚好|挺好|很好|不错|可以的|没问题|but|actually|fine|good)',
+    re.IGNORECASE
+)
+
 
 # ═══ Turn Meta ═══
 
@@ -109,6 +115,10 @@ class TurnMeta:
     @property
     def has_task_entity(self) -> bool:
         return bool(TASK_ENTITY_PATTERNS.search(self.user_input))
+
+    @property
+    def has_opinion(self) -> bool:
+        return bool(OPINION_PATTERNS.search(self.user_input))
 
 
 # ═══ Confidence State ═══
@@ -257,11 +267,12 @@ class VerbosityOrgan:
         if latest.is_explicit_short:
             return await self._advance_short(EXPLICIT_SIGNAL_WEIGHT, "用户明确要求简短回答")
 
-        # detail_skip 信号：上一轮 AI 长回答 + 用户短回复/终结/非追问/非任务指令
+        # detail_skip 信号：上一轮 AI 长回答 + 用户短回复/终结/非追问/非任务指令/非观点表达
         if (prev and prev.is_ai_long
                 and (latest.is_user_short or latest.is_terminator)
                 and not latest.is_followup
-                and not latest.has_task_entity):
+                and not latest.has_task_entity
+                and not latest.has_opinion):
             return await self._advance_short(SKIP_SIGNAL_WEIGHT, "AI 长回答后用户快速跳过")
 
         # detail_want 信号：用户追问要细节
