@@ -215,6 +215,64 @@ function KnowledgePanel({ onRefresh }: { onRefresh?: () => void }) {
   );
 }
 
+// ═══ Action 详情卡片（Round 12：过程透明）═══
+
+function ActionDetailCard({ event }: { event: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const success = event.success;
+  const dotColor = success ? "var(--pass)" : "var(--fail)";
+  const label = event.label || `${success ? "✓" : "✗"} ${event.action_type}`;
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, width: "100%",
+          background: "none", border: "none", cursor: "pointer",
+          padding: "4px 0", textAlign: "left",
+        }}
+      >
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: success ? "var(--pass)" : "var(--fail)", fontWeight: 500 }}>
+          {label}
+        </span>
+        {event.elapsed_ms > 0 && (
+          <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: 4 }}>
+            {(event.elapsed_ms / 1000).toFixed(1)}s
+          </span>
+        )}
+        {event.retried && (
+          <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 4 }}>· 重试</span>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-3)", transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }}>⌄</span>
+      </button>
+      {event.output_preview && !expanded && (
+        <div style={{ paddingLeft: 11, fontSize: 11, color: "var(--text-2)", lineHeight: 1.4, marginTop: 2 }}>
+          {event.output_preview.slice(0, 80)}
+        </div>
+      )}
+      {expanded && (
+        <div style={{
+          marginTop: 4, marginLeft: 11, padding: "8px 10px",
+          background: "var(--surface-1)", border: "1px solid var(--border-0)",
+          borderRadius: 6, fontSize: 11, fontFamily: "'Geist Mono', monospace",
+        }}>
+          {event.command && (
+            <div style={{ color: "var(--text-2)", marginBottom: 4 }}>$ {event.command}</div>
+          )}
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--text-1)", lineHeight: 1.4 }}>
+            {event.output_preview || "(无输出)"}
+          </pre>
+          <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-3)" }}>
+            exit: {success ? "0" : "≠0"}{event.elapsed_ms > 0 ? ` · ${event.elapsed_ms}ms` : ""}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══ 事件渲染器 ═══
 
 function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; sessionId?: string; onOpenPreview?: (file: string) => void }) {
@@ -247,6 +305,9 @@ function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; s
 
     case "transcript":
       return null; // handled by BuildProcessLine aggregation
+
+    case "action_detail":
+      return <ActionDetailCard event={event} />;
 
     case "action_confirm":
       return null; // handled inline by pendingConfirm

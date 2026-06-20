@@ -63,6 +63,21 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "VERSION_SAVED", version: evt.version };
     }
 
+    if (evt.event === "action_detail") {
+      const event: AppEvent = {
+        type: "action_detail",
+        ts: Date.now() / 1000,
+        action_type: evt.action_type,
+        label: evt.label,
+        command: evt.command,
+        output_preview: evt.output_preview,
+        success: evt.success,
+        elapsed_ms: evt.elapsed_ms,
+        retried: evt.retried,
+      };
+      return { type: "APPEND_EVENT", event };
+    }
+
     if (evt.event === "transcript") {
       const event: AppEvent = {
         type: "transcript",

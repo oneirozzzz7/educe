@@ -679,6 +679,26 @@ class Orchestrator:
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
 
+                # 推送富 action 卡片事件（Round 12：过程透明）
+                _action_summary = self._build_action_summary(action, result)
+                if _action_summary and transcript:
+                    transcript.add("action", "system", _action_summary["label"],
+                                   elapsed=_action_summary.get("elapsed", 0))
+                    # 推送详细数据供前端展开
+                    import json as _json_act
+                    _detail_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                        content="__TOOL_EVENT__" + _json_act.dumps({
+                            "event": "action_detail",
+                            "action_type": action.type,
+                            "label": _action_summary["label"],
+                            "command": _action_summary.get("command", ""),
+                            "output_preview": _action_summary.get("output_preview", ""),
+                            "success": result.get("success", False),
+                            "elapsed_ms": _action_summary.get("elapsed_ms", 0),
+                            "retried": _action_summary.get("retried", False),
+                        }, ensure_ascii=False))
+                    self._notify(_detail_evt)
+
                 # IterationState: 将执行结果映射为知识状态更新
                 self._update_iteration_state(action, result, _sid)
 
@@ -1936,6 +1956,80 @@ class Orchestrator:
             from educe.core.evolution_bus import EvolutionBus
             self._evolution_bus = EvolutionBus()
         return self._evolution_bus
+
+    @staticmethod
+    def _build_action_summary(action, result: dict) -> dict | None:
+        """构建 action 的富摘要（Round 12：过程透明 Glance 层）"""
+        output = result.get("output", "")
+        success = result.get("success", False)
+        action_type = action.type
+
+        if action_type == "shell":
+            # 从输出中提取命令（格式: "$ cmd\n[cwd: .]\noutput\n[exit: N]"）
+            lines = output.split("\n")
+            cmd_line = ""
+            for l in lines:
+                if l.startswith("$ "):
+                    cmd_line = l[2:].strip()
+                    break
+            # 提取命令的"宾语"
+            cmd_short = cmd_line.split("|")[0].strip()[:60] if cmd_line else action.params[:60]
+            # 输出摘要：取第一行有意义的输出
+            output_lines = [l for l in lines if l.strip() and not l.startswith("$") and not l.startswith("[")]
+            preview = output_lines[0][:80] if output_lines else ""
+            return {
+                "label": f"{'✓' if success else '✗'} {cmd_short}",
+                "command": cmd_line,
+                "output_preview": preview,
+                "elapsed_ms": 0,
+                "retried": "[🔧 器官修复]" in output,
+            }
+
+        elif action_type in ("read_file", "read_lines", "read_dir"):
+            target = action.params.strip()[:50]
+            return {
+                "label": f"{'✓' if success else '✗'} 读取 {target}",
+                "command": f"{action_type} {target}",
+                "output_preview": output[:80] if output else "",
+            }
+
+        elif action_type == "write_file":
+            # 从 params 提取文件路径
+            path = ""
+            if "path:" in action.params:
+                path = action.params.split("path:")[1].split("\n")[0].strip()[:50]
+            elif action.params.strip().startswith("{"):
+                import json as _j
+                try:
+                    path = _j.loads(action.params).get("path", "")[:50]
+                except Exception:
+                    pass
+            return {
+                "label": f"{'✓' if success else '✗'} 写入 {path or '文件'}",
+                "command": f"write_file {path}",
+                "output_preview": "",
+            }
+
+        elif action_type == "edit_file":
+            return {
+                "label": f"{'✓' if success else '✗'} 编辑文件",
+                "command": "edit_file",
+                "output_preview": output[:60] if output else "",
+            }
+
+        elif action_type == "search_in_file":
+            return {
+                "label": f"{'✓' if success else '✗'} 搜索 {action.params.strip()[:40]}",
+                "command": f"search_in_file {action.params.strip()[:60]}",
+                "output_preview": output[:80] if output else "",
+            }
+
+        else:
+            return {
+                "label": f"{'✓' if success else '✗'} {action_type}",
+                "command": action.params[:60] if action.params else "",
+                "output_preview": output[:60] if output else "",
+            }
 
     def _get_knowledge_signals(self) -> dict:
         """加载知识蒸馏与领域检测的声明式配置（公理五）"""
