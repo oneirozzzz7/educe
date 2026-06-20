@@ -198,20 +198,11 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, sessionId: action.value };
 
     // ── 事件流 ──
-    case "APPEND_EVENT": {
-      let events = state.events;
-      if (action.event.type === "user_input") {
-        const last = events[events.length - 1];
-        if (last?.type === "ai_reply_streaming") {
-          events = [...events];
-          events[events.length - 1] = { ...last, type: "ai_reply" };
-        }
-      }
+    case "APPEND_EVENT":
       return {
         ...state,
-        events: [...events, action.event],
+        events: [...state.events, action.event],
       };
-    }
 
     case "SYNC_STATE": {
       const p = action.payload;
@@ -260,7 +251,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if (state.phase === "building") {
         return { ...state, stream: { ...state.stream, code: state.stream.code + action.content } };
       }
-      // 文字回复 → 追加到已有的 ai_reply_streaming（无论位置），或创建新的
+      // 文字回复 → 追加到已有的 ai_reply_streaming，或创建新的
       {
         const streamIdx = state.events.findLastIndex(e => e.type === "ai_reply_streaming");
         if (streamIdx >= 0) {
@@ -268,19 +259,20 @@ export function reducer(state: AppState, action: Action): AppState {
           updated[streamIdx] = { ...updated[streamIdx], content: updated[streamIdx].content + action.content };
           return { ...state, events: updated, stream: { ...state.stream, thinking: false } };
         }
-        // 没有正在 streaming 的 → 在最后一个非 user_input 事件后创建
-        // 如果末尾是 user_input（用户连发），在它之前插入
-        const lastIdx = state.events.length - 1;
-        if (lastIdx >= 0 && state.events[lastIdx].type === "user_input") {
-          const updated = [...state.events];
-          updated.splice(lastIdx, 0, { type: "ai_reply_streaming", ts: Date.now() / 1000, content: action.content });
-          return { ...state, events: updated, stream: { ...state.stream, thinking: false } };
+        // 没有 streaming reply → 找最早一个没有紧跟 ai_reply 的 user_input，在其后插入
+        const events = [...state.events];
+        let insertIdx = events.length;
+        for (let i = 0; i < events.length; i++) {
+          if (events[i].type === "user_input") {
+            const next = events[i + 1];
+            if (!next || (next.type !== "ai_reply" && next.type !== "ai_reply_streaming")) {
+              insertIdx = i + 1;
+              break;
+            }
+          }
         }
-        return {
-          ...state,
-          events: [...state.events, { type: "ai_reply_streaming", ts: Date.now() / 1000, content: action.content }],
-          stream: { ...state.stream, thinking: false },
-        };
+        events.splice(insertIdx, 0, { type: "ai_reply_streaming", ts: Date.now() / 1000, content: action.content });
+        return { ...state, events, stream: { ...state.stream, thinking: false } };
       }
 
     case "STREAM_CODE_UPDATE":
