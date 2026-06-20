@@ -10,6 +10,7 @@ import { LogoMark } from "@/components/logo";
 import { ConvergencePanel } from "@/components/convergence-panel";
 import { FeedbackButton } from "@/components/feedback-button";
 import { ToolStreamCard } from "@/components/tool-stream-card";
+import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -466,7 +467,7 @@ export default function Home() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { events, stream, phase, pendingConfirm, connected, model, toolStreams } = state;
+  const { events, stream, phase, pendingConfirm, connected, model, toolStreams, pendingPropose, reflexBubble } = state;
   const isBuilding = phase === "building";
   const isThinking = stream.thinking;
 
@@ -671,6 +672,24 @@ export default function Home() {
                 }}
               />
             ))}
+
+            {/* 反射气泡 */}
+            {reflexBubble && <ReflexBubble phrase={reflexBubble.phrase} />}
+
+            {/* PROPOSE 卡片 */}
+            {pendingPropose && (
+              <ProposeCard
+                eventId={pendingPropose.eventId}
+                phrase={pendingPropose.phrase}
+                cause={pendingPropose.cause}
+                confidence={pendingPropose.confidence}
+                organ={pendingPropose.organ}
+                onCalibrate={(action, eventId) => {
+                  wsRef.current?.sendRaw({ type: "calibrate", action, event_id: eventId });
+                  dispatch({ type: "DISMISS_PROPOSE" });
+                }}
+              />
+            )}
 
             {/* ArtifactCard: show after build complete */}
             {phase !== "building" && state.codeFiles.length > 0 && (

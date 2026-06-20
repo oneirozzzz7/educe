@@ -72,6 +72,16 @@ export interface AppState {
   // 工具流式状态
   toolStreams: Record<string, ToolStream>;
 
+  // 进化状态
+  pendingPropose: {
+    eventId: string;
+    phrase: string;
+    cause: string;
+    confidence: number;
+    organ: { family: string; id: string | null };
+  } | null;
+  reflexBubble: { phrase: string; ts: number } | null;
+
   // 产物
   codeFiles: string[];
   buildingFiles: string[];  // 构建中临时文件列表（只在 building 阶段有效）
@@ -107,6 +117,8 @@ export const INITIAL_STATE: AppState = {
   },
   pendingConfirm: null,
   toolStreams: {},
+  pendingPropose: null,
+  reflexBubble: null,
   codeFiles: [],
   buildingFiles: [],
   currentVersion: 0,
@@ -155,6 +167,13 @@ export type Action =
   | { type: "TOOL_CHUNK"; id: string; stream: string; data: string }
   | { type: "TOOL_END"; id: string; result: Record<string, any> }
   | { type: "TOOL_CANCEL"; id: string }
+
+  // 进化事件
+  | { type: "EVOLUTION_PROPOSE"; eventId: string; phrase: string; cause: string; confidence: number; organ: { family: string; id: string | null } }
+  | { type: "EVOLUTION_CRYSTALLIZE"; eventId: string }
+  | { type: "REFLEX_BUBBLE"; phrase: string }
+  | { type: "DISMISS_PROPOSE" }
+  | { type: "DISMISS_BUBBLE" }
 
   // UI
   | { type: "TOGGLE_SIDEBAR" }
@@ -344,6 +363,31 @@ export function reducer(state: AppState, action: Action): AppState {
         },
       };
     }
+
+    // ── 进化事件 ──
+    case "EVOLUTION_PROPOSE":
+      return {
+        ...state,
+        pendingPropose: {
+          eventId: action.eventId,
+          phrase: action.phrase,
+          cause: action.cause,
+          confidence: action.confidence,
+          organ: action.organ,
+        },
+      };
+
+    case "EVOLUTION_CRYSTALLIZE":
+      return { ...state, pendingPropose: null };
+
+    case "REFLEX_BUBBLE":
+      return { ...state, reflexBubble: { phrase: action.phrase, ts: Date.now() } };
+
+    case "DISMISS_PROPOSE":
+      return { ...state, pendingPropose: null };
+
+    case "DISMISS_BUBBLE":
+      return { ...state, reflexBubble: null };
 
     // ── 确认机制 ──
     case "ACTION_CONFIRM_REQUEST":

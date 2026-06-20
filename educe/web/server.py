@@ -645,7 +645,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 import json as _json
                 try:
                     evt = _json.loads(msg.content.replace("__TOOL_EVENT__", ""))
-                    if evt.get("type") in ("tool_start", "tool_chunk", "tool_end", "tool_cancel"):
+                    if evt.get("type") in ("tool_start", "tool_chunk", "tool_end", "tool_cancel",
+                                           "evolution_propose", "evolution_crystallize", "reflex_bubble"):
                         await websocket.send_json(evt)
                     else:
                         evt["type"] = "tool_event"
@@ -708,6 +709,22 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                 "type": "tool_end", "id": tool_id,
                                 "result": {"exit_code": -1, "cancelled": True,
                                            "reason": data.get("reason", "user")},
+                            })
+                    continue
+
+                # 处理校准回流（PROPOSE 卡片的用户响应）
+                if data.get("type") == "calibrate":
+                    action = data.get("action", "")
+                    event_id = data.get("event_id", "")
+                    if action and hasattr(orchestrator, "verbosity_organ") and orchestrator.verbosity_organ:
+                        result_event = await orchestrator.verbosity_organ.handle_calibrate(action, event_id)
+                        if result_event:
+                            await websocket.send_json({
+                                "type": "evolution_crystallize",
+                                "event_id": result_event.event_id,
+                                "organ": result_event.organ.to_dict(),
+                                "phrase": result_event.phrase,
+                                "confidence": result_event.confidence,
                             })
                     continue
 

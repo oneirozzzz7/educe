@@ -108,6 +108,13 @@ class Orchestrator:
         from educe.core.streaming_registry import StreamingRegistry
         self.streaming_registry = StreamingRegistry()
 
+        self.verbosity_organ = None
+        try:
+            from educe.core.organ_verbosity import VerbosityOrgan
+            self.verbosity_organ = VerbosityOrgan(bus=self._get_evolution_bus())
+        except Exception:
+            pass
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -434,6 +441,12 @@ class Orchestrator:
         # 阶段3: ReflexRouter 降级提示（守卫失败或准反射时附加）
         if not _bare_mode and reflex_hint:
             system += reflex_hint
+
+        # 器官 A: verbosity 偏好注入（已固化时生效）
+        if not _bare_mode and self.verbosity_organ:
+            _verb_hint = self.verbosity_organ.get_verbosity_hint()
+            if _verb_hint:
+                system += f"\n\n## 用户偏好\n{_verb_hint}"
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
@@ -885,6 +898,16 @@ class Orchestrator:
         self._slog("framework", "turn_end",
                    summary=f"ended: {reason}",
                    data={"reason": reason})
+
+        # 器官 A: verbosity 信号检测（冷路径）
+        if self.verbosity_organ and final_reply:
+            self.verbosity_organ.record_turn(
+                ai_reply_len=len(final_reply),
+                user_input=user_input)
+            try:
+                await self.verbosity_organ.check_signals()
+            except Exception as e:
+                log.debug("verbosity check_signals error: %s", e)
 
         return self.context
 
@@ -2118,10 +2141,40 @@ class Orchestrator:
         return self._skill_registry
 
     def _get_evolution_bus(self):
-        """获取 EvolutionEvent 总线"""
+        """获取 EvolutionEvent 总线 + FrontendProjection"""
         if not hasattr(self, '_evolution_bus'):
-            from educe.core.evolution_bus import EvolutionBus
+            from educe.core.evolution_bus import EvolutionBus, EvolutionKind
             self._evolution_bus = EvolutionBus()
+
+            async def frontend_projection(event):
+                """将 PROPOSE/CRYSTALLIZE/reflex_hit 推送到前端"""
+                if event.kind == EvolutionKind.PROPOSE:
+                    self._emit_tool_event({
+                        "type": "evolution_propose",
+                        "event_id": event.event_id,
+                        "organ": event.organ.to_dict(),
+                        "phrase": event.phrase,
+                        "cause": event.cause,
+                        "confidence": event.confidence,
+                        "delta": event.delta,
+                    })
+                elif event.kind == EvolutionKind.CRYSTALLIZE:
+                    self._emit_tool_event({
+                        "type": "evolution_crystallize",
+                        "event_id": event.event_id,
+                        "organ": event.organ.to_dict(),
+                        "phrase": event.phrase,
+                        "confidence": event.confidence,
+                    })
+                elif event.kind == EvolutionKind.SHIFT and event.organ.family == "reflex":
+                    self._emit_tool_event({
+                        "type": "reflex_bubble",
+                        "event_id": event.event_id,
+                        "organ": event.organ.to_dict(),
+                        "phrase": event.phrase,
+                    })
+
+            self._evolution_bus.subscribe(frontend_projection)
         return self._evolution_bus
 
     @staticmethod

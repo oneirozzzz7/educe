@@ -65,6 +65,24 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return { type: "TOOL_CANCEL", id: msg.id };
   }
 
+  // ── evolution_propose/crystallize/reflex_bubble ──
+  if (type === "evolution_propose") {
+    return {
+      type: "EVOLUTION_PROPOSE",
+      eventId: msg.event_id,
+      phrase: msg.phrase || "",
+      cause: msg.cause || "",
+      confidence: msg.confidence || 0,
+      organ: msg.organ || { family: "", id: null },
+    };
+  }
+  if (type === "evolution_crystallize") {
+    return { type: "EVOLUTION_CRYSTALLIZE", eventId: msg.event_id };
+  }
+  if (type === "reflex_bubble") {
+    return { type: "REFLEX_BUBBLE", phrase: msg.phrase || "" };
+  }
+
   // ── tool_event ──
   if (type === "tool_event") {
     const evt = msg;
