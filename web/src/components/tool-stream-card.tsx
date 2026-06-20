@@ -94,7 +94,14 @@ export function ToolStreamCard({
   toolStream: ToolStream;
   onCancel?: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const STREAM_THRESHOLD_MS = 300;
+  const isFastComplete = toolStream.status !== "running"
+    && (toolStream.result?.duration_ms ?? Infinity) < STREAM_THRESHOLD_MS;
+  const [expanded, setExpanded] = useState(!isFastComplete);
+
+  useEffect(() => {
+    if (isFastComplete) setExpanded(false);
+  }, [isFastComplete]);
   const elapsed = toolStream.result?.duration_ms
     ?? (toolStream.status === "running" ? Date.now() - toolStream.startedAt : 0);
 
