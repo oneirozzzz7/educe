@@ -54,6 +54,22 @@ EXPLICIT_SHORT_PATTERNS = re.compile(
     re.IGNORECASE
 )
 
+# 否定/引述排除：这些上下文中出现"简短/太长"不应计分
+NEGATION_PATTERNS = re.compile(
+    r'(不要|不想|才不|别|不用|不需要|不是).{0,6}(简短|精简|简洁|短)',
+    re.IGNORECASE
+)
+QUOTATION_PATTERNS = re.compile(
+    r'(他说|她说|别人说|有人说|据说|听说).{0,10}(简短|太长|精简)',
+    re.IGNORECASE
+)
+
+# 用户短输入中含任务实体的排除词（说明是在下指令而非评价回答）
+TASK_ENTITY_PATTERNS = re.compile(
+    r'(/[\w./]+|\.py|\.js|\.ts|\.html|pip |npm |git |cd |mkdir |rm |执行|运行|创建|删除|修改|安装)',
+    re.IGNORECASE
+)
+
 
 # ═══ Turn Meta ═══
 
@@ -83,7 +99,16 @@ class TurnMeta:
 
     @property
     def is_explicit_short(self) -> bool:
-        return bool(EXPLICIT_SHORT_PATTERNS.search(self.user_input))
+        text = self.user_input
+        if NEGATION_PATTERNS.search(text):
+            return False
+        if QUOTATION_PATTERNS.search(text):
+            return False
+        return bool(EXPLICIT_SHORT_PATTERNS.search(text))
+
+    @property
+    def has_task_entity(self) -> bool:
+        return bool(TASK_ENTITY_PATTERNS.search(self.user_input))
 
 
 # ═══ Confidence State ═══
@@ -232,8 +257,11 @@ class VerbosityOrgan:
         if latest.is_explicit_short:
             return await self._advance_short(EXPLICIT_SIGNAL_WEIGHT, "用户明确要求简短回答")
 
-        # detail_skip 信号：上一轮 AI 长回答 + 用户短回复/终结/非追问
-        if prev and prev.is_ai_long and (latest.is_user_short or latest.is_terminator) and not latest.is_followup:
+        # detail_skip 信号：上一轮 AI 长回答 + 用户短回复/终结/非追问/非任务指令
+        if (prev and prev.is_ai_long
+                and (latest.is_user_short or latest.is_terminator)
+                and not latest.is_followup
+                and not latest.has_task_entity):
             return await self._advance_short(SKIP_SIGNAL_WEIGHT, "AI 长回答后用户快速跳过")
 
         # detail_want 信号：用户追问要细节
