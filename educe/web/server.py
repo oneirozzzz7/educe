@@ -645,8 +645,11 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 import json as _json
                 try:
                     evt = _json.loads(msg.content.replace("__TOOL_EVENT__", ""))
-                    evt["type"] = "tool_event"
-                    await websocket.send_json(evt)
+                    if evt.get("type") in ("tool_start", "tool_chunk", "tool_end", "tool_cancel"):
+                        await websocket.send_json(evt)
+                    else:
+                        evt["type"] = "tool_event"
+                        await websocket.send_json(evt)
                 except Exception:
                     pass
                 return
@@ -693,6 +696,19 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     if orchestrator.credibility:
                         orchestrator.credibility.record_feedback(
                             session_id, data.get("message_id", ""), signal)
+                    continue
+
+                # 处理工具取消请求
+                if data.get("type") == "tool_cancel":
+                    tool_id = data.get("id", "")
+                    if tool_id and hasattr(orchestrator, "streaming_registry"):
+                        cancelled = await orchestrator.streaming_registry.cancel(tool_id)
+                        if cancelled:
+                            await websocket.send_json({
+                                "type": "tool_end", "id": tool_id,
+                                "result": {"exit_code": -1, "cancelled": True,
+                                           "reason": data.get("reason", "user")},
+                            })
                     continue
 
                 # Switch session — load a different session's state into the orchestrator

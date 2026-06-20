@@ -1,0 +1,30 @@
+# 工具流式输出配置 — 过程透明度
+# 所有阈值声明式管理，不在代码中硬编码
+
+shell:
+  # 前台/后台判定超时（ms）
+  grace_period_ms: 5000
+  # 流式切换阈值：命令运行超过此时间才开始向前端流式推送
+  stream_threshold_ms: 300
+  # 命令执行硬超时（s）
+  timeout_s: 300
+  # stdout/stderr 单行最大字节（超出截断）
+  max_line_bytes: 4096
+  # 输出总上限（字节），超过后只保留 tail
+  max_output_bytes: 512000
+
+write_file:
+  # diff 计算最大文件行数（超过跳过 diff，直接写）
+  max_diff_lines: 5000
+
+frontend:
+  # 前端最大渲染行数（超过折叠）
+  max_render_lines: 200
+  # 高频输出节流间隔（ms）— 批量推送
+  flush_interval_ms: 50
+  # 回车符(\r)处理：覆盖当前行
+  handle_cr: true
+
+cancel:
+  # terminate 后等待进程退出的超时（s）
+  terminate_grace_s: 3

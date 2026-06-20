@@ -9,6 +9,7 @@ import { SettingsModal } from "@/components/settings-modal";
 import { LogoMark } from "@/components/logo";
 import { ConvergencePanel } from "@/components/convergence-panel";
 import { FeedbackButton } from "@/components/feedback-button";
+import { ToolStreamCard } from "@/components/tool-stream-card";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -465,7 +466,7 @@ export default function Home() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { events, stream, phase, pendingConfirm, connected, model } = state;
+  const { events, stream, phase, pendingConfirm, connected, model, toolStreams } = state;
   const isBuilding = phase === "building";
   const isThinking = stream.thinking;
 
@@ -658,6 +659,18 @@ export default function Home() {
                 elapsed={state.stream.buildElapsed}
               />
             )}
+
+            {/* 工具流式卡片 */}
+            {Object.values(toolStreams).map(ts => (
+              <ToolStreamCard
+                key={ts.id}
+                toolStream={ts}
+                onCancel={(id) => {
+                  wsRef.current?.sendRaw({ type: "tool_cancel", id, reason: "user" });
+                  dispatch({ type: "TOOL_CANCEL", id });
+                }}
+              />
+            ))}
 
             {/* ArtifactCard: show after build complete */}
             {phase !== "building" && state.codeFiles.length > 0 && (

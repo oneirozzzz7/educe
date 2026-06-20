@@ -13,6 +13,24 @@ export interface AppEvent {
   [key: string]: any;
 }
 
+// ═══ 工具流式状态 ═══
+
+export interface ToolStreamLine {
+  stream: "stdout" | "stderr" | "content" | "diff";
+  data: string;
+  ts: number;
+}
+
+export interface ToolStream {
+  id: string;
+  tool: string;
+  meta: Record<string, any>;
+  status: "running" | "done" | "cancelled" | "error";
+  lines: ToolStreamLine[];
+  startedAt: number;
+  result?: Record<string, any>;
+}
+
 // ═══ 确认操作 ═══
 
 export interface PendingAction {
@@ -51,6 +69,9 @@ export interface AppState {
   // 待确认操作
   pendingConfirm: PendingAction[] | null;
 
+  // 工具流式状态
+  toolStreams: Record<string, ToolStream>;
+
   // 产物
   codeFiles: string[];
   buildingFiles: string[];  // 构建中临时文件列表（只在 building 阶段有效）
@@ -85,6 +106,7 @@ export const INITIAL_STATE: AppState = {
     runOutput: "",
   },
   pendingConfirm: null,
+  toolStreams: {},
   codeFiles: [],
   buildingFiles: [],
   currentVersion: 0,
@@ -127,6 +149,12 @@ export type Action =
   | { type: "ACTION_CONFIRM_REQUEST"; actions: PendingAction[] }
   | { type: "ACTION_CONFIRMED" }
   | { type: "ACTION_CANCELLED" }
+
+  // 工具流式
+  | { type: "TOOL_START"; id: string; tool: string; meta: Record<string, any> }
+  | { type: "TOOL_CHUNK"; id: string; stream: string; data: string }
+  | { type: "TOOL_END"; id: string; result: Record<string, any> }
+  | { type: "TOOL_CANCEL"; id: string }
 
   // UI
   | { type: "TOGGLE_SIDEBAR" }
@@ -256,6 +284,66 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "TICK_BUILD":
       return { ...state, stream: { ...state.stream, buildElapsed: state.stream.buildElapsed + 1 } };
+
+    // ── 工具流式 ──
+    case "TOOL_START": {
+      const ts: ToolStream = {
+        id: action.id,
+        tool: action.tool,
+        meta: action.meta,
+        status: "running",
+        lines: [],
+        startedAt: Date.now(),
+      };
+      return {
+        ...state,
+        toolStreams: { ...state.toolStreams, [action.id]: ts },
+        stream: { ...state.stream, thinking: false },
+      };
+    }
+
+    case "TOOL_CHUNK": {
+      const existing = state.toolStreams[action.id];
+      if (!existing) return state;
+      const newLine: ToolStreamLine = {
+        stream: action.stream as ToolStreamLine["stream"],
+        data: action.data,
+        ts: Date.now(),
+      };
+      return {
+        ...state,
+        toolStreams: {
+          ...state.toolStreams,
+          [action.id]: { ...existing, lines: [...existing.lines, newLine] },
+        },
+      };
+    }
+
+    case "TOOL_END": {
+      const existing = state.toolStreams[action.id];
+      if (!existing) return state;
+      const status = action.result.cancelled ? "cancelled"
+        : action.result.error ? "error" : "done";
+      return {
+        ...state,
+        toolStreams: {
+          ...state.toolStreams,
+          [action.id]: { ...existing, status, result: action.result },
+        },
+      };
+    }
+
+    case "TOOL_CANCEL": {
+      const existing = state.toolStreams[action.id];
+      if (!existing) return state;
+      return {
+        ...state,
+        toolStreams: {
+          ...state.toolStreams,
+          [action.id]: { ...existing, status: "cancelled" },
+        },
+      };
+    }
 
     // ── 确认机制 ──
     case "ACTION_CONFIRM_REQUEST":

@@ -51,6 +51,20 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return null;
   }
 
+  // ── tool_start/tool_chunk/tool_end（流式工具事件）──
+  if (type === "tool_start") {
+    return { type: "TOOL_START", id: msg.id, tool: msg.tool, meta: msg.meta || {} };
+  }
+  if (type === "tool_chunk") {
+    return { type: "TOOL_CHUNK", id: msg.id, stream: msg.stream, data: msg.data };
+  }
+  if (type === "tool_end") {
+    return { type: "TOOL_END", id: msg.id, result: msg.result || {} };
+  }
+  if (type === "tool_cancel") {
+    return { type: "TOOL_CANCEL", id: msg.id };
+  }
+
   // ── tool_event ──
   if (type === "tool_event") {
     const evt = msg;

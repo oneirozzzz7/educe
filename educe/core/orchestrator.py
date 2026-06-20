@@ -105,6 +105,9 @@ class Orchestrator:
 
         self.self_evolver = None
 
+        from educe.core.streaming_registry import StreamingRegistry
+        self.streaming_registry = StreamingRegistry()
+
         self._on_message: list[Callable] = []
         self._on_chunk: list[Callable] = []
 
@@ -124,6 +127,14 @@ class Orchestrator:
     def _notify_chunk(self, agent_name: str, chunk: str) -> None:
         for cb in self._on_chunk:
             cb(agent_name, chunk)
+
+    def _emit_tool_event(self, event: dict) -> None:
+        """推送 tool_start/tool_chunk/tool_end 到前端（顶层 WS 消息类型）"""
+        import json as _json_te
+        msg = Message(
+            type=MessageType.SYSTEM, sender="system", receiver="user",
+            content="__TOOL_EVENT__" + _json_te.dumps(event, ensure_ascii=False))
+        self._notify(msg)
 
     def _slog(self, type: str, name: str, **kwargs) -> None:
         """Structured log + EvolutionEvent 总线投影。
@@ -680,8 +691,9 @@ class Orchestrator:
                         action.type, result.get("output", ""), result.get("success", False))
 
                 # 推送富 action 卡片事件（Round 12：过程透明）
+                # shell/write_file 已通过 ToolStreamCard 展示，跳过旧路径
                 _action_summary = self._build_action_summary(action, result)
-                if _action_summary and transcript:
+                if _action_summary and transcript and action.type not in ("shell", "write_file"):
                     transcript.add("action", "system", _action_summary["label"],
                                    elapsed=_action_summary.get("elapsed", 0))
                     # 推送详细数据供前端展开
@@ -732,18 +744,21 @@ class Orchestrator:
                     ))
                     self.context.metadata.pop("_failed_actions", None)
                 # P0-4: 推送 tool_event 让前端显示调用详情
-                tool_desc = f"{action.type}"
-                if action.type == "use_tool" and action.name:
-                    tool_desc = f"use_tool: {action.name}"
-                success_icon = "✓" if result.get("success") else "✗"
-                self._notify(Message(
-                    type=MessageType.RESULT, sender="system", receiver="user",
-                    content=f"{success_icon} {tool_desc}",
-                    metadata={"event": "tool_event", "tool_type": action.type,
-                              "tool_name": action.name, "success": result.get("success", False)}
-                ))
+                # shell/write_file 已通过 ToolStreamCard 展示，跳过旧路径
+                if action.type not in ("shell", "write_file"):
+                    tool_desc = f"{action.type}"
+                    if action.type == "use_tool" and action.name:
+                        tool_desc = f"use_tool: {action.name}"
+                    success_icon = "✓" if result.get("success") else "✗"
+                    self._notify(Message(
+                        type=MessageType.RESULT, sender="system", receiver="user",
+                        content=f"{success_icon} {tool_desc}",
+                        metadata={"event": "tool_event", "tool_type": action.type,
+                                  "tool_name": action.name, "success": result.get("success", False)}
+                    ))
                 # 关键：shell/read_dir 的实际输出推送到前端，让用户看到"效果"
-                if action.type in ("shell", "read_dir") and result.get("output"):
+                # shell 已通过 ToolStreamCard 流式展示，只保留 read_dir
+                if action.type in ("read_dir",) and result.get("output"):
                     output_preview = result["output"][:2000]
                     self._notify_chunk("assistant", f"\n```\n{output_preview}\n```\n")
                 messages.append({"role": "user", "content":
@@ -1013,18 +1028,25 @@ class Orchestrator:
         return {"success": True, "output": f"找到 {len(results)} 条相关记忆：\n{lines}"}
 
     async def _exec_shell(self, action, session_id: str) -> dict:
-        """执行 shell 命令（支持前台+自动后台检测）
+        """执行 shell 命令（流式输出 + 自动后台检测）
 
-        行为检测：5s 内退出=前台命令（等待完成），5s 未退出=后台服务（注册到 supervisor 立即返回）。
+        设计（Opus 4.8 确认）：
+        - 立即开始 pump stdout/stderr
+        - shield(wait) + GRACE_PERIOD 判定前台/后台
+        - 通过 tool_start/tool_chunk/tool_end 推送流式事件
         """
         import json as _json_sh
         import os
+        import time as _time_sh
+
+        from educe.core.streaming_registry import (
+            gen_tool_id, ToolHandle, get_config,
+        )
 
         raw = action.params.strip()
         if not raw:
             return {"success": False, "output": "命令为空"}
 
-        # Parse params: plain string or JSON {"cmd": "...", "cwd": "..."}
         cwd_override = None
         try:
             parsed = _json_sh.loads(raw)
@@ -1033,10 +1055,8 @@ class Orchestrator:
         except (ValueError, TypeError):
             cmd = raw
 
-        # Strip trailing & (模型从训练数据学来的 bash 习惯，框架自己管理后台)
         cmd = cmd.rstrip().rstrip("&").rstrip()
 
-        # Safety: block dangerous commands
         BLOCKED = ["rm -rf /", "rm -rf /*", "mkfs", "dd if=", ":(){", "sudo rm",
                    "chmod -R 777 /", "> /dev/sda", "shutdown", "reboot", "init 0"]
         cmd_lower = cmd.lower()
@@ -1044,7 +1064,6 @@ class Orchestrator:
             if blocked in cmd_lower:
                 return {"success": False, "output": f"安全限制：禁止执行危险命令 ({blocked})"}
 
-        # Determine working directory
         from pathlib import Path
         if cwd_override:
             work_dir = Path(cwd_override).expanduser()
@@ -1056,6 +1075,20 @@ class Orchestrator:
 
         env = {**os.environ, "PATH": os.environ.get("PATH", "")}
         supervisor = self._get_process_supervisor()
+        grace_period = get_config("shell", "grace_period_ms", 5000) / 1000.0
+        max_output = get_config("shell", "max_output_bytes", 512000)
+        max_line = get_config("shell", "max_line_bytes", 4096)
+        timeout_s = get_config("shell", "timeout_s", 300)
+
+        tool_id = gen_tool_id()
+        start_mono = _time_sh.monotonic()
+
+        self._emit_tool_event({
+            "type": "tool_start",
+            "id": tool_id,
+            "tool": "shell",
+            "meta": {"cmd": cmd, "cwd": str(work_dir)},
+        })
 
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -1064,81 +1097,147 @@ class Orchestrator:
                 stderr=asyncio.subprocess.PIPE,
             )
 
+            handle = ToolHandle(
+                tool_id=tool_id, tool="shell", proc=proc,
+                meta={"cmd": cmd, "cwd": str(work_dir), "session_id": session_id},
+            )
+            self.streaming_registry.register(handle)
+
+            collected = {"stdout": [], "stderr": [], "bytes": 0}
+
+            async def pump(stream, name: str):
+                while True:
+                    if handle.cancel_event.is_set():
+                        break
+                    try:
+                        line = await asyncio.wait_for(
+                            stream.readline(), timeout=timeout_s)
+                    except asyncio.TimeoutError:
+                        break
+                    if not line:
+                        break
+                    decoded = line.decode(errors="replace")
+                    if len(decoded) > max_line:
+                        decoded = decoded[:max_line] + "…(truncated)\n"
+                    collected[name].append(decoded)
+                    collected["bytes"] += len(decoded)
+                    self._emit_tool_event({
+                        "type": "tool_chunk",
+                        "id": tool_id,
+                        "stream": name,
+                        "data": decoded,
+                    })
+                    if collected["bytes"] > max_output:
+                        break
+
+            pump_stdout = asyncio.create_task(pump(proc.stdout, "stdout"))
+            pump_stderr = asyncio.create_task(pump(proc.stderr, "stderr"))
+            handle.pumps = [pump_stdout, pump_stderr]
+            wait_task = asyncio.create_task(proc.wait())
+            handle.wait_task = wait_task
+
             try:
-                # Phase 1: 等 GRACE_PERIOD 看是否快速退出
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    proc.communicate(), timeout=supervisor.GRACE_PERIOD
-                )
-                # 快速退出 → 正常前台命令
-                stdout = stdout_bytes.decode(errors="ignore")
-                stderr = stderr_bytes.decode(errors="ignore")
-                output = stdout
-                if stderr:
-                    output += ("\n[stderr]\n" + stderr) if output else stderr
-                output = output[:5000] or "（无输出）"
-
-                log_activity(session_id, "shell_exec", cmd=cmd[:100],
-                            success=proc.returncode == 0, exit_code=proc.returncode)
-
-                # Auto-update project context path when cd to absolute dir
-                if proc.returncode == 0:
-                    import re as _re_cd
-                    cd_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)', cmd)
-                    if cd_match:
-                        cd_path = Path(cd_match.group(1))
-                        if cd_path.is_dir():
-                            self.context.metadata["_project_context_path"] = str(cd_path)
-                    # Also detect "cd /path && ..." pattern
-                    cd_and_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)\s*&&', cmd)
-                    if cd_and_match:
-                        cd_path = Path(cd_and_match.group(1))
-                        if cd_path.is_dir():
-                            self.context.metadata["_project_context_path"] = str(cd_path)
-
-                # 阶段4: 器官系统 — 根据错误模式自动匹配并执行器官
-                if proc.returncode != 0:
-                    import os as _os_organ
-                    if _os_organ.environ.get("EDUCE_BARE_MODE", "0") != "1":
-                        full_output = output + "\n" + stderr
-                        organ_result = await self._try_organ(cmd, full_output, proc.returncode, work_dir, session_id)
-                        if organ_result:
-                            return organ_result
-
-                return {
-                    "success": proc.returncode == 0,
-                    "output": f"$ {cmd}\n[cwd: .]\n{output}\n[exit: {proc.returncode}]",
-                }
-
+                await asyncio.wait_for(
+                    asyncio.shield(wait_task), timeout=grace_period)
             except asyncio.TimeoutError:
-                # Phase 2: GRACE_PERIOD 内未退出 → 判定为后台服务
                 if supervisor.is_full(session_id):
                     proc.terminate()
-                    return {"success": False, "output": f"$ {cmd}\n后台进程已满（最多{supervisor.MAX_PER_SESSION}个），请先停止旧服务"}
+                    await asyncio.gather(pump_stdout, pump_stderr,
+                                         return_exceptions=True)
+                    self.streaming_registry.unregister(tool_id)
+                    duration_ms = int((_time_sh.monotonic() - start_mono) * 1000)
+                    self._emit_tool_event({
+                        "type": "tool_end", "id": tool_id,
+                        "result": {"exit_code": -1, "duration_ms": duration_ms,
+                                   "background": False, "error": "后台进程已满"},
+                    })
+                    return {"success": False,
+                            "output": f"$ {cmd}\n后台进程已满（最多{supervisor.MAX_PER_SESSION}个），请先停止旧服务"}
 
-                entry = supervisor.register(proc, cmd, session_id, str(work_dir))
-
-                # 读取已产出的早期输出
-                early_output = ""
-                try:
-                    partial = await asyncio.wait_for(proc.stdout.read(2000), timeout=0.5)
-                    early_output = partial.decode(errors="ignore") if partial else ""
-                except (asyncio.TimeoutError, Exception):
-                    pass
-
+                supervisor.register(proc, cmd, session_id, str(work_dir))
+                early = "".join(collected["stdout"])[:2000]
                 log_activity(session_id, "shell_background", cmd=cmd[:100], pid=proc.pid)
 
+                duration_ms = int((_time_sh.monotonic() - start_mono) * 1000)
+                self._emit_tool_event({
+                    "type": "tool_end", "id": tool_id,
+                    "result": {"exit_code": None, "duration_ms": duration_ms,
+                               "background": True, "pid": proc.pid},
+                })
+                self.streaming_registry.unregister(tool_id)
                 return {
                     "success": True,
                     "output": (
                         f"$ {cmd}\n[cwd: .]\n"
                         f"[后台启动] PID={proc.pid}\n"
-                        f"{early_output}"
+                        f"{early}"
                         f"服务已在后台运行（最长{int(supervisor.MAX_TTL/60)}分钟）。"
                     ),
                 }
 
+            await asyncio.gather(pump_stdout, pump_stderr, return_exceptions=True)
+            self.streaming_registry.unregister(tool_id)
+
+            stdout = "".join(collected["stdout"])
+            stderr = "".join(collected["stderr"])
+            output = stdout
+            if stderr:
+                output += ("\n[stderr]\n" + stderr) if output else stderr
+            output = output[:5000] or "（无输出）"
+
+            duration_ms = int((_time_sh.monotonic() - start_mono) * 1000)
+            cancelled = handle.cancel_event.is_set()
+
+            self._emit_tool_event({
+                "type": "tool_end", "id": tool_id,
+                "result": {
+                    "exit_code": proc.returncode,
+                    "duration_ms": duration_ms,
+                    "background": False,
+                    "cancelled": cancelled,
+                },
+            })
+
+            log_activity(session_id, "shell_exec", cmd=cmd[:100],
+                         success=proc.returncode == 0, exit_code=proc.returncode)
+
+            if proc.returncode == 0:
+                import re as _re_cd
+                cd_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)', cmd)
+                if cd_match:
+                    cd_path = Path(cd_match.group(1))
+                    if cd_path.is_dir():
+                        self.context.metadata["_project_context_path"] = str(cd_path)
+                cd_and_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)\s*&&', cmd)
+                if cd_and_match:
+                    cd_path = Path(cd_and_match.group(1))
+                    if cd_path.is_dir():
+                        self.context.metadata["_project_context_path"] = str(cd_path)
+
+            if proc.returncode != 0:
+                import os as _os_organ
+                if _os_organ.environ.get("EDUCE_BARE_MODE", "0") != "1":
+                    full_output = output + "\n" + stderr
+                    organ_result = await self._try_organ(
+                        cmd, full_output, proc.returncode, work_dir, session_id)
+                    if organ_result:
+                        return organ_result
+
+            return {
+                "success": proc.returncode == 0,
+                "output": f"$ {cmd}\n[cwd: .]\n{output}\n[exit: {proc.returncode}]",
+            }
+
         except Exception as e:
+            self.streaming_registry.unregister(tool_id)
+            duration_ms = int((_time_sh.monotonic() - start_mono) * 1000)
+            self._emit_tool_event({
+                "type": "tool_end", "id": tool_id,
+                "result": {"exit_code": -1, "duration_ms": duration_ms,
+                           "error": str(e)[:200]},
+            })
             return {"success": False, "output": f"$ {cmd}\n执行失败: {str(e)[:200]}"}
+
 
 
     async def _exec_read_file(self, action, session_id: str = "") -> dict:
@@ -1199,20 +1298,21 @@ class Orchestrator:
             return {"success": False, "output": f"读取失败: {e}"}
 
     async def _exec_write_file(self, action, session_id: str = "") -> dict:
-        """写入/修改指定文件
+        """写入/修改指定文件（流式：先推内容再写盘）
 
         支持两种格式（按优先级）：
         1. Heredoc: "path: /tmp/x.py\n---\n文件内容"（Markdown-native，主格式）
         2. JSON: {"path":"...","content":"..."}（向后兼容）
         """
         import json as _json_wf
+        import time as _time_wf
         from pathlib import Path
+        from educe.core.streaming_registry import gen_tool_id, get_config
 
         raw = action.params.strip()
         file_path = ""
         content = ""
 
-        # 主路径：heredoc 格式 (path: xxx\n---\ncontent)
         if raw.startswith("path:") or raw.startswith("path："):
             first_line, rest = raw.split('\n', 1) if '\n' in raw else (raw, "")
             file_path = first_line.split(':', 1)[1].strip()
@@ -1223,7 +1323,6 @@ class Orchestrator:
             else:
                 content = rest
 
-        # Fallback：JSON 格式
         if not file_path:
             try:
                 params = _json_wf.loads(raw)
@@ -1232,7 +1331,6 @@ class Orchestrator:
             except (ValueError, TypeError):
                 pass
 
-        # Fallback 2：纯路径+内容（第一行是路径，其余是内容）
         if not file_path and '\n' in raw:
             lines = raw.split('\n', 1)
             if '/' in lines[0] or '.' in lines[0]:
@@ -1246,36 +1344,103 @@ class Orchestrator:
 
         path = Path(file_path).expanduser()
 
-        # 确定 session 工作目录
         if self.context.metadata.get("_project_context_path"):
             base = Path(self.context.metadata["_project_context_path"])
         else:
             base = Path(".educe/output") / session_id[:16]
         base.mkdir(parents=True, exist_ok=True)
 
-        # 路径解析策略：
-        # 1. 绝对路径且父目录存在 → 直接使用（用户/模型明确指定了位置）
-        # 2. 相对路径 → 基于 project_context_path 或 session output_dir
         if not path.is_absolute():
             path = base / path
         elif not path.parent.exists():
-            # 绝对路径但目录不存在 → 可能是模型幻觉，fallback 到 base
             path = base / path.name
 
-        # Safety: don't write to system directories
         str_path = str(path)
         if any(str_path.startswith(d) for d in ["/etc", "/usr", "/bin", "/sbin", "/System"]):
             return {"success": False, "output": f"安全限制：禁止写入系统目录 ({path.parent})"}
 
+        tool_id = gen_tool_id()
+        start_mono = _time_wf.monotonic()
+        existed = path.exists()
+        mode = "modify" if existed else "create"
+
+        self._emit_tool_event({
+            "type": "tool_start",
+            "id": tool_id,
+            "tool": "write_file",
+            "meta": {"path": file_path, "mode": mode},
+        })
+
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            existed = path.exists()
+
+            if mode == "modify":
+                max_diff_lines = get_config("write_file", "max_diff_lines", 5000)
+                old_content = path.read_text(encoding="utf-8", errors="replace")
+                old_lines = old_content.splitlines(keepends=True)
+                new_lines = content.splitlines(keepends=True)
+
+                if len(old_lines) <= max_diff_lines and len(new_lines) <= max_diff_lines:
+                    import difflib
+                    diff = "".join(difflib.unified_diff(
+                        old_lines, new_lines,
+                        fromfile=f"a/{file_path}", tofile=f"b/{file_path}",
+                        lineterm=""))
+                    if diff:
+                        self._emit_tool_event({
+                            "type": "tool_chunk",
+                            "id": tool_id,
+                            "stream": "diff",
+                            "data": diff,
+                        })
+                    else:
+                        self._emit_tool_event({
+                            "type": "tool_chunk",
+                            "id": tool_id,
+                            "stream": "content",
+                            "data": "(内容无变化)\n",
+                        })
+                else:
+                    self._emit_tool_event({
+                        "type": "tool_chunk",
+                        "id": tool_id,
+                        "stream": "content",
+                        "data": f"(文件过大 {len(new_lines)} 行，跳过 diff)\n",
+                    })
+            else:
+                for line in content.splitlines(keepends=True):
+                    self._emit_tool_event({
+                        "type": "tool_chunk",
+                        "id": tool_id,
+                        "stream": "content",
+                        "data": line,
+                    })
+
             path.write_text(content, encoding="utf-8")
+
+            duration_ms = int((_time_wf.monotonic() - start_mono) * 1000)
+            lines_count = len(content.splitlines())
+            self._emit_tool_event({
+                "type": "tool_end",
+                "id": tool_id,
+                "result": {
+                    "mode": mode,
+                    "lines": lines_count,
+                    "chars": len(content),
+                    "duration_ms": duration_ms,
+                },
+            })
+
             action_word = "修改" if existed else "创建"
-            # 只显示模型指定的原始路径，不暴露内部存储结构
             display_path = file_path
-            return {"success": True, "output": f"✅ {action_word}文件: {display_path}\n({len(content)}字符, {len(content.split(chr(10)))}行)"}
+            return {"success": True, "output": f"✅ {action_word}文件: {display_path}\n({len(content)}字符, {lines_count}行)"}
         except Exception as e:
+            duration_ms = int((_time_wf.monotonic() - start_mono) * 1000)
+            self._emit_tool_event({
+                "type": "tool_end",
+                "id": tool_id,
+                "result": {"error": str(e)[:200], "duration_ms": duration_ms},
+            })
             return {"success": False, "output": f"写入失败: {e}"}
 
     async def _exec_edit_file(self, action, session_id: str = "") -> dict:
