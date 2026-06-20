@@ -986,29 +986,31 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 orchestrator.context.metadata["session_id"] = session_id
-                try:
-                    await orchestrator.run(user_input, file_content=file_content)
-                except Exception as e:
-                    await websocket.send_json({"type": "error", "content": str(e)})
-                # Sync state after run completes
-                if hasattr(orchestrator, 'state'):
-                    # Bridge: sync artifacts → state
-                    code_files = orchestrator.context.artifacts.get("code_files", [])
-                    if code_files and code_files != orchestrator.state.code_files:
-                        orchestrator.state.code_files = code_files
-                        orchestrator.state.output_dir = orchestrator.context.artifacts.get("output_dir", "")
-                    orchestrator.state.user_request = user_input
-                    orchestrator.state.save()
+
+                async def _run_and_sync():
                     try:
-                        await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
-                    except Exception:
-                        pass
-                await asyncio.sleep(0.05)
-                if not orchestrator.context.metadata.get("_pending_decisions") and not orchestrator.context.metadata.get("_pending_plans"):
-                    expert_name = orchestrator.context.metadata.get("expert_name", "")
-                    if expert_name:
-                        await websocket.send_json({"type": "expert", "content": expert_name})
-                    await websocket.send_json({"type": "status", "content": "idle"})
+                        await orchestrator.run(user_input, file_content=file_content)
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "content": str(e)})
+                    if hasattr(orchestrator, 'state'):
+                        code_files = orchestrator.context.artifacts.get("code_files", [])
+                        if code_files and code_files != orchestrator.state.code_files:
+                            orchestrator.state.code_files = code_files
+                            orchestrator.state.output_dir = orchestrator.context.artifacts.get("output_dir", "")
+                        orchestrator.state.user_request = user_input
+                        orchestrator.state.save()
+                        try:
+                            await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
+                        except Exception:
+                            pass
+                    await asyncio.sleep(0.05)
+                    if not orchestrator.context.metadata.get("_pending_decisions") and not orchestrator.context.metadata.get("_pending_plans"):
+                        expert_name = orchestrator.context.metadata.get("expert_name", "")
+                        if expert_name:
+                            await websocket.send_json({"type": "expert", "content": expert_name})
+                        await websocket.send_json({"type": "status", "content": "idle"})
+
+                asyncio.create_task(_run_and_sync())
 
         except WebSocketDisconnect:
             # Close session logger (protected — must not lose logs)

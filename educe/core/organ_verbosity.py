@@ -316,10 +316,43 @@ class VerbosityOrgan:
 
     async def _advance_detail(self, delta: float, cause: str) -> EvolutionEvent | None:
         ps_short = self._store.get(self.PATTERN_SHORT)
+
+        if ps_short.state == "crystallized":
+            self._revert_counter = getattr(self, '_revert_counter', 0) + 1
+            if self._revert_counter >= 3:
+                return await self._emit_revert_propose(ps_short)
+            return None
+
         if ps_short.confidence > 0:
             self._store.update(self.PATTERN_SHORT, -delta * 0.5)
 
         return None
+
+    async def _emit_revert_propose(self, ps: PatternState) -> EvolutionEvent:
+        """反向 PROPOSE：检测到用户行为与结晶偏好矛盾"""
+        self._store.set_state(self.PATTERN_SHORT, "revert_proposed")
+        self._revert_counter = 0
+
+        event = EvolutionEvent(
+            kind=EvolutionKind.PROPOSE,
+            organ=OrganRef(family="verbosity", id=self.PATTERN_SHORT),
+            cause="你最近多次要求更详细的回答",
+            delta={"preference": "revert_short", "action": "revert"},
+            phrase="你最近似乎想要更详细的回答，要取消简洁模式吗？",
+            confidence=ps.confidence,
+            progress={"current": self._revert_counter, "threshold": 3},
+        )
+
+        if self._bus:
+            await self._bus.emit(event)
+
+        for fn in self._on_propose:
+            try:
+                await fn(event)
+            except Exception as e:
+                log.warning("on_propose callback error: %s", e)
+
+        return event
 
     async def _emit_propose(self, ps: PatternState) -> EvolutionEvent:
         self._store.set_state(self.PATTERN_SHORT, "proposed")
@@ -350,6 +383,25 @@ class VerbosityOrgan:
         ps = self._store.get(self.PATTERN_SHORT)
 
         if action == "confirm":
+            if ps.state == "revert_proposed":
+                self._store.update(self.PATTERN_SHORT, -1.0, new_state="idle")
+                self._store._states[self.PATTERN_SHORT].observe_count = 0
+                self._store._states[self.PATTERN_SHORT].confirm_count = 0
+                self._store._save()
+                self._reflex_fired = False
+                self._revert_counter = 0
+                event = EvolutionEvent(
+                    kind=EvolutionKind.REVERT,
+                    organ=OrganRef(family="verbosity", id=self.PATTERN_SHORT),
+                    cause="用户确认取消简洁模式",
+                    delta={"preference": "reverted", "was_crystallized": True},
+                    phrase="已取消简洁模式，恢复正常回答",
+                    confidence=0,
+                )
+                if self._bus:
+                    await self._bus.emit(event)
+                return event
+
             old_conf = ps.confidence
             ps = self._store.update(self.PATTERN_SHORT, CONFIRM_JUMP)
             ps.confirm_count += 1
@@ -370,10 +422,18 @@ class VerbosityOrgan:
                 return event
 
         elif action == "dismiss":
-            self._store.set_state(self.PATTERN_SHORT, "dismissed")
+            if ps.state == "revert_proposed":
+                self._store.set_state(self.PATTERN_SHORT, "crystallized")
+                self._revert_counter = 0
+            else:
+                self._store.set_state(self.PATTERN_SHORT, "dismissed")
 
         elif action == "snooze":
-            self._store.update(self.PATTERN_SHORT, -0.1, new_state="observing")
+            if ps.state == "revert_proposed":
+                self._store.set_state(self.PATTERN_SHORT, "crystallized")
+                self._revert_counter = 0
+            else:
+                self._store.update(self.PATTERN_SHORT, -0.1, new_state="observing")
 
         elif action == "revert":
             self._store.update(self.PATTERN_SHORT, -REVERT_DROP, new_state="observing")
