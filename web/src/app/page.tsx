@@ -12,6 +12,7 @@ import { FeedbackButton } from "@/components/feedback-button";
 import { ToolStreamCard } from "@/components/tool-stream-card";
 import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
 import { EvolutionStatusPanel } from "@/components/evolution-status";
+import { EvolutionBar } from "@/components/evolution-bar";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -595,11 +596,6 @@ export default function Home() {
                 {model}
               </span>
             )}
-            <button onClick={() => dispatch({ type: "TOGGLE_KNOWLEDGE" })}
-              style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14, padding: 4, transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--text-2)")}
-              title="知识管理">🧠</button>
             <button onClick={() => setShowEvolution(true)}
               style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer", fontSize: 14, padding: 4, transition: "color 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.color = "#22d3ee")}
@@ -738,7 +734,9 @@ export default function Home() {
 
         {/* 输入框 */}
         <div style={{ padding: "12px 32px 20px", flexShrink: 0 }}>
-          <ConvergencePanel sessionId={state.sessionId} />
+          <div style={{ maxWidth: 960, margin: "0 auto" }}>
+            <EvolutionBar />
+          </div>
           <div style={{ maxWidth: 960, margin: "0 auto", position: "relative" }}>
             <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."} onKeyDown={handleKeyDown} rows={1} />
             <button onClick={() => inputRef.current && send(inputRef.current.value)}
