@@ -1259,7 +1259,28 @@ class Orchestrator:
             if proc.returncode != 0:
                 import os as _os_organ
                 if _os_organ.environ.get("EDUCE_BARE_MODE", "0") != "1":
+                    # Verify-Compile Loop: 失败分类 + 环境缺失自动修复
+                    from educe.core.failure_classifier import classify_failure, AutoFixer
                     full_output = output + "\n" + stderr
+                    classification = classify_failure(full_output)
+
+                    if classification.auto_fixable:
+                        fixer = self.context.metadata.setdefault("_auto_fixer", AutoFixer())
+                        if not fixer.already_fixed(classification.detail) and fixer.can_fix():
+                            fix_result = await fixer.attempt_fix(classification, str(work_dir))
+                            if fix_result["success"]:
+                                self._emit_tool_event({
+                                    "type": "tool_chunk", "id": tool_id,
+                                    "stream": "stdout",
+                                    "data": f"\n🔧 {fix_result['output']}\n",
+                                })
+                                return {
+                                    "success": False,
+                                    "output": f"$ {cmd}\n[环境修复] {fix_result['output']}\n请重试该命令。",
+                                    "_auto_fixed": True,
+                                }
+
+                    # 原有器官修复逻辑
                     organ_result = await self._try_organ(
                         cmd, full_output, proc.returncode, work_dir, session_id)
                     if organ_result:
