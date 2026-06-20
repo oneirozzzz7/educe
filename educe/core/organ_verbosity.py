@@ -183,6 +183,7 @@ class VerbosityOrgan:
         self._store = store or ConfidenceStore()
         self._buffer: deque[TurnMeta] = deque(maxlen=self.BUFFER_SIZE)
         self._on_propose: list[Callable[[EvolutionEvent], Awaitable[None]]] = []
+        self._reflex_fired = False
 
     def on_propose(self, fn: Callable[[EvolutionEvent], Awaitable[None]]):
         self._on_propose.append(fn)
@@ -206,6 +207,26 @@ class VerbosityOrgan:
 
         latest = self._buffer[-1]
         prev = self._buffer[-2] if len(self._buffer) >= 2 else None
+
+        # 反射气泡检测：crystallized 后首轮 AI 回答确实变短 → 弹一次
+        ps = self._store.get(self.PATTERN_SHORT)
+        if ps.state == "crystallized" and not self._reflex_fired:
+            if prev and prev.is_ai_long and latest.ai_reply_len < AI_LONG_THRESHOLD:
+                self._reflex_fired = True
+                event = EvolutionEvent(
+                    kind=EvolutionKind.SHIFT,
+                    organ=OrganRef(family="verbosity", id=self.PATTERN_SHORT),
+                    cause="偏好已生效：回答明显变短",
+                    delta={"before_len": prev.ai_reply_len, "after_len": latest.ai_reply_len},
+                    phrase="已在用简短模式回答",
+                    confidence=ps.confidence,
+                )
+                if self._bus:
+                    await self._bus.emit(event)
+                return event
+            elif latest.ai_reply_len < AI_LONG_THRESHOLD:
+                self._reflex_fired = True
+            return None
 
         # 显式信号（"简短点"）→ 大权重
         if latest.is_explicit_short:
@@ -328,5 +349,11 @@ class VerbosityOrgan:
     def get_verbosity_hint(self) -> str | None:
         """如果 verbosity:short 已固化，返回 system prompt 注入文本"""
         if self.is_crystallized(self.PATTERN_SHORT):
-            return "用户偏好简短精炼的回答。除非被要求，不要提供冗长的解释、背景或举例。直接给出核心答案。"
+            return (
+                "用户偏好简短回答。严格遵守以下约束：\n"
+                "- 核心答案控制在 3 句以内\n"
+                "- 不主动展开背景、举例、对比，除非被要求\n"
+                "- 代码类回答只给最小可运行示例\n"
+                "- 如果用户追问「详细说说」再展开"
+            )
         return None
