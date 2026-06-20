@@ -583,20 +583,14 @@ def create_app(config: EduceConfig | None = None) -> Any:
     @app.get("/api/evolution/status")
     async def evolution_status():
         """返回所有器官的当前状态（从活跃 orchestrator 读取实时内存状态）"""
-        from educe.core.organ_verbosity import ConfidenceStore
-        store = None
         for orch in sessions.values():
-            if hasattr(orch, 'verbosity_organ') and orch.verbosity_organ:
-                store = orch.verbosity_organ._store
-                break
-        if store is None:
-            store = ConfidenceStore()
+            if hasattr(orch, 'organ_registry') and orch.organ_registry:
+                return {"organs": orch.organ_registry.list_status()}
 
+        from educe.core.organ_verbosity import ConfidenceStore
+        store = ConfidenceStore()
         organs = []
         for pid, ps in store._states.items():
-            hint = None
-            if ps.state == "crystallized" and "short" in pid:
-                hint = "核心答案控制在 3 句以内"
             organs.append({
                 "id": pid,
                 "family": pid.split(":")[0] if ":" in pid else pid,
@@ -604,32 +598,22 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 "confidence": round(ps.confidence, 3),
                 "observe_count": ps.observe_count,
                 "confirm_count": ps.confirm_count,
-                "hint": hint,
+                "hint": None,
                 "last_updated": ps.last_updated,
             })
         return {"organs": organs}
 
     @app.post("/api/evolution/revert/{organ_id}")
     async def evolution_revert(organ_id: str):
-        """手动撤销一个器官的结晶状态"""
-        from educe.core.organ_verbosity import ConfidenceStore
-        store = ConfidenceStore()
-        ps = store.get(organ_id)
-        if ps.state not in ("crystallized", "revert_proposed", "proposed", "observing"):
-            return {"status": "error", "message": f"Organ {organ_id} is in state '{ps.state}', cannot revert"}
-        store.update(organ_id, -1.0, new_state="idle")
-        store._states[organ_id].observe_count = 0
-        store._states[organ_id].confirm_count = 0
-        store._save()
-
+        """手动撤销一个器官"""
         for orch in sessions.values():
-            if hasattr(orch, 'verbosity_organ') and orch.verbosity_organ:
-                organ = orch.verbosity_organ
-                organ._store._states[organ_id] = store._states[organ_id]
-                organ._reflex_fired = False
-                organ._revert_counter = 0
+            if hasattr(orch, 'organ_registry') and orch.organ_registry:
+                organ = orch.organ_registry.get(organ_id)
+                if organ:
+                    await organ.revert()
+                    return {"status": "ok", "organ_id": organ_id, "new_state": "idle"}
 
-        return {"status": "ok", "organ_id": organ_id, "new_state": "idle"}
+        return {"status": "error", "message": f"Organ '{organ_id}' not found"}
 
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):

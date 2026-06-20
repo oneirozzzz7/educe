@@ -461,3 +461,37 @@ class VerbosityOrgan:
                 "- 如果用户追问「详细说说」再展开"
             )
         return None
+
+    # ═══ Organ Protocol 适配 ═══
+
+    name = "verbosity"
+
+    def observe(self, user_input: str, ai_reply_len: int = 0) -> None:
+        self.record_turn(ai_reply_len=ai_reply_len, user_input=user_input)
+
+    async def check(self) -> None:
+        await self.check_signals()
+
+    def inject(self) -> str | None:
+        return self.get_verbosity_hint()
+
+    def status(self) -> dict:
+        ps = self._store.get(self.PATTERN_SHORT)
+        return {
+            "id": self.PATTERN_SHORT,
+            "name": self.name,
+            "family": "verbosity",
+            "state": ps.state,
+            "confidence": round(ps.confidence, 3),
+            "observe_count": ps.observe_count,
+            "confirm_count": ps.confirm_count,
+            "hint": self.inject(),
+        }
+
+    async def revert(self) -> None:
+        self._store.update(self.PATTERN_SHORT, -1.0, new_state="idle")
+        self._store._states[self.PATTERN_SHORT].observe_count = 0
+        self._store._states[self.PATTERN_SHORT].confirm_count = 0
+        self._store._save()
+        self._reflex_fired = False
+        self._revert_counter = 0

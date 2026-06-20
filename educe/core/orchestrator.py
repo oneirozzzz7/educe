@@ -109,9 +109,15 @@ class Orchestrator:
         self.streaming_registry = StreamingRegistry()
 
         self.verbosity_organ = None
+        self.organ_registry = None
         try:
             from educe.core.organ_verbosity import VerbosityOrgan
+            from educe.core.organ_codelang import CodeLangOrgan
+            from educe.core.organ_registry import OrganRegistry
             self.verbosity_organ = VerbosityOrgan(bus=self._get_evolution_bus())
+            self.organ_registry = OrganRegistry()
+            self.organ_registry.register(self.verbosity_organ)
+            self.organ_registry.register(CodeLangOrgan())
         except Exception:
             pass
 
@@ -442,11 +448,11 @@ class Orchestrator:
         if not _bare_mode and reflex_hint:
             system += reflex_hint
 
-        # 器官 A: verbosity 偏好注入（已固化时生效）
-        if not _bare_mode and self.verbosity_organ:
-            _verb_hint = self.verbosity_organ.get_verbosity_hint()
-            if _verb_hint:
-                system += f"\n\n## 用户偏好\n{_verb_hint}"
+        # 器官注入：所有器官的 system prompt 注入
+        if not _bare_mode and self.organ_registry:
+            _organ_hints = self.organ_registry.collect_injections()
+            if _organ_hints:
+                system += f"\n\n## 用户偏好\n{_organ_hints}"
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
@@ -906,15 +912,13 @@ class Orchestrator:
                    summary=f"ended: {reason}",
                    data={"reason": reason})
 
-        # 器官 A: verbosity 信号检测（冷路径）
-        if self.verbosity_organ and final_reply:
-            self.verbosity_organ.record_turn(
-                ai_reply_len=len(final_reply),
-                user_input=user_input)
+        # 器官信号检测（冷路径）
+        if self.organ_registry and final_reply:
+            self.organ_registry.observe_all(user_input, ai_reply_len=len(final_reply))
             try:
-                await self.verbosity_organ.check_signals()
+                await self.organ_registry.check_all()
             except Exception as e:
-                log.debug("verbosity check_signals error: %s", e)
+                log.debug("organ check_all error: %s", e)
 
         return self.context
 
