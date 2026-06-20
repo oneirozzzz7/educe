@@ -760,6 +760,14 @@ class Orchestrator:
                         "type": action.type, "params": action.params[:200],
                         "reason": result.get("output", "")[:200], "round": round_idx,
                     })
+                    # Verify-Compile Loop: 失败反思注入 — 引导模型分析原因并调整
+                    fail_output = result.get("output", "")[:800]
+                    messages.append({"role": "user", "content":
+                        f"[系统] ⚠️ 操作失败。请分析原因并调整方案：\n"
+                        f"失败操作: {action.type} {action.params[:100]}\n"
+                        f"错误信息: {fail_output}\n"
+                        f"请判断：(1)环境缺失(缺依赖/权限)→尝试修复 (2)方案错误→换方向 (3)不可恢复→告知用户"
+                    })
                 elif self.context.metadata.get("_failed_actions"):
                     failed = self.context.metadata["_failed_actions"][-1]
                     asyncio.create_task(self._learn_from_retry(
@@ -788,7 +796,7 @@ class Orchestrator:
                     output_preview = result["output"][:2000]
                     self._notify_chunk("assistant", f"\n```\n{output_preview}\n```\n")
                 messages.append({"role": "user", "content":
-                    f"[系统] 操作 {action.type} 执行结果：{result.get('output', '')[:500]}"})
+                    f"[系统] {'✓' if result.get('success') else '✗'} {action.type} 结果：{result.get('output', '')[:500]}"})
 
                 # 探索账本：记录行为
                 ledger.record(action.type, action.params, result.get("output", ""), result.get("success", False))
