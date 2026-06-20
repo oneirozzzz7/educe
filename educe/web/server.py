@@ -646,7 +646,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 try:
                     evt = _json.loads(msg.content.replace("__TOOL_EVENT__", ""))
                     if evt.get("type") in ("tool_start", "tool_chunk", "tool_end", "tool_cancel",
-                                           "evolution_propose", "evolution_crystallize", "reflex_bubble"):
+                                           "evolution_propose", "evolution_crystallize", "reflex_bubble",
+                                           "error"):
                         await websocket.send_json(evt)
                     else:
                         evt["type"] = "tool_event"

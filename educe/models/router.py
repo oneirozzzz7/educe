@@ -12,7 +12,7 @@ log = logging.getLogger("educe.model")
 
 class ModelClient:
     def __init__(self, api_key: str, base_url: str):
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=120)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=30)
         self.last_usage: dict | None = None
 
     async def _chat_raw(
@@ -46,7 +46,10 @@ class ModelClient:
             except Exception as e:
                 if attempt == 2:
                     raise
-                await asyncio.sleep(2)
+                import random
+                delay = min(2 ** attempt, 8) + random.uniform(0, 0.5)
+                log.warning("model_call retry %d/3: %s (backoff %.1fs)", attempt + 1, str(e)[:80], delay)
+                await asyncio.sleep(delay)
 
         # Slot reservation: if output was truncated and we haven't escalated yet, retry with 4x tokens
         finish_reason = getattr(response.choices[0], "finish_reason", None)

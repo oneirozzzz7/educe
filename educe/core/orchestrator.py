@@ -525,6 +525,13 @@ class Orchestrator:
                 self._slog("llm_call", "llm_response", status="error",
                            summary=f"model call failed: {str(e)[:60]}",
                            data={"round": round_idx, "error": str(e)[:200]})
+                error_kind = "timeout" if "timeout" in str(e).lower() else "model_error"
+                self._emit_tool_event({
+                    "type": "error",
+                    "kind": error_kind,
+                    "message": f"模型调用失败: {str(e)[:100]}",
+                    "retryable": True,
+                })
                 raw = ""
             _llm_ms = (__import__("time").time() - _t0) * 1000
 

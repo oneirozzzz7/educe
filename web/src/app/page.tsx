@@ -343,8 +343,9 @@ function EventRenderer({ event, sessionId, onOpenPreview }: { event: AppEvent; s
 
     case "error":
       return (
-        <div className="status-bar status-bar-error" style={{ marginBottom: 8 }}>
-          ❌ {event.content}
+        <div className="status-bar status-bar-error" style={{ marginBottom: 8, padding: "8px 12px", borderRadius: 8, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <span style={{ color: "var(--error, #ef4444)" }}>⚠️ {event.content}</span>
+          {event.retryable && <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 8 }}>可重新发送</span>}
         </div>
       );
 

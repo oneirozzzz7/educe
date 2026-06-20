@@ -187,7 +187,14 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
 
   // ── error ──
   if (type === "error") {
-    const event: AppEvent = { type: "error", ts: Date.now() / 1000, content: msg.content };
+    const content = msg.content || msg.message || "未知错误";
+    const event: AppEvent = {
+      type: "error",
+      ts: Date.now() / 1000,
+      content,
+      kind: msg.kind,
+      retryable: msg.retryable,
+    };
     return { type: "APPEND_EVENT", event };
   }
 
