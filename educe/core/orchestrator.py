@@ -2037,7 +2037,9 @@ class Orchestrator:
                         action.type, result.get("output", ""), result.get("success", False))
                 if result.get("output"):
                     output_text = result["output"][:2000]
-                    if action.type in ("shell", "read_dir"):
+                    if action.type in ("shell", "write_file"):
+                        pass  # 已通过 ToolStreamCard 展示
+                    elif action.type in ("read_dir",):
                         self._notify_chunk("assistant", f"\n```\n{output_text}\n```\n")
                     else:
                         self._notify_chunk("assistant", output_text)
