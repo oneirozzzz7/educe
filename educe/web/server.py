@@ -582,9 +582,16 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
     @app.get("/api/evolution/status")
     async def evolution_status():
-        """返回所有器官的当前状态（Status 面板数据源）"""
+        """返回所有器官的当前状态（从活跃 orchestrator 读取实时内存状态）"""
         from educe.core.organ_verbosity import ConfidenceStore
-        store = ConfidenceStore()
+        store = None
+        for orch in sessions.values():
+            if hasattr(orch, 'verbosity_organ') and orch.verbosity_organ:
+                store = orch.verbosity_organ._store
+                break
+        if store is None:
+            store = ConfidenceStore()
+
         organs = []
         for pid, ps in store._states.items():
             hint = None
@@ -608,12 +615,20 @@ def create_app(config: EduceConfig | None = None) -> Any:
         from educe.core.organ_verbosity import ConfidenceStore
         store = ConfidenceStore()
         ps = store.get(organ_id)
-        if ps.state not in ("crystallized", "revert_proposed", "proposed"):
+        if ps.state not in ("crystallized", "revert_proposed", "proposed", "observing"):
             return {"status": "error", "message": f"Organ {organ_id} is in state '{ps.state}', cannot revert"}
         store.update(organ_id, -1.0, new_state="idle")
         store._states[organ_id].observe_count = 0
         store._states[organ_id].confirm_count = 0
         store._save()
+
+        for orch in sessions.values():
+            if hasattr(orch, 'verbosity_organ') and orch.verbosity_organ:
+                organ = orch.verbosity_organ
+                organ._store._states[organ_id] = store._states[organ_id]
+                organ._reflex_fired = False
+                organ._revert_counter = 0
+
         return {"status": "ok", "organ_id": organ_id, "new_state": "idle"}
 
     @app.websocket("/ws/{session_id}")
