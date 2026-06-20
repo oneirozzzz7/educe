@@ -27,8 +27,8 @@ log = logging.getLogger("educe.stage1")
 
 import os
 
-BASE_URL = os.environ.get("DEEPFORGE_BASE_URL", "")
-API_KEY = os.environ.get("DEEPFORGE_API_KEY", "")
+BASE_URL = os.environ.get("EDUCE_BASE_URL", "")
+API_KEY = os.environ.get("EDUCE_API_KEY", "")
 
 SYSTEM_PROMPT_BASE = """你是 Educe，一个运行在框架中的智能助手。你的文字回复展示给用户，只有 <action> 标签才会被执行。
 

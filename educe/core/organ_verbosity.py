@@ -211,20 +211,20 @@ class VerbosityOrgan:
         # 反射气泡检测：crystallized 后首轮 AI 回答确实变短 → 弹一次
         ps = self._store.get(self.PATTERN_SHORT)
         if ps.state == "crystallized" and not self._reflex_fired:
-            if prev and prev.is_ai_long and latest.ai_reply_len < AI_LONG_THRESHOLD:
+            if latest.ai_reply_len < AI_LONG_THRESHOLD:
                 self._reflex_fired = True
                 event = EvolutionEvent(
                     kind=EvolutionKind.SHIFT,
                     organ=OrganRef(family="verbosity", id=self.PATTERN_SHORT),
                     cause="偏好已生效：回答明显变短",
-                    delta={"before_len": prev.ai_reply_len, "after_len": latest.ai_reply_len},
+                    delta={"reply_len": latest.ai_reply_len},
                     phrase="已在用简短模式回答",
                     confidence=ps.confidence,
                 )
                 if self._bus:
                     await self._bus.emit(event)
                 return event
-            elif latest.ai_reply_len < AI_LONG_THRESHOLD:
+            else:
                 self._reflex_fired = True
             return None
 

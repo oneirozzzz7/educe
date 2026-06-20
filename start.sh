@@ -38,13 +38,13 @@ if [ ! -d "web/node_modules" ]; then
 fi
 
 # 检查模型配置
-if [ -z "$DEEPFORGE_API_KEY" ] && [ ! -f .env ]; then
+if [ -z "$EDUCE_API_KEY" ] && [ ! -f .env ]; then
     echo ""
     echo "⚠️  未配置模型。请创建 .env 文件："
     echo ""
-    echo "   echo 'DEEPFORGE_API_KEY=your-key' > .env"
-    echo "   echo 'DEEPFORGE_BASE_URL=https://api.deepseek.com/v1' >> .env"
-    echo "   echo 'DEEPFORGE_MODEL=deepseek-chat' >> .env"
+    echo "   echo 'EDUCE_API_KEY=your-key' > .env"
+    echo "   echo 'EDUCE_BASE_URL=https://api.deepseek.com/v1' >> .env"
+    echo "   echo 'EDUCE_MODEL=deepseek-chat' >> .env"
     echo ""
     echo "   然后重新运行 ./start.sh"
     exit 1
@@ -55,7 +55,7 @@ if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
 
-echo "✓ 模型: ${DEEPFORGE_MODEL:-未指定}"
+echo "✓ 模型: ${EDUCE_MODEL:-未指定}"
 echo ""
 
 # 启动后端
@@ -63,9 +63,9 @@ echo "🔧 启动后端 (port 7860)..."
 $PYTHON -c "
 import sys, os
 sys.path.insert(0, '.')
-os.environ.setdefault('DEEPFORGE_API_KEY', '${DEEPFORGE_API_KEY:-}')
-os.environ.setdefault('DEEPFORGE_BASE_URL', '${DEEPFORGE_BASE_URL:-}')
-os.environ.setdefault('DEEPFORGE_MODEL', '${DEEPFORGE_MODEL:-}')
+os.environ.setdefault('EDUCE_API_KEY', '${EDUCE_API_KEY:-}')
+os.environ.setdefault('EDUCE_BASE_URL', '${EDUCE_BASE_URL:-}')
+os.environ.setdefault('EDUCE_MODEL', '${EDUCE_MODEL:-}')
 from educe.web.server import run_web
 run_web(port=7860)
 " &

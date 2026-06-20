@@ -21,7 +21,7 @@ from educe.core.unified_store import (
 )
 
 
-DEEPFORGE_DIR = Path(".educe")
+EDUCE_DIR = Path(".educe")
 
 
 def _infer_maturity(usage_count: int, success_count: int) -> str:
@@ -74,7 +74,7 @@ def _map_category(old_category: str) -> str:
 
 def migrate_knowledge(store: UnifiedKnowledgeStore, backup_dir: Path):
     """迁移 knowledge.json"""
-    src = DEEPFORGE_DIR / "knowledge" / "knowledge.json"
+    src = EDUCE_DIR / "knowledge" / "knowledge.json"
     if not src.exists():
         print("  [skip] knowledge.json not found")
         return 0
@@ -129,7 +129,7 @@ def migrate_knowledge(store: UnifiedKnowledgeStore, backup_dir: Path):
 
 def migrate_skills(store: UnifiedKnowledgeStore, backup_dir: Path):
     """迁移 skills/*.json"""
-    skills_dir = DEEPFORGE_DIR / "skills"
+    skills_dir = EDUCE_DIR / "skills"
     if not skills_dir.exists():
         print("  [skip] skills/ not found")
         return 0
@@ -180,7 +180,7 @@ def migrate_skills(store: UnifiedKnowledgeStore, backup_dir: Path):
 
 def migrate_seeds(store: UnifiedKnowledgeStore, backup_dir: Path):
     """从 domain_stats.json + activation_engine 默认值创建 seed 文件"""
-    stats_path = DEEPFORGE_DIR / "feedback" / "domain_stats.json"
+    stats_path = EDUCE_DIR / "feedback" / "domain_stats.json"
 
     # Build seed (from activation_engine DEFAULT_BUILD_SEED)
     build_seed_path = store.seeds_dir / "seed_build_general.json"
@@ -234,8 +234,8 @@ def run_migration():
     """执行完整迁移"""
     print("=== 统一知识系统迁移 ===\n")
 
-    unified_dir = DEEPFORGE_DIR / "unified"
-    backup_dir = DEEPFORGE_DIR / "_migration" / "pre_migration_backup"
+    unified_dir = EDUCE_DIR / "unified"
+    backup_dir = EDUCE_DIR / "_migration" / "pre_migration_backup"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     store = UnifiedKnowledgeStore(unified_dir)
@@ -261,7 +261,7 @@ def run_migration():
         "total_entries": len(store._catalog),
         "status": "complete",
     }
-    (DEEPFORGE_DIR / "_migration" / "migration_log.json").write_text(
+    (EDUCE_DIR / "_migration" / "migration_log.json").write_text(
         json.dumps(log, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n=== 迁移完成 ===")

@@ -2166,7 +2166,7 @@ class Orchestrator:
                         "phrase": event.phrase,
                         "confidence": event.confidence,
                     })
-                elif event.kind == EvolutionKind.SHIFT and event.organ.family == "reflex":
+                elif event.kind == EvolutionKind.SHIFT and event.organ.family in ("reflex", "verbosity"):
                     self._emit_tool_event({
                         "type": "reflex_bubble",
                         "event_id": event.event_id,

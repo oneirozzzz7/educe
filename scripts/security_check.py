@@ -36,7 +36,7 @@ SAFE_PATTERNS = [
     r'GLM_API_KEY',
     r'KIMI_API_KEY',
     r'OPENROUTER_API_KEY',
-    r'DEEPFORGE_API_KEY',
+    r'EDUCE_API_KEY',
     r'os\.environ',
 ]
 

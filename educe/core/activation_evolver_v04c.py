@@ -20,8 +20,8 @@ from typing import Optional
 
 import aiohttp
 
-BASE_URL = os.environ.get("DEEPFORGE_BASE_URL", "")
-API_KEY = os.environ.get("DEEPFORGE_API_KEY", "")
+BASE_URL = os.environ.get("EDUCE_BASE_URL", "")
+API_KEY = os.environ.get("EDUCE_API_KEY", "")
 
 
 # ═══ 多步推理题库（模型 baseline ~70-80%）═══
@@ -168,7 +168,7 @@ async def mutate_random(session, parent: Seed, n: int = 2) -> list[Seed]:
 
 async def run_evolution(max_gen: int = 5):
     if not BASE_URL or not API_KEY:
-        print("ERROR: Set DEEPFORGE_BASE_URL and DEEPFORGE_API_KEY env vars")
+        print("ERROR: Set EDUCE_BASE_URL and EDUCE_API_KEY env vars")
         return
 
     print("=" * 60)

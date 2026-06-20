@@ -122,7 +122,7 @@ def run_setup_wizard() -> dict:
             "key": "custom",
             "name": "自定义",
             "desc": "自定义OpenAI兼容API",
-            "env": "DEEPFORGE_API_KEY",
+            "env": "EDUCE_API_KEY",
             "base_url": "",
             "model": "",
             "signup_url": "",
@@ -162,9 +162,9 @@ def run_setup_wizard() -> dict:
     if save_to_env:
         _save_env_file(provider, api_key.strip())
 
-    os.environ["DEEPFORGE_API_KEY"] = config["api_key"]
-    os.environ["DEEPFORGE_BASE_URL"] = config["base_url"]
-    os.environ["DEEPFORGE_MODEL"] = config["model"]
+    os.environ["EDUCE_API_KEY"] = config["api_key"]
+    os.environ["EDUCE_BASE_URL"] = config["base_url"]
+    os.environ["EDUCE_MODEL"] = config["model"]
     if provider["env"]:
         os.environ[provider["env"]] = config["api_key"]
 
@@ -181,11 +181,11 @@ def _save_env_file(provider: dict, api_key: str) -> None:
     if env_path.exists():
         lines = env_path.read_text().strip().split("\n")
 
-    new_lines = [l for l in lines if not l.startswith(f"{provider['env']}=") and not l.startswith("DEEPFORGE_")]
+    new_lines = [l for l in lines if not l.startswith(f"{provider['env']}=") and not l.startswith("EDUCE_")]
     if provider["env"]:
         new_lines.append(f"{provider['env']}={api_key}")
-    new_lines.append(f"DEEPFORGE_BASE_URL={provider['base_url']}")
-    new_lines.append(f"DEEPFORGE_MODEL={provider['model']}")
+    new_lines.append(f"EDUCE_BASE_URL={provider['base_url']}")
+    new_lines.append(f"EDUCE_MODEL={provider['model']}")
 
     env_path.write_text("\n".join(new_lines) + "\n")
     console.print(f"[dim]已保存到 {env_path}[/dim]")

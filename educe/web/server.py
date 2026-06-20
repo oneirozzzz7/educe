@@ -332,13 +332,13 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         if model:
             config.default_model.model = model
-            os.environ["DEEPFORGE_MODEL"] = model
+            os.environ["EDUCE_MODEL"] = model
         if base_url:
             config.default_model.base_url = base_url
-            os.environ["DEEPFORGE_BASE_URL"] = base_url
+            os.environ["EDUCE_BASE_URL"] = base_url
         if api_key:
             config.default_model.api_key = api_key
-            os.environ["DEEPFORGE_API_KEY"] = api_key
+            os.environ["EDUCE_API_KEY"] = api_key
         elif not config.default_model.api_key:
             for env_key in ["KIMI_API_KEY", "DEEPSEEK_API_KEY", "QWEN_API_KEY", "GLM_API_KEY"]:
                 val = os.environ.get(env_key)
@@ -348,20 +348,20 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         if evolution is not None:
             config.evolution.enabled = bool(evolution)
-            os.environ["DEEPFORGE_EVOLUTION"] = str(evolution).lower()
+            os.environ["EDUCE_EVOLUTION"] = str(evolution).lower()
 
         env_path = Path.cwd() / ".env"
         lines = []
         if env_path.exists():
             lines = [l for l in env_path.read_text().strip().split("\n")
-                     if l and not l.startswith("DEEPFORGE_")]
+                     if l and not l.startswith("EDUCE_")]
         if config.default_model.api_key:
-            lines.append(f"DEEPFORGE_API_KEY={config.default_model.api_key}")
+            lines.append(f"EDUCE_API_KEY={config.default_model.api_key}")
         if base_url:
-            lines.append(f"DEEPFORGE_BASE_URL={base_url}")
+            lines.append(f"EDUCE_BASE_URL={base_url}")
         if model:
-            lines.append(f"DEEPFORGE_MODEL={model}")
-        lines.append(f"DEEPFORGE_EVOLUTION={str(config.evolution.enabled).lower()}")
+            lines.append(f"EDUCE_MODEL={model}")
+        lines.append(f"EDUCE_EVOLUTION={str(config.evolution.enabled).lower()}")
         env_path.write_text("\n".join(lines) + "\n")
 
         sessions.clear()

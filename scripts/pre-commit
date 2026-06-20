@@ -1,8 +1,8 @@
 #!/bin/sh
-# DeepForge pre-commit hook - 安全检查
+# Educe pre-commit hook - 安全检查
 # 安装: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
-echo "🔒 DeepForge 安全检查..."
+echo "🔒 Educe 安全检查..."
 python scripts/security_check.py
 
 if [ $? -ne 0 ]; then

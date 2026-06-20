@@ -22,8 +22,8 @@ from typing import Optional
 
 import aiohttp
 
-BASE_URL = os.environ.get("DEEPFORGE_BASE_URL", "")
-API_KEY = os.environ.get("DEEPFORGE_API_KEY", "")
+BASE_URL = os.environ.get("EDUCE_BASE_URL", "")
+API_KEY = os.environ.get("EDUCE_API_KEY", "")
 
 
 # ═══ 代码题 Benchmark（答案可 exec 验证）═══
