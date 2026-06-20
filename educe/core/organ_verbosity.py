@@ -219,6 +219,7 @@ class VerbosityOrgan:
         self._buffer: deque[TurnMeta] = deque(maxlen=self.BUFFER_SIZE)
         self._on_propose: list[Callable[[EvolutionEvent], Awaitable[None]]] = []
         self._reflex_fired = False
+        self._last_checked_len = 0
 
     def on_propose(self, fn: Callable[[EvolutionEvent], Awaitable[None]]):
         self._on_propose.append(fn)
@@ -239,6 +240,10 @@ class VerbosityOrgan:
         """
         if not self._buffer:
             return None
+
+        if len(self._buffer) <= self._last_checked_len:
+            return None
+        self._last_checked_len = len(self._buffer)
 
         latest = self._buffer[-1]
         prev = self._buffer[-2] if len(self._buffer) >= 2 else None
