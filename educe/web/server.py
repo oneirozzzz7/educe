@@ -615,6 +615,36 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         return {"status": "error", "message": f"Organ '{organ_id}' not found"}
 
+    @app.get("/api/credentials")
+    async def list_credentials():
+        """列出凭据（不含 value）"""
+        from educe.core.credential_store import CredentialStore
+        store = CredentialStore()
+        return {"credentials": store.get_public_list()}
+
+    @app.post("/api/credentials")
+    async def add_credential(request: Request):
+        """添加/更新凭据"""
+        data = await request.json()
+        name = data.get("name", "").strip()
+        value = data.get("value", "")
+        note = data.get("note", "")
+        if not name or not value:
+            return {"status": "error", "message": "name and value required"}
+        from educe.core.credential_store import CredentialStore
+        store = CredentialStore()
+        store.add(name, value, note)
+        return {"status": "ok", "name": name}
+
+    @app.delete("/api/credentials/{name}")
+    async def delete_credential(name: str):
+        """删除凭据"""
+        from educe.core.credential_store import CredentialStore
+        store = CredentialStore()
+        if store.remove(name):
+            return {"status": "ok"}
+        return {"status": "error", "message": "not found"}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()

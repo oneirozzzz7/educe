@@ -97,6 +97,16 @@ def build_context(
     if seed:
         seed_section = f"\n## 思维引导\n{seed}\n"
 
+    # 凭据声明（只暴露 name + note，不暴露 value）
+    cred_section = ""
+    try:
+        from educe.core.credential_store import CredentialStore
+        cred_hint = CredentialStore().get_prompt_hint()
+        if cred_hint:
+            cred_section = f"\n## 认证能力\n{cred_hint}\n"
+    except Exception:
+        pass
+
     # session 临时记忆（优先级最高）
     session_section = ""
     if session_memory:
@@ -210,6 +220,7 @@ def build_context(
     return (
         identity
         + seed_section
+        + cred_section
         + surface_section
         + session_section
         + pattern_section

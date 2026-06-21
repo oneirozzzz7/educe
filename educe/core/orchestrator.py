@@ -1137,6 +1137,13 @@ class Orchestrator:
         work_dir.mkdir(parents=True, exist_ok=True)
 
         env = {**os.environ, "PATH": os.environ.get("PATH", "")}
+        # 注入用户凭据到 shell 环境（不暴露在命令字符串中）
+        try:
+            from educe.core.credential_store import CredentialStore
+            cred_env = CredentialStore().get_env_dict()
+            env.update(cred_env)
+        except Exception:
+            pass
         supervisor = self._get_process_supervisor()
         grace_period = get_config("shell", "grace_period_ms", 5000) / 1000.0
         max_output = get_config("shell", "max_output_bytes", 512000)
