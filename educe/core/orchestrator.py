@@ -512,6 +512,11 @@ class Orchestrator:
         from educe.core.exploration_ledger import ExplorationLedger
         ledger = ExplorationLedger()
 
+        # Verify-Compile Loop: 轨迹收集器
+        from educe.core.trace_compiler import TraceCollector
+        trace_collector = TraceCollector()
+        trace_collector.start(user_input)
+
         for round_idx in range(max_rounds):
             self._slog("framework", "turn_start",
                        summary=f"round {round_idx}",
@@ -800,6 +805,9 @@ class Orchestrator:
 
                 # 探索账本：记录行为
                 ledger.record(action.type, action.params, result.get("output", ""), result.get("success", False))
+                # Verify-Compile Loop: 记录轨迹
+                trace_collector.record(action.type, action.params,
+                                       result.get("output", ""), result.get("success", False))
             if immediate_actions and reply_text and not pending_actions:
                 for i in range(0, len(reply_text), 20):
                     self._notify_chunk("assistant", reply_text[i:i+20])
@@ -811,6 +819,7 @@ class Orchestrator:
             if immediate_actions and not pending_actions and ledger.should_nudge():
                 reflection = ledger.build_reflection()
                 messages.append({"role": "user", "content": reflection})
+                trace_collector.mark_nudge()
                 log.info("_action_loop | round %d nudge injected (nudge_count=%d)", round_idx, ledger.nudge_count)
                 self._slog("framework", "nudge_triggered",
                            summary=f"nudge #{ledger.nudge_count}",
@@ -919,6 +928,18 @@ class Orchestrator:
         self._slog("framework", "turn_end",
                    summary=f"ended: {reason}",
                    data={"reason": reason})
+
+        # Verify-Compile Loop: 尝试编译成功轨迹为 skill
+        compiled_skill = trace_collector.finish()
+        if compiled_skill:
+            try:
+                registry = self._get_skill_registry()
+                from educe.core.metabolism.composite_skill import CompositeSkill
+                skill = CompositeSkill.from_dict(compiled_skill)
+                registry.register(skill)
+                log.info("TraceCompiler: registered skill '%s'", skill.name)
+            except Exception as e:
+                log.debug("TraceCompiler register failed: %s", e)
 
         # 器官信号检测（冷路径）
         if self.organ_registry and final_reply:
