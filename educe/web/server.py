@@ -647,10 +647,19 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
     @app.get("/api/files")
     async def list_project_files(q: str = "", limit: int = 20):
-        """列出项目文件（供 @ 选择器模糊搜索）"""
+        """列出项目文件（供 @ 选择器模糊搜索，常读文件置顶）"""
         import os
         import educe
         project_path = Path(educe.__file__).parent.parent
+
+        # 常读文件置顶
+        frequent = []
+        try:
+            from educe.core.reference_memory import get_frequent_file_paths
+            frequent = get_frequent_file_paths()
+        except Exception:
+            pass
+
         results = []
         exclude = {".git", "node_modules", "__pycache__", ".educe", ".next", "venv", "env", ".playwright-mcp"}
         for root, dirs, files in os.walk(project_path):
@@ -662,11 +671,19 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 if q and q.lower() not in rel.lower():
                     continue
                 results.append(rel)
-                if len(results) >= limit:
+                if len(results) >= limit * 2:
                     break
-            if len(results) >= limit:
+            if len(results) >= limit * 2:
                 break
-        return {"files": results}
+
+        # 常读文件置顶
+        if frequent:
+            freq_set = set(frequent)
+            top = [f for f in results if f in freq_set]
+            rest = [f for f in results if f not in freq_set]
+            results = top + rest
+
+        return {"files": results[:limit], "frequent": frequent}
 
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -1084,6 +1101,14 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     if ref_parts:
                         ref_block = "<referenced_files>\n" + "\n".join(ref_parts) + "\n</referenced_files>\n\n"
                         file_content = (file_content or "") + ref_block
+
+                    # 信号通道：记录引用事件到记忆系统（L2 沉淀）
+                    try:
+                        from educe.core.reference_memory import record_file_reference
+                        for ref_path in referenced_files[:5]:
+                            record_file_reference(ref_path, context=user_input[:100])
+                    except Exception:
+                        pass
 
                 # User sent a new message — clear any pending plan/decision state
                 orchestrator.context.metadata.pop("_pending_plans", None)
