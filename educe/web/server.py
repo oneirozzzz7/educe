@@ -645,6 +645,29 @@ def create_app(config: EduceConfig | None = None) -> Any:
             return {"status": "ok"}
         return {"status": "error", "message": "not found"}
 
+    @app.get("/api/files")
+    async def list_project_files(q: str = "", limit: int = 20):
+        """列出项目文件（供 @ 选择器模糊搜索）"""
+        import os
+        import educe
+        project_path = Path(educe.__file__).parent.parent
+        results = []
+        exclude = {".git", "node_modules", "__pycache__", ".educe", ".next", "venv", "env", ".playwright-mcp"}
+        for root, dirs, files in os.walk(project_path):
+            dirs[:] = [d for d in dirs if d not in exclude]
+            for f in files:
+                if f.startswith(".") and f != ".env":
+                    continue
+                rel = os.path.relpath(os.path.join(root, f), project_path)
+                if q and q.lower() not in rel.lower():
+                    continue
+                results.append(rel)
+                if len(results) >= limit:
+                    break
+            if len(results) >= limit:
+                break
+        return {"files": results}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -1043,6 +1066,24 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     attached = [files[fid] for fid in file_ids if fid in files]
                     if attached:
                         file_content = format_for_prompt(attached)
+
+                # @ 引用文件：直接读取项目内文件注入
+                referenced_files = data.get("referenced_files", [])
+                if referenced_files:
+                    ref_parts = []
+                    import educe as _educe_pkg
+                    project_path = Path(_educe_pkg.__file__).parent.parent
+                    for ref_path in referenced_files[:5]:  # 最多5个文件
+                        full_path = project_path / ref_path if not Path(ref_path).is_absolute() else Path(ref_path)
+                        if full_path.exists() and full_path.is_file():
+                            try:
+                                content = full_path.read_text(encoding="utf-8", errors="replace")[:8000]
+                                ref_parts.append(f"<file path=\"{ref_path}\">\n{content}\n</file>")
+                            except Exception:
+                                pass
+                    if ref_parts:
+                        ref_block = "<referenced_files>\n" + "\n".join(ref_parts) + "\n</referenced_files>\n\n"
+                        file_content = (file_content or "") + ref_block
 
                 # User sent a new message — clear any pending plan/decision state
                 orchestrator.context.metadata.pop("_pending_plans", None)

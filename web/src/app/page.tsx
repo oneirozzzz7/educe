@@ -13,6 +13,7 @@ import { ToolStreamCard } from "@/components/tool-stream-card";
 import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
 import { EvolutionStatusPanel } from "@/components/evolution-status";
 import { EvolutionBar } from "@/components/evolution-bar";
+import { FileRefPicker, ReferencedFilesBar } from "@/components/file-ref-picker";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -467,6 +468,9 @@ function ArtifactCardBuilding({ file, fileCount, elapsed }: {
 export default function Home() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [showEvolution, setShowEvolution] = useState(false);
+  const [referencedFiles, setReferencedFiles] = useState<string[]>([]);
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [fileQuery, setFileQuery] = useState("");
   const wsRef = useRef<ReturnType<typeof createWS> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -510,7 +514,9 @@ export default function Home() {
   function send(text: string) {
     if (!text.trim()) return;
     dispatch({ type: "APPEND_EVENT", event: { type: "user_input", ts: Date.now() / 1000, content: text.trim() } });
-    wsRef.current?.send(text.trim());
+    wsRef.current?.sendRaw({ message: text.trim(), file_ids: [], referenced_files: referencedFiles });
+    setReferencedFiles([]);
+    setShowFilePicker(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -538,7 +544,18 @@ export default function Home() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(e.currentTarget.value); }
+    if (e.key === "Enter" && !e.shiftKey && !showFilePicker) { e.preventDefault(); send(e.currentTarget.value); }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    const atMatch = val.match(/@(\S*)$/);
+    if (atMatch) {
+      setShowFilePicker(true);
+      setFileQuery(atMatch[1]);
+    } else {
+      setShowFilePicker(false);
+    }
   }
 
   return (
@@ -738,7 +755,22 @@ export default function Home() {
             <EvolutionBar />
           </div>
           <div style={{ maxWidth: 960, margin: "0 auto", position: "relative" }}>
-            <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it."} onKeyDown={handleKeyDown} rows={1} />
+            <ReferencedFilesBar files={referencedFiles} onRemove={(f) => setReferencedFiles(prev => prev.filter(x => x !== f))} />
+            {showFilePicker && (
+              <FileRefPicker
+                query={fileQuery}
+                onSelect={(path) => {
+                  setReferencedFiles(prev => prev.includes(path) ? prev : [...prev, path]);
+                  setShowFilePicker(false);
+                  if (inputRef.current) {
+                    inputRef.current.value = inputRef.current.value.replace(/@\S*$/, "");
+                    inputRef.current.focus();
+                  }
+                }}
+                onClose={() => setShowFilePicker(false)}
+              />
+            )}
+            <textarea ref={inputRef} className="main-input" placeholder={isBuilding ? "构建中... 可以补充想法" : "Think it. Build it. (@ 引用文件)"} onKeyDown={handleKeyDown} onChange={handleInputChange} rows={1} />
             <button onClick={() => inputRef.current && send(inputRef.current.value)}
               style={{ position: "absolute", right: 12, bottom: 12, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 18 }}>➤</button>
           </div>
