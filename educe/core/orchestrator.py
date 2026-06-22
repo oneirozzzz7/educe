@@ -124,6 +124,71 @@ class Orchestrator:
             log.warning("module disabled: organs — %s: %s", type(e).__name__, e)
             self._module_health["organs"] = f"disabled: {type(e).__name__}: {e}"
 
+    # ═══════════════════════════════════════
+    #  记忆自动写入基础设施
+    # ═══════════════════════════════════════
+
+    _AUTO_MEMORY_SESSION_LIMIT = 5
+    _AUTO_MEMORY_TOTAL_CAP = 100
+
+    def _auto_write_memory(self, mem_type: str, content: str, *,
+                           scope: str = "", tags: list | None = None,
+                           detail_key: str = "") -> bool:
+        """统一入口：自动写入记忆（带去重、限速、透明日志）。
+
+        Returns True if written, False if skipped (dedup/rate-limit).
+        """
+        from educe.core.project_memory import ProjectMemoryStore, MemoryEntry
+        import time as _time_mem
+        import hashlib
+
+        count = self.context.metadata.get("_auto_memory_count", 0)
+        if count >= self._AUTO_MEMORY_SESSION_LIMIT:
+            log.debug("auto_memory rate-limited (session cap %d)", self._AUTO_MEMORY_SESSION_LIMIT)
+            return False
+
+        try:
+            store = ProjectMemoryStore()
+        except Exception as e:
+            log.debug("auto_memory store unavailable: %s", e)
+            return False
+
+        key = detail_key or content[:40].lower().strip()
+        for existing in store.get_all():
+            if existing.type == mem_type and key in (existing.tags or []):
+                existing.confidence = min(1.0, existing.confidence + 0.05)
+                existing.provenance.setdefault("confirmed", []).append(
+                    _time_mem.strftime("%Y-%m-%d"))
+                store._save()
+                log.info("auto_memory reinforced: [%s] %s (+0.05)", mem_type, key[:40])
+                return False
+
+        if len(store.get_all()) >= self._AUTO_MEMORY_TOTAL_CAP:
+            expired = [e for e in store.get_all() if e.confidence < 0.35]
+            if expired:
+                for e in expired[:5]:
+                    store.remove(e.id)
+                log.info("auto_memory evicted %d low-confidence entries", min(5, len(expired)))
+
+        mem_id = hashlib.md5(f"{mem_type}:{key}".encode()).hexdigest()[:12]
+        entry = MemoryEntry(
+            id=mem_id,
+            type=mem_type,
+            content=content,
+            confidence=0.5 if mem_type != "scar" else 0.4,
+            scope=scope,
+            tags=(tags or []) + [key],
+            provenance={"born": _time_mem.strftime("%Y-%m-%d %H:%M"), "confirmed": [], "challenged": []},
+            verified_at=_time_mem.time(),
+        )
+        store.add(entry)
+        self.context.metadata["_auto_memory_count"] = count + 1
+        log.info("auto_memory written: [%s] %s (confidence=%.2f)", mem_type, content[:60], entry.confidence)
+        self._slog("memory", "auto_write",
+                   summary=f"[{mem_type}] {content[:60]}",
+                   data={"type": mem_type, "content": content, "key": key})
+        return True
+
     def register(self, agent: BaseAgent) -> None:
         self.agents[agent.name] = agent
 
@@ -214,6 +279,17 @@ class Orchestrator:
             signal, weight = self.quality_tracker.detect_user_signal(user_input, prev_assistant)
             self.context.metadata["_last_user_signal"] = signal
             self.context.metadata["_last_signal_weight"] = weight
+
+            # 记忆自动写入：用户纠正 → buffer for convention
+            if signal == "error":
+                self.context.metadata["_correction_pending"] = user_input
+            elif signal in ("grateful", "engaged", "neutral") and self.context.metadata.get("_correction_pending"):
+                pending = self.context.metadata.pop("_correction_pending")
+                self._auto_write_memory(
+                    "convention",
+                    f"User correction: {pending[:120]}",
+                    detail_key=pending[:40].lower().strip(),
+                )
             if self.unified_store and signal != "neutral":
                 self.unified_store.record_signal({
                     "type": "user_feedback",
@@ -941,6 +1017,25 @@ class Orchestrator:
                    summary=f"ended: {reason}",
                    data={"reason": reason})
 
+        # ═══ 记忆自动写入：fact / scar ═══
+        trace_summary = trace_collector.get_summary()
+        if trace_summary and trace_summary["steps"] >= 2:
+            if trace_summary["all_success"]:
+                self._auto_write_memory(
+                    "fact",
+                    f"{trace_summary['user_input'][:80]} → {trace_summary['action_chain']}",
+                    scope=self.context.metadata.get("_project_context_path", ""),
+                    detail_key=trace_summary["action_chain"],
+                )
+            elif trace_summary["had_failures"] and trace_summary["recovered"]:
+                failure_hint = trace_summary["failure_outputs"][0][:80] if trace_summary["failure_outputs"] else "unknown"
+                self._auto_write_memory(
+                    "scar",
+                    f"When: {trace_summary['user_input'][:60]}. Issue: {failure_hint}. Recovered via retry.",
+                    scope=self.context.metadata.get("_project_context_path", ""),
+                    detail_key=f"fail:{failure_hint[:40]}",
+                )
+
         # Verify-Compile Loop: 尝试编译成功轨迹为 skill
         compiled_skill = trace_collector.finish()
         if compiled_skill:
@@ -1309,6 +1404,12 @@ class Orchestrator:
                         if not fixer.already_fixed(classification.detail) and fixer.can_fix():
                             fix_result = await fixer.attempt_fix(classification, str(work_dir))
                             if fix_result["success"]:
+                                self._auto_write_memory(
+                                    "scar",
+                                    f"Command '{cmd[:50]}' failed: {classification.kind} ({classification.detail}). Auto-fixed: {fix_result['output'][:60]}",
+                                    detail_key=f"{classification.kind}:{classification.detail}",
+                                    tags=[classification.kind],
+                                )
                                 self._emit_tool_event({
                                     "type": "tool_chunk", "id": tool_id,
                                     "stream": "stdout",

@@ -163,6 +163,21 @@ class TraceCollector:
         if self._current:
             self._current.had_nudge = True
 
+    def get_summary(self) -> dict | None:
+        """Get trace summary without consuming. For auto-memory hooks."""
+        if not self._current or len(self._current.steps) < 2:
+            return None
+        t = self._current
+        return {
+            "user_input": t.user_input,
+            "steps": len(t.steps),
+            "action_chain": " → ".join(s.action_type for s in t.steps),
+            "had_failures": t.had_failures,
+            "recovered": t._recovered_from_failure(),
+            "all_success": all(s.success for s in t.steps),
+            "failure_outputs": [s.output[:150] for s in t.steps if not s.success],
+        }
+
     def finish(self) -> dict | None:
         """完成收集并尝试编译。返回 skill_dict 或 None"""
         if not self._current:
