@@ -43,8 +43,20 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
   return (
     <div
       ref={ref}
-      className="absolute left-0 right-0 bottom-full mb-2 max-h-[240px] overflow-auto rounded-xl"
-      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "0 -4px 20px rgba(0,0,0,0.3)", zIndex: 9999 }}
+      style={{
+        position: "fixed",
+        bottom: 80,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "min(600px, 90vw)",
+        maxHeight: 240,
+        overflow: "auto",
+        borderRadius: 12,
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 -8px 30px rgba(0,0,0,0.4)",
+        zIndex: 9999,
+      }}
     >
       {files.map((f, i) => (
         <div
