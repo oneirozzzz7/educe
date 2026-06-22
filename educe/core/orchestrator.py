@@ -454,6 +454,17 @@ class Orchestrator:
             if _organ_hints:
                 system += f"\n\n## 用户偏好\n{_organ_hints}"
 
+        # 复利记忆：项目知识/教训/约定注入
+        if not _bare_mode:
+            try:
+                from educe.core.project_memory import ProjectMemoryStore
+                _mem_store = ProjectMemoryStore()
+                _mem_injection = _mem_store.build_prompt_injection()
+                if _mem_injection:
+                    system += f"\n\n{_mem_injection}"
+            except Exception:
+                pass
+
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
             try:
