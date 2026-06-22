@@ -8,6 +8,9 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+import logging
+
+log = logging.getLogger("educe.core.session_store")
 
 
 SESSION_DIR = Path(".educe/sessions")
@@ -42,8 +45,8 @@ class SessionStore:
             for line in f:
                 try:
                     turns.append(json.loads(line))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
         return turns
 
     def list_sessions(self, limit: int = 20, offset: int = 0) -> list:
@@ -76,6 +79,6 @@ class SessionStore:
                         "created_at": first.get("timestamp", 0),
                         "updated_at": last.get("timestamp", 0),
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         return sessions, len(paths)

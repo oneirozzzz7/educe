@@ -174,8 +174,8 @@ class MCPConnector(Connector):
             try:
                 self._process.kill()
                 await asyncio.wait_for(self._process.wait(), timeout=3)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
             self._process = None
         self._initialized = False
 
@@ -232,8 +232,8 @@ class MCPConnector(Connector):
             msg = json.dumps({"jsonrpc": "2.0", "method": method, "params": params}) + "\n"
             self._process.stdin.write(msg.encode())
             await self._process.stdin.drain()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
     async def capabilities(self) -> list[Capability]:
         """获取 MCP server 提供的所有工具"""

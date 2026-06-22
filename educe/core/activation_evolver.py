@@ -15,6 +15,9 @@ import random
 import time
 from pathlib import Path
 from dataclasses import dataclass
+import logging
+
+log = logging.getLogger("educe.core.activation_evolver")
 
 
 FEEDBACK_DIR = Path(".educe/feedback")
@@ -75,8 +78,8 @@ class ActivationEvolver:
         if EVOLVER_STATE_PATH.exists():
             try:
                 return json.loads(EVOLVER_STATE_PATH.read_text())
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         return {
             "domain_best_seeds": {},
             "seed_pool": SEED_POOL[:],
@@ -111,8 +114,8 @@ class ActivationEvolver:
             for line in f:
                 try:
                     records.append(json.loads(line))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
 
         if len(records) < 10:
             return {"status": "insufficient_data", "count": len(records)}

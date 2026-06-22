@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+import logging
+
+log = logging.getLogger("educe.skills.registry")
 
 
 class Skill(BaseModel):
@@ -83,8 +86,8 @@ class SkillRegistry:
                 skill = Skill.model_validate(data)
                 skill.source = source
                 self._skills[skill.name] = skill
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         # Markdown格式skill（Claude Code风格：目录/skill.md）
         for skill_dir in directory.iterdir():
             if not skill_dir.is_dir():
@@ -104,8 +107,8 @@ class SkillRegistry:
                         source=source,
                     )
                     self._skills[skill.name] = skill
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
     def _parse_skill_md(self, content: str) -> tuple:
         """解析markdown skill的frontmatter和正文"""

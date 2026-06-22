@@ -26,6 +26,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncIterator, Callable, Awaitable
+import logging
+
+log = logging.getLogger("educe.core.agentic_loop")
 
 
 @dataclass
@@ -422,8 +425,8 @@ class AgenticLoop:
                         src = script_path.read_text(encoding="utf-8", errors="ignore")[:2000]
                         if any(lib in src for lib in ("pandas", "matplotlib", "numpy", "scipy", "sklearn", "plotly", "seaborn", "requests")):
                             timeout = max(timeout, 60)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("suppressed: %s", e)
 
         try:
             proc = await asyncio.create_subprocess_shell(

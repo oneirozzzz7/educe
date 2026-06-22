@@ -18,6 +18,9 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.metabolism.context_sig")
 
 
 @dataclass(frozen=True)
@@ -86,8 +89,8 @@ def _load_taxonomy() -> dict[str, dict]:
                 data = yaml.safe_load(p.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and len(data) > 5:
                     return data
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
     return _DEFAULT_TAXONOMY
 
 
@@ -247,8 +250,8 @@ def _load_resource_delta() -> dict[str, dict]:
                 data = yaml.safe_load(p.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and len(data) >= 2:
                     return data
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
     return _DEFAULT_RESOURCE_DELTA
 
 

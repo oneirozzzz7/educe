@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import re
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.hallucination_guard")
 
 SENSITIVE_DOMAINS = {
     "medical": ["症状", "诊断", "治疗", "用药", "剂量", "手术", "病", "癌", "药物", "处方", "服用"],
@@ -70,8 +73,8 @@ async def audit_response(question: str, response: str, model_client: Any,
             audit = await _llm_spot_check(response, model_client, model, max_tokens)
             if audit and audit != "PASS":
                 result = result.rstrip() + f"\n\n---\n📋 **AI自查备注**：{audit}"
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
     return result
 

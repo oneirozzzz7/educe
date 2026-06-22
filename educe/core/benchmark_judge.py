@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import logging
+
+log = logging.getLogger("educe.core.benchmark_judge")
 
 
 @dataclass
@@ -183,8 +186,8 @@ def extract_output_for_judge(result: dict) -> str:
                         content = f.read_text(errors="ignore")[:3000]
                         if content.strip():
                             parts.append(f"=== {f.name} ===\n{content}")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("suppressed: %s", e)
                 if len(parts) >= 5:
                     break
 
@@ -201,8 +204,8 @@ def extract_output_for_judge(result: dict) -> str:
                         payload = str(t.get("payload", ""))
                         if payload and len(payload) > 20:
                             parts.append(payload)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
     # Fallback: reply_preview
     if not parts:

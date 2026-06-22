@@ -96,8 +96,8 @@ class ProjectMemoryStore:
                 if line.strip():
                     try:
                         self._entries.append(MemoryEntry.from_dict(json.loads(line)))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("suppressed: %s", e)
 
     def _save(self):
         self._dir.mkdir(parents=True, exist_ok=True)

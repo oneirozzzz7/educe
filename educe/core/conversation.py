@@ -12,6 +12,9 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
+import logging
+
+log = logging.getLogger("educe.core.conversation")
 
 
 CONTINUE_PATTERNS = re.compile(
@@ -131,5 +134,5 @@ class ConversationManager:
                 if turn.role == "assistant" and len(turn.content) > 100:
                     domain = turn.domain or "general"
                     distiller.distill("", turn.content, domain)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)

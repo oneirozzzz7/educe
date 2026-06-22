@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ from educe.models.router import ModelClient
 from educe.agents import ALL_AGENTS
 from educe.memory.store import MemoryStore
 from educe.skills.registry import SkillRegistry
+
+log = logging.getLogger("educe.web.server")
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Request
@@ -64,8 +67,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
         model_cfg = config.default_model
         shared_client = ModelClient(api_key=model_cfg.api_key, base_url=model_cfg.base_url)
         shared_self_evolver = SelfEvolver(shared_client, model_cfg.model, DEFAULT_ACTIVATION_SEED)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("educe.server").warning("SelfEvolver init skipped: %s", e)
 
     def get_orchestrator(session_id: str) -> Orchestrator:
         if session_id not in sessions:
@@ -134,6 +137,21 @@ def create_app(config: EduceConfig | None = None) -> Any:
             "agents": list(config.agents.keys()),
             "has_api_key": bool(config.default_model.api_key),
             "evolution": config.evolution.enabled,
+        }
+
+    @app.get("/api/health")
+    async def health():
+        module_health = {}
+        for sid, orch in sessions.items():
+            if hasattr(orch, '_module_health'):
+                module_health[sid] = orch._module_health
+                break
+        return {
+            "status": "ok" if not any(
+                v.startswith("disabled") for h in module_health.values() for v in h.values()
+            ) else "degraded",
+            "sessions_active": len(sessions),
+            "modules": module_health,
         }
 
     @app.get("/api/tools")
@@ -205,8 +223,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
             for line in f:
                 try:
                     entries.append(json.loads(line))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
         passes = sum(1 for e in entries if e.get("event") == "detect_pass")
         fails = sum(1 for e in entries if e.get("event") in ("detect_fail", "detect_timeout", "detect_error"))
         deposits = sum(1 for e in entries if e.get("event") == "deposited")
@@ -270,8 +288,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                             if main_html:
                                 content = main_html.read_text(encoding="utf-8", errors="ignore")
                                 turn["response"] = "```filepath:{}\n{}\n```".format(main_html.name, content)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("suppressed: %s", e)
             return {"session_id": task_id, "turns": turns}
         from educe.core.task_store import TaskStore
         old_store = TaskStore()
@@ -297,8 +315,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
             )
             resp = await client.models.list()
             known_models = sorted(set(m.id for m in resp.data))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
         if len(known_models) <= 1:
             known_models = [
@@ -657,8 +675,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
         try:
             from educe.core.reference_memory import get_frequent_file_paths
             frequent = get_frequent_file_paths()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
         results = []
         exclude = {".git", "node_modules", "__pycache__", ".educe", ".next", "venv", "env", ".playwright-mcp"}
@@ -695,8 +713,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
         if hasattr(orchestrator, 'state') and orchestrator.state.events:
             try:
                 await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
         ws_closed = {"value": False}
 
@@ -743,8 +761,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         "type": "action_confirm_request",
                         "actions": actions,
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
                 return
             if msg.content.startswith("__TOOL_EVENT__"):
                 import json as _json
@@ -757,8 +775,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     else:
                         evt["type"] = "tool_event"
                         await websocket.send_json(evt)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
                 return
             summary = _extract_summary(msg.sender, msg.content, msg.type.value)
             await websocket.send_json({
@@ -978,8 +996,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                 orchestrator.state.save()
                                 try:
                                     await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    log.debug("suppressed: %s", e)
                             await asyncio.sleep(0.05)
                             await websocket.send_json({"type": "status", "content": "idle"})
                     continue
@@ -1054,8 +1072,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                 "content": "轮{} [{}] {}".format(
                                     iteration.index, iteration.action, iteration.instruction[:80]),
                                 "elapsed": round(iteration.elapsed, 1)})
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug("suppressed: %s", e)
 
                     try:
                         result = await task_loop.run(
@@ -1096,8 +1114,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                             try:
                                 content = full_path.read_text(encoding="utf-8", errors="replace")[:8000]
                                 ref_parts.append(f"<file path=\"{ref_path}\">\n{content}\n</file>")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                log.debug("suppressed: %s", e)
                     if ref_parts:
                         ref_block = "<referenced_files>\n" + "\n".join(ref_parts) + "\n</referenced_files>\n\n"
                         file_content = (file_content or "") + ref_block
@@ -1107,8 +1125,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         from educe.core.reference_memory import record_file_reference
                         for ref_path in referenced_files[:5]:
                             record_file_reference(ref_path, context=user_input[:100])
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("suppressed: %s", e)
 
                 # User sent a new message — clear any pending plan/decision state
                 orchestrator.context.metadata.pop("_pending_plans", None)
@@ -1132,8 +1150,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         orchestrator.state.save()
                         try:
                             await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug("suppressed: %s", e)
                     await asyncio.sleep(0.05)
                     if not orchestrator.context.metadata.get("_pending_decisions") and not orchestrator.context.metadata.get("_pending_plans"):
                         expert_name = orchestrator.context.metadata.get("expert_name", "")
@@ -1148,8 +1166,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
             try:
                 if orchestrator and orchestrator.session_logger:
                     orchestrator.session_logger.close("completed")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
             # Clean up stuck building state
             if orchestrator and hasattr(orchestrator, 'state') and orchestrator.state.phase == "building":
                 code_files = orchestrator.context.artifacts.get("code_files", [])
@@ -1168,8 +1186,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
             try:
                 if orchestrator and orchestrator.session_logger:
                     orchestrator.session_logger.close("error")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
             import logging as _log
             _log.getLogger("educe.ws").error("WebSocket handler crash: %s", str(e)[:200])
 

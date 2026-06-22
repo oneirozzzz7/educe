@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 import asyncio
+import logging
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +20,8 @@ class StructuredError:
     error_type: str
     message: str
     context_lines: str = ""
+
+log = logging.getLogger("educe.execution_loop")
 
 
 @dataclass
@@ -231,8 +234,8 @@ class ExecutionLoop:
                             message="JS运行时错误: " + "; ".join(real_errors[:3])[:300]))
 
                 await browser.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("browser verification failed: %s", e)
         finally:
             if server_proc:
                 server_proc.terminate()

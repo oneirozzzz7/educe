@@ -10,7 +10,9 @@ import json
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
+import logging
 
+log = logging.getLogger("educe.core.session_state")
 
 STATE_DIR = Path(".educe/state")
 
@@ -134,7 +136,8 @@ class SessionState:
                     "updated_at": data.get("updated_at", 0),
                     "current_version": data.get("current_version", 0),
                 })
-            except Exception:
+            except Exception as e:
+                log.debug("suppressed: %s", e)
                 continue
         return sessions[offset:offset + limit]
 

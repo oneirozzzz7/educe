@@ -21,6 +21,9 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Awaitable
+import logging
+
+log = logging.getLogger("educe.core.tool_registry")
 
 
 @dataclass
@@ -169,5 +172,5 @@ class ToolRegistry:
                     headers=t.get("headers", {}),
                     params_schema=t.get("params_schema", {}),
                 ))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)

@@ -14,6 +14,9 @@ from typing import Any
 from dataclasses import dataclass, field
 
 from educe.core.knowledge import LayeredCache
+import logging
+
+log = logging.getLogger("educe.core.domain_engine")
 
 
 @dataclass
@@ -116,8 +119,8 @@ class DomainEngine:
                 data = json.loads(path.read_text())
                 dk = DomainKnowledge.from_dict(data)
                 self.domains[dk.domain] = dk
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
     def _save(self, dk: DomainKnowledge):
         safe_name = dk.domain.replace("/", "_").replace(" ", "_")[:50]

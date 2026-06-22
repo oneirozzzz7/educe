@@ -14,6 +14,9 @@ import re
 import time
 from pathlib import Path
 from dataclasses import dataclass, asdict
+import logging
+
+log = logging.getLogger("educe.core.quality_tracker")
 
 
 FEEDBACK_DIR = Path(".educe/feedback")
@@ -135,8 +138,8 @@ class QualityTracker:
                     if d not in domain_data:
                         domain_data[d] = []
                     domain_data[d].append(r)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
 
         stats = {}
         all_qualities = []

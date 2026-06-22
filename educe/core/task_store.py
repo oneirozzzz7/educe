@@ -7,6 +7,9 @@ import json
 import time
 from pathlib import Path
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.task_store")
 
 
 class TaskStore:
@@ -38,8 +41,8 @@ class TaskStore:
                     "created_at": data.get("created_at", 0),
                     "file_count": data.get("file_count", 0),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
             if len(tasks) >= limit:
                 break
         return tasks

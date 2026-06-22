@@ -282,8 +282,8 @@ class OrganRegistry:
                 for d in data:
                     organ = OrganModel.from_dict(d)
                     self._organs[organ.organ_id] = organ
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
     def _save(self) -> None:
         data = [o.to_dict() for o in self._organs.values()]

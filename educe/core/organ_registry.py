@@ -77,8 +77,8 @@ class OrganRegistry:
                 hint = organ.inject()
                 if hint:
                     parts.append(hint)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         return "\n".join(parts) if parts else ""
 
     def list_status(self) -> list[dict]:
@@ -87,8 +87,8 @@ class OrganRegistry:
         for organ in self._organs.values():
             try:
                 result.append(organ.status())
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         return result
 
     async def revert_organ(self, name: str) -> bool:

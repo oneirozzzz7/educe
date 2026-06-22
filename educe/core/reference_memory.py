@@ -68,8 +68,8 @@ def _load_log(log_path: Path) -> list[dict]:
         if line.strip():
             try:
                 entries.append(json.loads(line))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
     return entries
 
 

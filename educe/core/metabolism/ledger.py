@@ -128,6 +128,7 @@ class LedgerStore:
                     d["outcome_type"] = OutcomeType(d["outcome_type"])
                     d.setdefault("seq", -1)
                     records.append(ConsequenceRecord(**d))
-                except Exception:
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
                     continue
         return records

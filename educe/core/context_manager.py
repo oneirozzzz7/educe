@@ -7,6 +7,9 @@ Context Manager（激发引擎）
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
+
+log = logging.getLogger("educe.core.context_manager")
 
 
 @dataclass
@@ -105,8 +108,8 @@ def build_context(
         cred_hint = CredentialStore().get_prompt_hint()
         if cred_hint:
             cred_section = f"\n## 认证能力\n{cred_hint}\n"
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("suppressed: %s", e)
 
     # session 临时记忆（优先级最高）
     session_section = ""

@@ -14,6 +14,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.activation_engine")
 
 
 REASONING_CHAINS = {
@@ -114,8 +117,8 @@ class ActivationEngine:
         try:
             from educe.core.activation_evolver import ActivationEvolver
             self._evolver = ActivationEvolver()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
     def _load_best_seed(self) -> str:
         """从领域统计中加载效果最好的激发语"""
@@ -135,8 +138,8 @@ class ActivationEngine:
                         best_seed = s
                 if best_seed and best_quality > 0.5:
                     return best_seed
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
         return DEFAULT_ACTIVATION_SEED
 
     def build_activation_prompt(self, user_input: str,
@@ -182,8 +185,8 @@ class ActivationEngine:
             domains = route_domain(user_input, top_k=1)
             if domains:
                 return DOMAIN_LABELS.get(domains[0], domains[0])
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
         return ""
 
     def _get_domain_hint(self, user_input: str) -> str:
@@ -218,8 +221,8 @@ class ActivationEngine:
                     hint_parts.append("参考此前的成功回答要点：" + "；".join(domain_insights[:2]))
 
             return "\n".join(hint_parts)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
         return ""
 
     def parse_activated_response(self, raw_response: str) -> ActivatedResponse:

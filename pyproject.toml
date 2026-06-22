@@ -1,21 +1,25 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.13.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "educe"
 version = "0.2.0"
-description = "Educe - Governance layer between humans and AI models"
+description = "Educe - Open-source evolution engine for AI agents"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [{ name = "Educe Team" }]
-keywords = ["ai", "agent", "llm", "governance", "harness"]
+keywords = ["ai", "agent", "llm", "evolution", "orchestration"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
@@ -23,7 +27,6 @@ dependencies = [
     "openai>=1.0.0",
     "httpx>=0.25.0",
     "rich>=13.0.0",
-    "prompt-toolkit>=3.0.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "click>=8.0.0",
@@ -39,9 +42,17 @@ all = ["educe[web,dev]"]
 educe = "educe.cli.app:main"
 df = "educe.cli.app:main"
 
+[project.urls]
+Repository = "https://github.com/oneirozzzz7/educe"
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
 
 [tool.hatch.build.targets.wheel]
 packages = ["educe"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"

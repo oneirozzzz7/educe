@@ -43,13 +43,11 @@ class Orchestrator:
         self.bus = EventBus()
         self.knowledge = LayeredCache()
         self.session_logger: SessionLogger | None = None
+        self._module_health: dict[str, str] = {}
 
         from educe.core.unified_store import UnifiedKnowledgeStore
-        self.unified_store = None
-        try:
-            self.unified_store = UnifiedKnowledgeStore(Path(".educe/unified"))
-        except Exception:
-            pass
+        self.unified_store = self._try_init("unified_store",
+            lambda: UnifiedKnowledgeStore(Path(".educe/unified")))
 
         from educe.core.session_store import SessionStore
         self.session_store = SessionStore()
@@ -60,48 +58,29 @@ class Orchestrator:
         from educe.core.quality_tracker import QualityTracker
         self.quality_tracker = QualityTracker()
 
-        self.domain_engine = None
-        try:
-            from educe.core.domain_engine import DomainEngine
-            self.domain_engine = DomainEngine(knowledge=self.knowledge)
-        except Exception:
-            pass
+        from educe.core.domain_engine import DomainEngine
+        self.domain_engine = self._try_init("domain_engine",
+            lambda: DomainEngine(knowledge=self.knowledge))
 
-        self.activation_engine = None
-        try:
-            from educe.core.activation_engine import ActivationEngine
-            self.activation_engine = ActivationEngine(knowledge=self.knowledge, domain_engine=self.domain_engine)
-        except Exception:
-            pass
+        from educe.core.activation_engine import ActivationEngine
+        self.activation_engine = self._try_init("activation_engine",
+            lambda: ActivationEngine(knowledge=self.knowledge, domain_engine=self.domain_engine))
 
-        self.context_analyzer = None
-        try:
-            from educe.core.context_analyzer import ContextAnalyzer
-            self.context_analyzer = ContextAnalyzer()
-        except Exception:
-            pass
+        from educe.core.context_analyzer import ContextAnalyzer
+        self.context_analyzer = self._try_init("context_analyzer",
+            lambda: ContextAnalyzer())
 
-        self.distiller = None
-        try:
-            from educe.core.knowledge_distiller import KnowledgeDistiller
-            self.distiller = KnowledgeDistiller(self.knowledge)
-        except Exception:
-            pass
+        from educe.core.knowledge_distiller import KnowledgeDistiller
+        self.distiller = self._try_init("distiller",
+            lambda: KnowledgeDistiller(self.knowledge))
 
-        self.profile_manager = None
-        try:
-            from educe.core.user_profile import UserProfileManager
-            self.profile_manager = UserProfileManager()
-        except Exception:
-            pass
+        from educe.core.user_profile import UserProfileManager
+        self.profile_manager = self._try_init("profile_manager",
+            lambda: UserProfileManager())
 
-        self.credibility = None
-        try:
-            from educe.core.credibility_engine import CredibilityEngine
-            self.credibility = CredibilityEngine(
-                knowledge=self.knowledge, quality_tracker=self.quality_tracker)
-        except Exception:
-            pass
+        from educe.core.credibility_engine import CredibilityEngine
+        self.credibility = self._try_init("credibility",
+            lambda: CredibilityEngine(knowledge=self.knowledge, quality_tracker=self.quality_tracker))
 
         self.self_evolver = None
 
@@ -110,6 +89,28 @@ class Orchestrator:
 
         self.verbosity_organ = None
         self.organ_registry = None
+        self._init_organs()
+
+        self._on_message: list[Callable] = []
+        self._on_chunk: list[Callable] = []
+
+        disabled_count = sum(1 for v in self._module_health.values() if v.startswith("disabled"))
+        if disabled_count > 0:
+            log.warning("orchestrator init: %d module(s) disabled — %s",
+                        disabled_count,
+                        ", ".join(k for k, v in self._module_health.items() if v.startswith("disabled")))
+
+    def _try_init(self, name: str, factory: Callable) -> object | None:
+        try:
+            result = factory()
+            self._module_health[name] = "ok"
+            return result
+        except Exception as e:
+            log.warning("module disabled: %s — %s: %s", name, type(e).__name__, e)
+            self._module_health[name] = f"disabled: {type(e).__name__}: {e}"
+            return None
+
+    def _init_organs(self) -> None:
         try:
             from educe.core.organ_verbosity import VerbosityOrgan
             from educe.core.organ_codelang import CodeLangOrgan
@@ -118,11 +119,10 @@ class Orchestrator:
             self.organ_registry = OrganRegistry()
             self.organ_registry.register(self.verbosity_organ)
             self.organ_registry.register(CodeLangOrgan())
-        except Exception:
-            pass
-
-        self._on_message: list[Callable] = []
-        self._on_chunk: list[Callable] = []
+            self._module_health["organs"] = "ok"
+        except Exception as e:
+            log.warning("module disabled: organs — %s: %s", type(e).__name__, e)
+            self._module_health["organs"] = f"disabled: {type(e).__name__}: {e}"
 
     def register(self, agent: BaseAgent) -> None:
         self.agents[agent.name] = agent
@@ -390,8 +390,9 @@ class Orchestrator:
             try:
                 await cr.preload_capabilities()
                 self._connectors_preloaded = True
-            except Exception:
-                self._connectors_preloaded = True  # 不阻塞，标记已尝试
+            except Exception as e:
+                log.warning("connector preload failed: %s", e)
+                self._connectors_preloaded = False
         connector_summary = cr.get_level1_descriptions()
 
         system = build_context(
@@ -462,8 +463,8 @@ class Orchestrator:
                 _mem_injection = _mem_store.build_prompt_injection()
                 if _mem_injection:
                     system += f"\n\n{_mem_injection}"
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("project memory injection skipped: %s", e)
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:
@@ -933,8 +934,8 @@ class Orchestrator:
                 registry = self._get_skill_registry()
                 for sid in activated_ids:
                     registry.record_activation(sid, success=success)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("skill activation recording failed: %s", e)
 
         self._slog("framework", "turn_end",
                    summary=f"ended: {reason}",
@@ -1153,8 +1154,8 @@ class Orchestrator:
             from educe.core.credential_store import CredentialStore
             cred_env = CredentialStore().get_env_dict()
             env.update(cred_env)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("credential injection skipped: %s", e)
         supervisor = self._get_process_supervisor()
         grace_period = get_config("shell", "grace_period_ms", 5000) / 1000.0
         max_output = get_config("shell", "max_output_bytes", 512000)
@@ -1963,8 +1964,8 @@ class Orchestrator:
                     try:
                         content = fp.read_text(encoding="utf-8", errors="ignore")[:2000]
                         key_files.append(f"### {fp.relative_to(target_path)}\n```\n{content}\n```")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("read_dir preview skipped %s: %s", fp, e)
 
             if file_count > 100:
                 lines.append("  ... (超过100个文件，已截断)")
@@ -2301,8 +2302,8 @@ class Orchestrator:
                 import json as _j
                 try:
                     path = _j.loads(action.params).get("path", "")[:50]
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("suppressed: %s", e)
             return {
                 "label": f"{'✓' if success else '✗'} 写入 {path or '文件'}",
                 "command": f"write_file {path}",
@@ -2345,8 +2346,8 @@ class Orchestrator:
                         import yaml
                         self._knowledge_signals = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
                         break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("knowledge_signals yaml parse failed: %s", e)
         return self._knowledge_signals
 
     async def _try_reflex(self, user_input: str) -> str | None:
@@ -2388,8 +2389,8 @@ class Orchestrator:
                 return None  # 信号：已短路
             if result.escalation_hint:
                 return result.escalation_hint
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("reflex check failed: %s", e)
         return ""
 
     def _match_composite_skills(self, user_input: str, round_idx: int = 0) -> str:
@@ -2438,10 +2439,9 @@ class Orchestrator:
                              "best_level": best.level, "is_start": is_start})
 
             return "\n".join(lines)
-        except Exception:
+        except Exception as e:
+            log.debug("composite skill match failed: %s", e)
             return ""
-
-    def _filter_relevant_skills(self, skills: list, user_input: str) -> list:
         """根据 skill 自声明的 trigger_keywords 过滤相关性（公理五：认知来自声明）"""
         lower = user_input.lower()
         relevant = []
@@ -2829,8 +2829,8 @@ class Orchestrator:
                 client = ModelClient(api_key=self.config.default_model.api_key,
                                     base_url=self.config.default_model.base_url)
                 checklist = await generate_checklist(client, self.config.default_model.model, user_input)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("checklist generation skipped: %s", e)
 
         # ═══ B. 把 checklist 注入 builder prompt ═══
         build_input = user_input
@@ -2912,8 +2912,8 @@ class Orchestrator:
                                               content="__BUILD_PROGRESS__验收发现缺失功能，修复中...")
                         self._notify(progress_msg)
                         await self._run_agent("builder", fix_request, "system", timeout=300)
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("build verification failed: %s", e)
 
         has_output = bool(self.context.artifacts.get("code_files"))
         self.observer.finish_task(success=has_output, project_type=self.context.artifacts.get("project_type", ""),
@@ -3444,8 +3444,8 @@ class Orchestrator:
                 log_activity(self.context.metadata.get("session_id", ""),
                             "auto_extract", content=parsed["content"][:80])
                 log.info("_maybe_extract_knowledge | extracted: %s", parsed["content"][:60])
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("knowledge extraction failed: %s", e)
 
     def _match_skill(self, user_input: str) -> str | None:
         try:
@@ -3453,16 +3453,16 @@ class Orchestrator:
             skill = match_skill(user_input)
             if skill and skill.get("prompt_template"):
                 return skill["prompt_template"]
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("builtin skill match failed: %s", e)
         from educe.skills.registry import SkillRegistry
         try:
             sr = SkillRegistry(".educe/skills", ".educe/community_skills")
             results = sr.search(user_input)
             if results and results[0].prompt_template:
                 return results[0].prompt_template
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("skill registry search failed: %s", e)
         return None
 
     def _extract_and_store_knowledge(self, question: str, response: str, domain: str):
@@ -3560,7 +3560,8 @@ class Orchestrator:
                     est = parts[2].strip() if len(parts) > 2 else ""
                     plans.append({"id": len(plans) + 1, "title": title, "desc": desc, "est": est})
             return plans[:3]
-        except Exception:
+        except Exception as e:
+            log.debug("plan generation failed: %s", e)
             return []
 
     async def run_with_plan(self, user_input: str, plan: dict, user_note: str = "") -> "WorkContext":
@@ -3715,8 +3716,8 @@ class Orchestrator:
             user_request = self.context.user_request
             if engineer_output:
                 evolve_from_output(engineer_output, user_request, self.knowledge)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("evolution from result failed: %s", e)
 
     def _feedback_success(self):
         """有质量门控的反馈——只对非负向信号的回答标记成功"""
@@ -3778,8 +3779,8 @@ class Orchestrator:
                 from educe.core.activation_engine import DEFAULT_ACTIVATION_SEED
                 self.self_evolver = SelfEvolver(
                     client, self.config.default_model.model, DEFAULT_ACTIVATION_SEED)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("SelfEvolver init skipped: %s", e)
 
         file_context = self.context.metadata.get("uploaded_files_text", "")
 
@@ -3925,8 +3926,8 @@ class Orchestrator:
                         from educe.core.checklist_judge import evaluate
                         result = await evaluate(client, self.config.default_model.model, user_input, raw)
                         self.context.metadata["_judge_score"] = result.to_dict()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug("bg judge evaluation failed: %s", e)
                 asyncio.create_task(_bg_judge())
 
                 # 每20次回答触发一次evolver演化
@@ -3938,8 +3939,8 @@ class Orchestrator:
                             if result.get("status") == "evolved":
                                 console.print("[dim]Evolution gen {} - {} domains optimized[/dim]".format(
                                     result["generation"], result["domains_optimized"]))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug("evolver cycle failed: %s", e)
 
                 # (SelfEvolver已移至run()入口统一处理)
             else:

@@ -18,6 +18,9 @@ from educe.core.config import EduceConfig
 from educe.core.logging import SessionLogger
 from educe.core.orchestrator import Orchestrator
 from educe.models.router import ModelClient
+import logging
+
+log = logging.getLogger("educe.core.benchmark_runner")
 
 
 @dataclass
@@ -191,8 +194,8 @@ class BenchmarkRunner:
             try:
                 agent = agent_cls(config=cfg, model_client=client, knowledge=orchestrator.knowledge)
                 orchestrator.register(agent)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
         # Execute with timeout
         case_timeout = case.timeout_s or self.timeout_s

@@ -22,6 +22,9 @@ import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.metabolism.composite_skill")
 
 
 # ═══════════════════════════════════════
@@ -482,8 +485,8 @@ class SkillRegistry:
                 for d in data:
                     skill = CompositeSkill.from_dict(d)
                     self._skills[skill.skill_id] = skill
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
     def _save(self) -> None:
         data = [s.to_dict() for s in self._skills.values()]

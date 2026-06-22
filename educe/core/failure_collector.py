@@ -10,6 +10,9 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+import logging
+
+log = logging.getLogger("educe.core.failure_collector")
 
 
 def collect_failures(logs_dir: Path, output_dir: Path | None = None) -> list[dict]:
@@ -28,7 +31,8 @@ def collect_failures(logs_dir: Path, output_dir: Path | None = None) -> list[dic
             for line in session_dir.read_text().strip().split("\n"):
                 if line.strip():
                     events.append(json.loads(line))
-        except Exception:
+        except Exception as e:
+            log.debug("suppressed: %s", e)
             continue
 
         # Find trace file for this session
@@ -39,8 +43,8 @@ def collect_failures(logs_dir: Path, output_dir: Path | None = None) -> list[dic
                 for line in trace_file.read_text().strip().split("\n"):
                     if line.strip():
                         traces.append(json.loads(line))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
 
         # Build trace index: trace_id → payload
         trace_index = {t["trace_id"]: t for t in traces if "trace_id" in t}
@@ -99,7 +103,8 @@ def replay_fixtures(fixtures_dir: Path) -> dict[str, Any]:
     for fixture_path in sorted(fixtures_dir.glob("*.json")):
         try:
             f = json.loads(fixture_path.read_text())
-        except Exception:
+        except Exception as e:
+            log.debug("suppressed: %s", e)
             continue
 
         llm_output = f.get("llm_output", "")

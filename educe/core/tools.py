@@ -6,12 +6,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import subprocess
 import tempfile
 import re
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel
+
+log = logging.getLogger("educe.tools")
 
 
 class Tool(BaseModel):
@@ -79,10 +82,8 @@ class RunHTMLTool(Tool):
                 _, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
                 if proc.returncode != 0:
                     issues.append(f"JS语法错误(block{i}): {stderr.decode()[:150]}")
-            except Exception:
-                pass
-            finally:
-                Path(tmp).unlink(missing_ok=True)
+            except Exception as e:
+                log.debug("JS syntax check skipped (node unavailable?): %s", e)
 
         if not issues:
             return f"验证通过: HTML完整, JS语法正确, {len(content)}bytes"

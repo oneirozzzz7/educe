@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+import logging
+
+log = logging.getLogger("educe.core.observer")
 
 
 class AgentTrace(BaseModel):
@@ -150,6 +153,6 @@ class Observer:
             try:
                 data = json.loads(path.read_text())
                 traces.append(TaskTrace.model_validate(data))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)
         return traces

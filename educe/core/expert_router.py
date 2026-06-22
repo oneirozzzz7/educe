@@ -5,6 +5,9 @@ DeepForge 专家路由引擎
 from __future__ import annotations
 
 import re
+import logging
+
+log = logging.getLogger("educe.core.expert_router")
 
 EXPERTS: list[dict] = [
     {
@@ -190,8 +193,8 @@ async def classify_expert(query: str, model_client, model: str) -> dict:
         expert_id = result.strip().lower().split()[0].rstrip(".,;:")
         if expert_id in EXPERT_IDS:
             return EXPERT_IDS[expert_id]
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("suppressed: %s", e)
     return match_expert(query)
 
 

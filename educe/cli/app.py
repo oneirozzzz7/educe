@@ -17,6 +17,9 @@ from educe.models.router import ModelClient, ModelRouter, PROVIDER_PRESETS
 from educe.agents import ALL_AGENTS
 from educe.memory.store import MemoryStore
 from educe.skills.registry import SkillRegistry
+import logging
+
+log = logging.getLogger("educe.cli.app")
 
 console = Console()
 
@@ -185,8 +188,8 @@ def chat(config):
                     int(rating),
                 )
                 console.print(f"[dim]感谢反馈！评分已记录[/dim]")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
         console.print()
 

@@ -481,8 +481,8 @@ class BuilderAgent(BaseAgent):
                 from educe.core.activity_log import log_activity
                 log_activity(context.metadata.get("session_id", ""),
                             "seed_used", seed=build_seed[:50])
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
         # 意图注入——来自深度意图理解
         intent = context.metadata.get("_user_intent", "")

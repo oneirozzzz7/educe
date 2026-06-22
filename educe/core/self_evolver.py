@@ -18,6 +18,9 @@ import json
 import time
 from pathlib import Path
 from dataclasses import dataclass, field
+import logging
+
+log = logging.getLogger("educe.core.self_evolver")
 
 
 EVOLVER_LOG = Path(".educe/evolution/self_evolver.jsonl")
@@ -107,8 +110,8 @@ class SelfEvolver:
                 "candidate_score": score_cand.total,
                 "winner": winner,
             })
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
 
     def ab_complete(self) -> bool:
         return len(self._ab_results) >= 10
@@ -179,5 +182,5 @@ class SelfEvolver:
                 saved_seed = state.get("current_best", "")
                 if saved_seed:
                     self.current_best = saved_seed
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("suppressed: %s", e)

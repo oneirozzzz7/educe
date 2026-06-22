@@ -11,6 +11,9 @@ import time
 import subprocess
 from pathlib import Path
 from datetime import datetime
+import logging
+
+log = logging.getLogger("educe.core.trend_tracker")
 
 
 BENCHMARKS_DIR = Path(".educe/benchmarks")
@@ -24,8 +27,8 @@ def record_benchmark(results: list, metadata: dict = None) -> Path:
         git_hash = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
             stderr=subprocess.DEVNULL).decode().strip()
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("suppressed: %s", e)
 
     record = {
         "timestamp": time.time(),
@@ -57,8 +60,8 @@ def load_history() -> list:
     for path in sorted(BENCHMARKS_DIR.glob("benchmark_*.json")):
         try:
             records.append(json.loads(path.read_text()))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("suppressed: %s", e)
     return records
 
 

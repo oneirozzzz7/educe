@@ -12,7 +12,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+import logging
 
+log = logging.getLogger("educe.core.governance_calibration")
 
 @dataclass
 class InterventionStats:
@@ -52,7 +54,8 @@ def analyze_sessions(logs_dir: Path) -> dict[str, InterventionStats]:
     for events_file in logs_dir.rglob("events.jsonl"):
         try:
             events = [json.loads(l) for l in events_file.read_text().strip().split("\n") if l.strip()]
-        except Exception:
+        except Exception as e:
+            log.debug("suppressed: %s", e)
             continue
 
         if len(events) < 3:
@@ -172,7 +175,8 @@ def _count_true_fn(all_dirs: list[Path]) -> int:
         for events_file in logs_dir.rglob("events.jsonl"):
             try:
                 events = [json.loads(l) for l in events_file.read_text().strip().split("\n") if l.strip()]
-            except Exception:
+            except Exception as e:
+                log.debug("suppressed: %s", e)
                 continue
             if len(events) < 3:
                 continue
