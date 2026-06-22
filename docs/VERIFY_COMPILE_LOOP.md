@@ -93,14 +93,15 @@ Educe 进化的不是智力（那是模型的事），是**对自己所处世界
 
 | 优先级 | 任务 | 验收标准 |
 |--------|------|---------|
-| **P0** | 记忆自动写入 | 失败反思→自动写入 scar / 成功事实→自动写入 fact / 用户纠正→convention |
-| **P0** | Verify-on-Read | 注入记忆时检查 anchor（文件在？变了？）→ confirmed++ 或 challenged++ |
-| **P0** | 稳定性实测 | 用 Educe 完成一个真实任务，记录所有崩溃点 |
-| **P1** | web_search 接真 API | Tavily/Serper key 配置 → 结构化搜索结果 |
-| **P1** | 引用链记录 | @A → model reads B,C → 存 A→B,C 关联 |
-| **P2** | 主动召回 | 相关记忆时主动提示"你之前为了X读过这个文件" |
-| **P2** | L1 环境记忆 | 缓存已探测的环境事实 |
-| **P2** | L3 策略先验 | 从重复解决同类问题中提炼元策略 |
+| **P0 稳定化** | except:pass → log+决定 | grep 全部裸 except，改为具体异常+日志+降级。0 个裸 except 残留 |
+| **P0 稳定化** | 主路径 smoke test | 输入"写 /tmp/test.py 打印 hello 并运行" → 断言 exit 0 + 文件存在 |
+| **P0 稳定化** | 非核心模块失败隔离 | 手动让 VerbosityOrgan init 抛异常 → 主路径仍正常 |
+| **P1** | 记忆自动写入 | 失败反思→自动写入 scar / 成功事实→自动写入 fact / 用户纠正→convention |
+| **P1** | 冲突仲裁 | 新记忆和旧记忆矛盾→标记 disputed→呈现用户→裁决 |
+| **P1** | Verify-on-Read | 注入记忆时检查 anchor（文件在？变了？）→ confirmed++ 或 challenged++ |
+| **P2** | orchestrator.py 拆分 | shell/file executors 抽出 → orchestrator < 2000 行 |
+| **P2** | 器官降级为数据 | VerbosityOrgan → ProjectMemoryStore 里的 type=convention 条目 |
+| **P2** | web_search 接真 API | Tavily/Serper key 配置 → 结构化搜索结果 |
 
 ---
 
