@@ -17,7 +17,13 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
   useEffect(() => {
     fetch(`http://${API_HOST}/api/files?q=${encodeURIComponent(query)}&limit=10`)
       .then(r => r.json())
-      .then(d => { setFiles(d.files || []); setSelectedIdx(0); })
+      .then(d => {
+        const codeFiles = (d.files || []).filter((f: string) =>
+          !f.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|ttf|eot|mp4|mp3|zip|tar|gz|pdf)$/i)
+        );
+        setFiles(codeFiles);
+        setSelectedIdx(0);
+      })
       .catch(() => setFiles([]));
   }, [query]);
 
@@ -37,8 +43,8 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
   return (
     <div
       ref={ref}
-      className="absolute bottom-full left-0 mb-1 w-full max-h-[200px] overflow-auto rounded-xl"
-      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow)", zIndex: 100 }}
+      className="absolute left-0 right-0 bottom-full mb-2 max-h-[240px] overflow-auto rounded-xl"
+      style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "0 -4px 20px rgba(0,0,0,0.3)", zIndex: 9999 }}
     >
       {files.map((f, i) => (
         <div
