@@ -77,16 +77,30 @@ Educe 进化的不是智力（那是模型的事），是**对自己所处世界
 
 ---
 
-## 五、下次 Session 执行清单
+## 五、执行状态（Session 6 更新）
+
+### 已完成
+| 任务 | 状态 | 验证 |
+|------|------|------|
+| 失败分类器 | ✅ | 8/8 单元测试 + E2E(tabulate 安装重试) |
+| 环境缺失自动修复 | ✅ | pip install → 重试 → 成功 |
+| 成功轨迹自动编译 | ✅ | fib.py 自动注册到 SkillRegistry |
+| 失败反思注入 | ✅ | buggy.py 修复 E2E |
+| 复利记忆注入 | ✅ | scar 预警 E2E（clarify 死循环） |
+| web_search（shell curl） | ❌ 搁置 | 不可靠，需接真 API |
+
+### 下次 Session 执行清单（优先级排序）
 
 | 优先级 | 任务 | 验收标准 |
 |--------|------|---------|
-| P0 | 失败分类器 | stderr 自动匹配→归类4种类型→不同应对策略 |
-| P0 | 环境缺失自动修复 | `command not found` → 自动 `pip install` / `brew install` → 重试 |
-| P1 | web_search 工具 | 认知错误时能搜索网络获取新信息 |
-| P1 | 成功轨迹自动编译 | 完成复杂任务后→trace→自动提炼 skill |
-| P2 | L1 环境记忆 | 缓存已探测的环境事实（已装软件/路径/配置） |
-| P2 | L3 策略先验 | 从多次解决同类问题中提炼"先做什么最高效" |
+| **P0** | 记忆自动写入 | 失败反思→自动写入 scar / 成功事实→自动写入 fact / 用户纠正→convention |
+| **P0** | Verify-on-Read | 注入记忆时检查 anchor（文件在？变了？）→ confirmed++ 或 challenged++ |
+| **P0** | 稳定性实测 | 用 Educe 完成一个真实任务，记录所有崩溃点 |
+| **P1** | web_search 接真 API | Tavily/Serper key 配置 → 结构化搜索结果 |
+| **P1** | 引用链记录 | @A → model reads B,C → 存 A→B,C 关联 |
+| **P2** | 主动召回 | 相关记忆时主动提示"你之前为了X读过这个文件" |
+| **P2** | L1 环境记忆 | 缓存已探测的环境事实 |
+| **P2** | L3 策略先验 | 从重复解决同类问题中提炼元策略 |
 
 ---
 
@@ -111,4 +125,54 @@ Educe 的核心机制是**在任意情境下把世界的某一部分识别为杠
 
 ---
 
-*下次 session 直接从第五节执行清单开始。*
+## 八、记忆自动写入方案（下次 Session 执行）
+
+### 写入来源与触发条件
+
+| 来源 | 触发条件 | 记忆类型 | 初始 confidence |
+|------|---------|----------|----------------|
+| 失败反思 | shell exit≠0 且分类为认知错误 | scar | 0.90 |
+| 用户纠正 | 用户对结果说"不对/应该是X" | convention | 0.95 |
+| 重复成功模式 | 同类操作成功 ≥3 次 | fact | 0.70 |
+| 环境发现 | 首次探测到环境信息（已装软件/路径） | fact | 0.50 |
+
+### 写入格式
+
+```python
+# 在 action_loop 的 turn_end 时：
+if had_failure and classification.kind == "cognitive":
+    memory_store.add(MemoryEntry(
+        id=gen_id(),
+        type="scar",
+        content=f"执行 {cmd} 时因 {error_reason} 失败，正确做法是 {fix_description}",
+        anchor={"type": "file", "ref": relevant_file},
+        confidence=0.90,
+        provenance={"born": trace_id},
+    ))
+```
+
+### 防爆炸机制
+
+- 凝结阈值：单次观察不写入，重复出现 ≥N 次才凝结为记忆
+- 去重：写入前检查是否已有相似内容（content 相似度）
+- 容量上限：总记忆条数上限（如 200），超出时淘汰最低 confidence 的
+
+### Verify-on-Read（验证闭环）
+
+```python
+# 注入记忆时：
+for mem in active_memories:
+    if mem.anchor and mem.anchor["type"] == "file":
+        path = Path(mem.anchor["ref"])
+        if not path.exists():
+            mem.provenance["challenged"].append(trace_id)
+            if len(mem.provenance["challenged"]) >= 3:
+                soft_delete(mem)
+        else:
+            mem.provenance["confirmed"].append(trace_id)
+            mem.verified_at = time.time()
+```
+
+---
+
+*下次 session 从记忆自动写入开始。把"手写 5 条记忆"升级为"系统自动沉淀"。*
