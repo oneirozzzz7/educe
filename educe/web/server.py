@@ -662,14 +662,10 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         results = []
         exclude = {".git", "node_modules", "__pycache__", ".educe", ".next", "venv", "env", ".playwright-mcp"}
-        skip_ext = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot",
-                    ".mp4", ".mp3", ".zip", ".tar", ".gz", ".pdf", ".pyc", ".so", ".dylib"}
         for root, dirs, files in os.walk(project_path):
             dirs[:] = [d for d in dirs if d not in exclude]
             for f in files:
                 if f.startswith(".") and f != ".env":
-                    continue
-                if any(f.lower().endswith(ext) for ext in skip_ext):
                     continue
                 rel = os.path.relpath(os.path.join(root, f), project_path)
                 if q and q.lower() not in rel.lower():

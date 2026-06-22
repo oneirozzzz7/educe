@@ -17,13 +17,7 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
   useEffect(() => {
     fetch(`http://${API_HOST}/api/files?q=${encodeURIComponent(query)}&limit=10`)
       .then(r => r.json())
-      .then(d => {
-        const codeFiles = (d.files || []).filter((f: string) =>
-          !f.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|ttf|eot|mp4|mp3|zip|tar|gz|pdf)$/i)
-        );
-        setFiles(codeFiles);
-        setSelectedIdx(0);
-      })
+      .then(d => { setFiles(d.files || []); setSelectedIdx(0); })
       .catch(() => setFiles([]));
   }, [query]);
 
