@@ -41,30 +41,42 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
   if (files.length === 0) return null;
 
   return (
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        bottom: 80,
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "min(600px, 90vw)",
-        maxHeight: 240,
-        overflow: "auto",
-        borderRadius: 12,
-        background: "var(--bg-elevated)",
-        border: "1px solid var(--border)",
-        boxShadow: "0 -8px 30px rgba(0,0,0,0.4)",
-        zIndex: 9999,
-      }}
-    >
+    <>
+      {/* 遮罩层：挡住后面的对话内容 */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          zIndex: 9998,
+        }}
+      />
+      {/* 选择器面板 */}
+      <div
+        ref={ref}
+        style={{
+          position: "fixed",
+          bottom: 80,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(600px, 90vw)",
+          maxHeight: 240,
+          overflow: "auto",
+          borderRadius: 12,
+          background: "#1a1a2e",
+          border: "1px solid #333",
+          boxShadow: "0 -8px 30px rgba(0,0,0,0.6)",
+          zIndex: 9999,
+        }}
+      >
       {files.map((f, i) => (
         <div
           key={f}
           className="px-3 py-1.5 text-[12px] cursor-pointer truncate"
           style={{
-            background: i === selectedIdx ? "var(--bg-code)" : "transparent",
-            color: "var(--text)",
+            background: i === selectedIdx ? "#2a2a4a" : "transparent",
+            color: "#e0e0e0",
           }}
           onClick={() => onSelect(f)}
           onMouseEnter={() => setSelectedIdx(i)}
@@ -72,7 +84,8 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
           <span style={{ color: "var(--text-3)" }}>@</span> {f}
         </div>
       ))}
-    </div>
+      </div>
+    </>
   );
 }
 
