@@ -614,20 +614,31 @@ class Orchestrator:
             # 模型调用（action 轮次用非流式，避免标签被流式推送到前端）
             _t0 = __import__("time").time()
             try:
-                raw = await client.chat(
+                raw = await asyncio.wait_for(client.chat(
                     messages=messages,
                     model=self.config.default_model.model,
                     max_tokens=self.config.default_model.max_tokens,
-                )
+                ), timeout=120)
+            except asyncio.TimeoutError:
+                log.error("_action_loop | round %d model call timed out (120s)", round_idx)
+                self._slog("llm_call", "llm_response", status="error",
+                           summary="model call timed out",
+                           data={"round": round_idx, "error": "timeout 120s"})
+                self._emit_tool_event({
+                    "type": "error",
+                    "kind": "timeout",
+                    "message": "模型响应超时(120s)，请稍后重试或换用更快的模型",
+                    "retryable": True,
+                })
+                raw = ""
             except Exception as e:
                 log.error("_action_loop | round %d model call failed: %s", round_idx, str(e)[:100])
                 self._slog("llm_call", "llm_response", status="error",
                            summary=f"model call failed: {str(e)[:60]}",
                            data={"round": round_idx, "error": str(e)[:200]})
-                error_kind = "timeout" if "timeout" in str(e).lower() else "model_error"
                 self._emit_tool_event({
                     "type": "error",
-                    "kind": error_kind,
+                    "kind": "model_error",
                     "message": f"模型调用失败: {str(e)[:100]}",
                     "retryable": True,
                 })
@@ -3955,20 +3966,23 @@ class Orchestrator:
             # Streaming输出——用户实时看到回答生成
             raw = ""
             try:
-                async for chunk in client.chat_stream(
-                    messages=messages,
-                    model=self.config.default_model.model,
-                    max_tokens=self.config.default_model.max_tokens,
-                ):
-                    raw += chunk
-                    self._notify_chunk("assistant", chunk)
-            except Exception:
-                if not raw:
-                    raw = await client.chat(
+                async def _stream_collect():
+                    nonlocal raw
+                    async for chunk in client.chat_stream(
                         messages=messages,
                         model=self.config.default_model.model,
                         max_tokens=self.config.default_model.max_tokens,
-                    )
+                    ):
+                        raw += chunk
+                        self._notify_chunk("assistant", chunk)
+                await asyncio.wait_for(_stream_collect(), timeout=120)
+            except (asyncio.TimeoutError, Exception):
+                if not raw:
+                    raw = await asyncio.wait_for(client.chat(
+                        messages=messages,
+                        model=self.config.default_model.model,
+                        max_tokens=self.config.default_model.max_tokens,
+                    ), timeout=120)
 
             # ResponseValidator：通用语义验证
             from educe.core.response_validator import should_validate, validate_response, build_retry_prompt
