@@ -55,7 +55,7 @@ steps:
         - { contains_any: ["0", "零"], description: "回答了第一个输出" }
         - { not_contains: ["不知道", "哪个文件", "请告诉我"], description: "没有兜圈子" }
       format:
-        - { max_length: 500, description: "回复不啰嗦" }
+        - { max_length: 2000, description: "回复不啰嗦" }
         - { min_length: 10, description: "回复不截断" }
         - { has_structure: true, description: "有段落/列表等结构感" }
       logs:

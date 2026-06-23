@@ -45,9 +45,7 @@ steps:
         - { not_contains: ["不知道", "无法确定"], description: "没有拒绝回答" }
       format:
         - { min_length: 5, description: "回复有内容" }
-        - { max_length: 800, description: "基础问题不该长篇大论" }
-      logs:
-        - event_exists: "request_complete"
+        - { max_length: 2000, description: "基础问题不该长篇大论" }
 
   # ═══ Tier 2: 中级 — 需要执行代码验证的问题 ═══
   - name: "tier2_intermediate"

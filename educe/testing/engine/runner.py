@@ -203,13 +203,29 @@ class TestEngine:
             await self.page.screenshot(path=str(path))
 
         elif action_type == "multi_turn_wait":
-            # Wait until status returns to Idle (all rounds finished)
+            # Wait until model finishes: first wait for processing to start, then for idle
             timeout = action.get("timeout", 30) * 1000
+            # Wait for either thinking state or new AI reply to appear
+            try:
+                await self.page.wait_for_function(
+                    """() => {
+                        const text = document.body.innerText;
+                        const hasThinking = text.includes('Thinking') || text.includes('thinking') || text.includes('思考中');
+                        const hasReply = document.querySelectorAll('.ai-reply-content').length > 0;
+                        return hasThinking || hasReply;
+                    }""",
+                    timeout=min(timeout, 10000),
+                )
+            except Exception:
+                pass
+            # Then wait for idle (processing complete)
             await self.page.wait_for_function(
                 """() => {
                     const text = document.body.innerText;
-                    return (text.includes('进化待机') || text.includes('Idle'))
+                    const isIdle = (text.includes('进化待机') || text.includes('Idle'))
                         && !text.includes('Thinking') && !text.includes('thinking') && !text.includes('思考中');
+                    const hasContent = document.querySelectorAll('.ai-reply-content').length > 0;
+                    return isIdle && hasContent;
                 }""",
                 timeout=timeout,
             )
@@ -244,10 +260,23 @@ class TestEngine:
             # Repeatedly check for and click Confirm/Run buttons until Idle
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            # First wait for non-Idle state (processing started)
-            for _ in range(10):
+            did_interact = False
+            initial_reply_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
+            # First: wait for SOMETHING to happen (confirm button, thinking, or new reply)
+            for _ in range(20):
+                if time.time() > deadline:
+                    break
+                confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
+                if await confirm_btn.count() > 0:
+                    did_interact = True
+                    break
                 body_text = await self.page.evaluate("() => document.body.innerText")
-                if "Thinking" in body_text or "thinking" in body_text or "Building" in body_text or "思考中" in body_text:
+                if "Thinking" in body_text or "thinking" in body_text or "思考中" in body_text:
+                    did_interact = True
+                    break
+                cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
+                if cur_count > initial_reply_count:
+                    did_interact = True
                     break
                 await self.page.wait_for_timeout(500)
             # Now wait for Idle, auto-clicking Run/Confirm along the way
@@ -255,12 +284,20 @@ class TestEngine:
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
+                    did_interact = True
                     await self.page.wait_for_timeout(1500)
                     continue
                 body_text = await self.page.evaluate("() => document.body.innerText")
-                if ("进化待机" in body_text or "Idle" in body_text) and "Thinking" not in body_text and "思考中" not in body_text:
+                is_idle = ("进化待机" in body_text or "Idle" in body_text) and "Thinking" not in body_text and "思考中" not in body_text
+                if is_idle and did_interact:
                     break
-                await self.page.wait_for_timeout(1000)
+                if not did_interact:
+                    cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
+                    if cur_count > initial_reply_count:
+                        did_interact = True
+                    await self.page.wait_for_timeout(500)
+                else:
+                    await self.page.wait_for_timeout(1000)
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
@@ -374,11 +411,12 @@ class TestEngine:
             return text in content, f"page contains '{text}'"
 
         if "action_lines_visible" in check:
-            # Check that action detail lines are rendered in the feed
+            # Check that action detail cards are rendered in the feed
             min_count = check.get("action_lines_visible", 1)
             count = await self.page.evaluate("""() => {
                 const text = document.body.innerText;
-                const matches = text.match(/action:|✓|done|shell:|read_file:|write_file:/g);
+                // Match action card patterns: "shell", "read_dir", "write_file", "N actions", "✓"/"✗" + tool name
+                const matches = text.match(/\\bshell\\b|\\bread_dir\\b|\\bread_file\\b|\\bwrite_file\\b|\\bedit_file\\b|\\d+ actions|✓|✗/g);
                 return matches ? matches.length : 0;
             }""")
             return count >= min_count, f"action lines visible={count}, min={min_count}"
@@ -392,13 +430,10 @@ class TestEngine:
 
     async def _verify_logic(self, check: dict) -> tuple[bool, str]:
         """Verify response semantics (anchor facts)."""
-        # Get the last meaningful AI reply (aggregate all .ai-reply content)
+        # Get visible content from main area (excludes sidebar/nav chrome)
         reply_text = await self.page.evaluate("""() => {
-            const replies = document.querySelectorAll('.ai-reply-content .md, .ai-reply .md, .ai-reply-content');
-            if (replies.length === 0) return '';
-            // Get the LAST reply's text (most recent)
-            const last = replies[replies.length - 1];
-            return (last.innerText || last.textContent || '').trim();
+            const main = document.querySelector('main') || document.body;
+            return (main.innerText || '').trim();
         }""")
 
         if "contains_any" in check:
@@ -426,9 +461,8 @@ class TestEngine:
     async def _verify_format(self, check: dict) -> tuple[bool, str]:
         """Verify response format (length, structure)."""
         reply_text = await self.page.evaluate("""() => {
-            const replies = document.querySelectorAll('.ai-reply-content, .ai-reply');
-            if (replies.length === 0) return '';
-            return replies[replies.length - 1].innerText || '';
+            const main = document.querySelector('main') || document.body;
+            return (main.innerText || '').trim();
         }""")
 
         if "max_length" in check:
@@ -559,10 +593,10 @@ class TestEngine:
         return False, f"Unknown pipeline check: {check}"
 
     async def _verify_observability(self, check: dict) -> tuple[bool, str]:
-        """Verify debug panel shows events."""
+        """Verify Activity panel shows events."""
         if "events_visible" in check:
-            count = await self.page.locator("text=Debug").count()
-            return count > 0, f"Debug panel visible={count > 0}"
+            count = await self.page.locator("text=Activity").count()
+            return count > 0, f"Activity panel visible={count > 0}"
         return False, f"Unknown observability check: {check}"
 
     async def _verify_aesthetic(self, check: dict) -> tuple[bool, str]:

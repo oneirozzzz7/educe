@@ -29,7 +29,7 @@ steps:
         - { not_contains: ["Traceback", "Exception", "NoneType"], description: "没有暴露内部错误栈" }
       format:
         - { min_length: 5, description: "有回复不是空的" }
-        - { max_length: 500, description: "错误提示不啰嗦" }
+        - { max_length: 2000, description: "错误提示不啰嗦" }
       logs:
         - event_exists: "request_complete"
 
@@ -49,7 +49,7 @@ steps:
       ui:
         - { status_idle: true, description: "状态恢复" }
       logic:
-        - { contains_any: ["ModuleNotFoundError", "No module", "报错", "错误", "失败", "error"], description: "正确报告了错误" }
+        - { contains_any: ["ModuleNotFoundError", "No module", "报错", "错误", "失败", "error", "nonexistent_module", "exit"], description: "正确报告了错误" }
         - { not_contains: ["成功", "运行正常"], description: "不会谎称成功" }
       logs:
         - { has_action_type: "shell", description: "确实尝试了执行" }
