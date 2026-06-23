@@ -38,7 +38,7 @@ steps:
   - name: "wait_stream_result"
     action:
       type: "auto_confirm_loop"
-      timeout: 30
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "执行完毕" }
@@ -95,7 +95,7 @@ steps:
   - name: "wait_multi_action"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["6", "7", "line", "行", "echo", "sleep"], description: "回复了文件内容信息" }

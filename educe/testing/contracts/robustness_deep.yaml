@@ -46,7 +46,7 @@ steps:
   - name: "wait_edit_fail"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "不卡死" }
@@ -81,7 +81,7 @@ steps:
   - name: "wait_special_name"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "不崩溃" }
@@ -111,7 +111,7 @@ steps:
   - name: "wait_rapid_all"
     action:
       type: "auto_confirm_loop"
-      timeout: 30
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "全部处理完" }

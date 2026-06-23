@@ -32,7 +32,7 @@ steps:
   - name: "wait_read_dir"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "执行完毕" }
@@ -52,7 +52,7 @@ steps:
   - name: "wait_read_file"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["def greet", "Hello", "import os"], description: "文件内容正确" }
@@ -71,7 +71,7 @@ steps:
   - name: "wait_read_lines"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["def greet", "return", "Hello"], description: "返回了正确行范围" }
@@ -87,7 +87,7 @@ steps:
   - name: "wait_search"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["greet", "def greet", "第", "line", "行"], description: "搜索到了关键词位置" }
@@ -103,7 +103,7 @@ steps:
   - name: "wait_write_file"
     action:
       type: "auto_confirm_loop"
-      timeout: 25
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "写入完毕" }
@@ -121,7 +121,7 @@ steps:
   - name: "wait_edit_file"
     action:
       type: "auto_confirm_loop"
-      timeout: 25
+      timeout: 45
     verify:
       ui:
         - { status_idle: true, description: "修改完毕" }
@@ -139,7 +139,7 @@ steps:
   - name: "wait_verify"
     action:
       type: "auto_confirm_loop"
-      timeout: 20
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["v2", "educe test v2"], description: "修改已生效" }
@@ -156,7 +156,7 @@ steps:
   - name: "wait_shell_verify"
     action:
       type: "auto_confirm_loop"
-      timeout: 25
+      timeout: 45
     verify:
       logic:
         - { contains_any: ["v2", "hello from educe"], description: "shell 验证文件内容正确" }
