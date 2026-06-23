@@ -10,7 +10,14 @@ interface DebugPanelProps {
 }
 
 function isNoise(event: any): boolean {
-  return event.type === "state_sync" || event.type === "status" || event.type === "ping";
+  if (event.type === "state_sync" || event.type === "status" || event.type === "ping") return true;
+  if (event.type === "agent_message" && event.msg_type === "result") return true;
+  if (event.type === "chunk") return true;
+  if (event.type === "tool_start" || event.type === "tool_chunk" || event.type === "tool_end" || event.type === "tool_cancel") return true;
+  // tool_event without action_detail/action_result/build_complete = internal noise
+  if (event.type === "tool_event" && !event.event) return true;
+  if (event.type === "tool_event" && !["action_detail", "action_result", "build_complete", "transcript"].includes(event.event)) return true;
+  return false;
 }
 
 function formatTime(ts: number): string {
@@ -38,12 +45,20 @@ function getEventMeta(event: any): { icon: React.ReactNode; label: string; color
       summary: (event.content || "").slice(0, 80) || "responding...",
     };
   }
-  if (type === "action_detail" || type.startsWith("tool")) {
+  if (type === "agent_message") {
+    return {
+      icon: <MessageSquare size={12} />,
+      label: event.sender || "AI",
+      color: "var(--pass)",
+      summary: (event.content || event.summary || "").slice(0, 80),
+    };
+  }
+  if (type === "action_detail" || type === "action_result" || type.startsWith("tool")) {
     return {
       icon: <Terminal size={12} />,
-      label: event.name || "action",
+      label: event.name || event.action_type || event.event || "action",
       color: "var(--text-2)",
-      summary: String(event.summary || event.result || "done"),
+      summary: String(event.summary || event.command || event.content || event.label || event.result || "done"),
     };
   }
   if (type === "error" || type === "action_error") {

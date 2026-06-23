@@ -125,16 +125,23 @@ function ActionLine({ event, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const success = event.success !== false;
   return (
     <div className="mb-2">
       <div
         className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer transition-all hover:bg-[var(--surface-1)]"
         onClick={onToggle}
       >
-        <Check size={12} style={{ color: "var(--pass)", flexShrink: 0 }} />
+        {success
+          ? <Check size={12} style={{ color: "var(--pass)", flexShrink: 0 }} />
+          : <AlertCircle size={12} style={{ color: "var(--fail)", flexShrink: 0 }} />
+        }
+        <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "'Geist Mono', monospace", flexShrink: 0 }}>
+          {event.name || event.action_type || "action"}
+        </span>
         <span className="truncate" style={{ fontSize: 12, color: "var(--text-2)", fontFamily: "'Geist Mono', monospace" }}>
-          {event.name || "action"}: {event.summary || event.result || "done"}
-          {event.duration_ms != null && ` (${event.duration_ms}ms)`}
+          {event.summary || event.command || event.label || "done"}
+          {event.elapsed_ms != null && event.elapsed_ms > 0 && ` (${event.elapsed_ms}ms)`}
         </span>
         <span className="ml-auto shrink-0" style={{ fontSize: 10, color: "var(--text-3)" }}>{formatTs(event.ts)}</span>
       </div>
@@ -155,7 +162,7 @@ function ActionLine({ event, isExpanded, onToggle }: {
             maxHeight: 300,
             overflow: "auto",
           }}>
-            {event.result || event.output || event.summary || "done"}
+            {event.output_preview || event.result || event.output || event.summary || "done"}
           </pre>
         </div>
       )}
@@ -327,7 +334,7 @@ function ActionGroup({ events, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const names = events.map(e => e.name || "action");
+  const names = events.map(e => e.name || e.action_type || "action");
   const uniqueNames = [...new Set(names)];
   const summary = uniqueNames.length <= 3
     ? uniqueNames.join(", ")
@@ -356,10 +363,12 @@ function ActionGroup({ events, isExpanded, onToggle }: {
         <div style={{ paddingLeft: 28, paddingTop: 4 }}>
           {events.map((e, j) => (
             <div key={j} className="flex items-center gap-2 py-0.5" style={{ fontSize: 11, color: "var(--text-3)" }}>
-              <span style={{ color: "var(--pass)" }}>✓</span>
-              <span>{e.name || "action"}</span>
-              <span className="truncate" style={{ color: "var(--text-3)" }}>
-                {(e.summary || e.result || "done").slice(0, 40)}
+              <span style={{ color: e.success !== false ? "var(--pass)" : "var(--fail)" }}>
+                {e.success !== false ? "✓" : "✗"}
+              </span>
+              <span style={{ color: "var(--text-2)", flexShrink: 0 }}>{e.name || e.action_type || "action"}</span>
+              <span className="truncate">
+                {(e.summary || e.command || e.label || "done").slice(0, 50)}
               </span>
             </div>
           ))}

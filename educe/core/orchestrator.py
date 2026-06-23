@@ -842,18 +842,18 @@ class Orchestrator:
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
 
-                # 推送富 action 卡片事件（Round 12：过程透明）
-                # shell/write_file 已通过 ToolStreamCard 展示，跳过旧路径
+                # 推送富 action 卡片事件（所有 action 类型都发 action_detail）
                 _action_summary = self._build_action_summary(action, result)
-                if _action_summary and transcript and action.type not in ("shell", "write_file"):
+                if _action_summary and transcript:
                     transcript.add("action", "system", _action_summary["label"],
                                    elapsed=_action_summary.get("elapsed", 0))
-                    # 推送详细数据供前端展开
                     import json as _json_act
                     _detail_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                         content="__TOOL_EVENT__" + _json_act.dumps({
                             "event": "action_detail",
                             "action_type": action.type,
+                            "name": action.type if action.type != "use_tool" else (action.name or action.type),
+                            "summary": _action_summary.get("command", "") or _action_summary["label"],
                             "label": _action_summary["label"],
                             "command": _action_summary.get("command", ""),
                             "output_preview": _action_summary.get("output_preview", ""),
@@ -903,27 +903,28 @@ class Orchestrator:
                         context=user_input,
                     ))
                     self.context.metadata.pop("_failed_actions", None)
-                # P0-4: 推送 tool_event 让前端显示调用详情
-                # shell/write_file 已通过 ToolStreamCard 展示，跳过旧路径
-                if action.type not in ("shell", "write_file"):
-                    tool_desc = f"{action.type}"
-                    if action.type == "use_tool" and action.name:
-                        tool_desc = f"use_tool: {action.name}"
-                    success_icon = "✓" if result.get("success") else "✗"
-                    self._notify(Message(
-                        type=MessageType.RESULT, sender="system", receiver="user",
-                        content=f"{success_icon} {tool_desc}",
-                        metadata={"event": "tool_event", "tool_type": action.type,
-                                  "tool_name": action.name, "success": result.get("success", False)}
-                    ))
+                # tool_event 状态行（所有 action 类型均推送）
+                tool_desc = action.type
+                if action.type == "use_tool" and action.name:
+                    tool_desc = f"use_tool: {action.name}"
+                success_icon = "✓" if result.get("success") else "✗"
+                self._notify(Message(
+                    type=MessageType.RESULT, sender="system", receiver="user",
+                    content=f"{success_icon} {tool_desc}",
+                    metadata={"event": "tool_event", "tool_type": action.type,
+                              "tool_name": action.name, "success": result.get("success", False)}
+                ))
                 # Action 结果推送为独立事件（不混入 assistant 对话流）
-                if action.type in ("read_dir", "read_file") and result.get("output"):
+                # shell 已有 ToolStreamCard 流式展示，仅推送 read_dir/read_file/search_in_file 等非流式结果
+                if action.type in ("read_dir", "read_file", "read_lines", "search_in_file") and result.get("output"):
                     import json as _json_ar
                     output_preview = result["output"][:2000]
                     _ar_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                         content="__TOOL_EVENT__" + _json_ar.dumps({
                             "event": "action_result",
                             "action_type": action.type,
+                            "name": action.type,
+                            "summary": action.params.strip()[:60],
                             "output": output_preview,
                             "success": result.get("success", False),
                         }, ensure_ascii=False))
@@ -2279,14 +2280,38 @@ class Orchestrator:
                 if hasattr(self, 'state'):
                     self.state.add_action_executed(
                         action.type, result.get("output", ""), result.get("success", False))
+                # 推送 action_detail 事件（与主循环一致）
+                _action_summary = self._build_action_summary(action, result)
+                if _action_summary:
+                    import json as _json_cfm
+                    _cfm_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                        content="__TOOL_EVENT__" + _json_cfm.dumps({
+                            "event": "action_detail",
+                            "action_type": action.type,
+                            "name": action.type if action.type != "use_tool" else (action.name or action.type),
+                            "summary": _action_summary.get("command", "") or _action_summary["label"],
+                            "label": _action_summary["label"],
+                            "command": _action_summary.get("command", ""),
+                            "output_preview": _action_summary.get("output_preview", ""),
+                            "success": result.get("success", False),
+                            "elapsed_ms": _action_summary.get("elapsed_ms", 0),
+                            "retried": _action_summary.get("retried", False),
+                        }, ensure_ascii=False))
+                    self._notify(_cfm_evt)
+                # 非流式工具推送 action_result
+                if action.type in ("read_dir", "read_file", "read_lines", "search_in_file") and result.get("output"):
+                    import json as _json_cfm_ar
+                    _cfm_ar_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                        content="__TOOL_EVENT__" + _json_cfm_ar.dumps({
+                            "event": "action_result",
+                            "action_type": action.type,
+                            "name": action.type,
+                            "summary": action.params.strip()[:60],
+                            "output": result["output"][:2000],
+                            "success": result.get("success", False),
+                        }, ensure_ascii=False))
+                    self._notify(_cfm_ar_evt)
                 if result.get("output"):
-                    output_text = result["output"][:2000]
-                    if action.type in ("shell", "write_file"):
-                        pass  # 已通过 ToolStreamCard 展示
-                    elif action.type in ("read_dir",):
-                        self._notify_chunk("assistant", f"\n```\n{output_text}\n```\n")
-                    else:
-                        self._notify_chunk("assistant", output_text)
                     self.conversation.add_assistant(result["output"][:1000])
 
             for p in build_actions:

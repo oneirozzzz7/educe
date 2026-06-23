@@ -1060,19 +1060,38 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                     a = ParsedAction(type=p["type"], params=p["params"], name=p.get("name", ""))
                                     result = await orchestrator._execute_action(a, original, transcript)
                                     result_text = result.get("output", "")
-                                    # 写入 conversation（模型能看到执行结果）
                                     orchestrator.conversation.add_assistant(f"[系统] {result_text}")
                                     if hasattr(orchestrator, 'state'):
                                         orchestrator.state.add_action_executed(a.type, result_text, result.get("success", False))
-                                    # IterationState 更新（确认路径也要追踪收敛）
                                     orchestrator._update_iteration_state(a, result, session_id)
-                                    # 推送完整输出到主聊天区
-                                    if result_text:
-                                        output_display = result_text[:2000]
-                                        if a.type in ("shell", "read_dir"):
-                                            await websocket.send_json({"type": "chunk", "sender": "assistant", "content": f"\n```\n{output_display}\n```\n"})
-                                        else:
-                                            await websocket.send_json({"type": "chunk", "sender": "assistant", "content": output_display})
+                                    # 推送 action_detail 事件（与主循环一致）
+                                    _action_summary = orchestrator._build_action_summary(a, result)
+                                    if _action_summary:
+                                        import json as _json_ws_cfm
+                                        await websocket.send_json({
+                                            "type": "tool_event",
+                                            "event": "action_detail",
+                                            "action_type": a.type,
+                                            "name": a.type if a.type != "use_tool" else (a.name or a.type),
+                                            "summary": _action_summary.get("command", "") or _action_summary["label"],
+                                            "label": _action_summary["label"],
+                                            "command": _action_summary.get("command", ""),
+                                            "output_preview": _action_summary.get("output_preview", ""),
+                                            "success": result.get("success", False),
+                                            "elapsed_ms": _action_summary.get("elapsed_ms", 0),
+                                            "retried": _action_summary.get("retried", False),
+                                        })
+                                    # 非流式工具推送 action_result
+                                    if a.type in ("read_dir", "read_file", "read_lines", "search_in_file") and result_text:
+                                        await websocket.send_json({
+                                            "type": "tool_event",
+                                            "event": "action_result",
+                                            "action_type": a.type,
+                                            "name": a.type,
+                                            "summary": a.params.strip()[:60],
+                                            "output": result_text[:2000],
+                                            "success": result.get("success", False),
+                                        })
                                     # transcript 侧栏摘要
                                     await websocket.send_json({
                                         "type": "tool_event", "event": "transcript",

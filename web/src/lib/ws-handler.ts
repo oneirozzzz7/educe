@@ -99,6 +99,8 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       const event: AppEvent = {
         type: "action_detail",
         ts: Date.now() / 1000,
+        name: evt.name || evt.action_type || "action",
+        summary: evt.summary || evt.command || evt.label || "done",
         action_type: evt.action_type,
         label: evt.label,
         command: evt.command,
@@ -114,6 +116,8 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       const event: AppEvent = {
         type: "action_result",
         ts: Date.now() / 1000,
+        name: evt.name || evt.action_type || "result",
+        summary: evt.summary || "",
         action_type: evt.action_type,
         output: evt.output,
         success: evt.success,
