@@ -263,8 +263,58 @@ function ThinkingIndicator() {
   );
 }
 
+/** Collapsed action group — shows "N actions" with expand */
+function ActionGroup({ events, isExpanded, onToggle }: {
+  events: AppEvent[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const names = events.map(e => e.name || "action");
+  const uniqueNames = [...new Set(names)];
+  const summary = uniqueNames.length <= 3
+    ? uniqueNames.join(", ")
+    : `${uniqueNames.slice(0, 2).join(", ")} +${uniqueNames.length - 2}`;
+
+  return (
+    <div className="mb-2">
+      <div
+        className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer transition-all hover:bg-[var(--surface-1)]"
+        onClick={onToggle}
+        style={{ background: isExpanded ? "var(--surface-1)" : "transparent" }}
+      >
+        <Check size={12} style={{ color: "var(--pass)", flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: "var(--text-2)" }}>
+          {events.length} actions
+        </span>
+        <span className="truncate" style={{ fontSize: 11, color: "var(--text-3)" }}>
+          {summary}
+        </span>
+        {isExpanded
+          ? <ChevronUp size={12} className="ml-auto shrink-0" style={{ color: "var(--text-3)" }} />
+          : <ChevronDown size={12} className="ml-auto shrink-0" style={{ color: "var(--text-3)" }} />
+        }
+      </div>
+      {isExpanded && (
+        <div style={{ paddingLeft: 28, paddingTop: 4 }}>
+          {events.map((e, j) => (
+            <div key={j} className="flex items-center gap-2 py-0.5" style={{ fontSize: 11, color: "var(--text-3)" }}>
+              <span style={{ color: "var(--pass)" }}>✓</span>
+              <span>{e.name || "action"}</span>
+              <span className="truncate" style={{ color: "var(--text-3)" }}>
+                {(e.summary || e.result || "done").slice(0, 40)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
- * ActivityFeed - Chat-style event stream with bubbles and expandable AI replies.
+ * ActivityFeed - Chat-style event stream.
+ * Actions/transcripts are grouped into collapsible cards.
+ * Only user messages and AI replies are first-class items.
  */
 export function ActivityFeed({
   events,
@@ -277,6 +327,7 @@ export function ActivityFeed({
   codeFiles,
 }: ActivityFeedProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [actionGroupExpanded, setActionGroupExpanded] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -284,41 +335,67 @@ export function ActivityFeed({
 
   const activeStreams = Object.values(toolStreams).filter(ts => ts.status === "running");
 
+  // Group consecutive action_detail and transcript events
+  const renderItems: { type: "event" | "action_group" | "transcript_group"; events: AppEvent[]; startIdx: number }[] = [];
+  let i = 0;
+  while (i < events.length) {
+    const event = events[i];
+    if (event.type === "action_detail") {
+      const group: AppEvent[] = [event];
+      let j = i + 1;
+      while (j < events.length && (events[j].type === "action_detail" || events[j].type === "transcript")) {
+        if (events[j].type === "action_detail") group.push(events[j]);
+        j++;
+      }
+      if (group.length >= 2) {
+        renderItems.push({ type: "action_group", events: group, startIdx: i });
+        i = j;
+        continue;
+      }
+    }
+    if (event.type === "transcript") {
+      // Skip transcripts entirely in the main view
+      i++;
+      continue;
+    }
+    renderItems.push({ type: "event", events: [event], startIdx: i });
+    i++;
+  }
+
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 40px 16px" }}>
-        {events.map((event, i) => {
-          const expanded = expandedEventIdx === i;
-          const toggle = () => onEventClick(event, i);
+        {renderItems.map((item) => {
+          if (item.type === "action_group") {
+            return (
+              <ActionGroup
+                key={`ag-${item.startIdx}`}
+                events={item.events}
+                isExpanded={!!actionGroupExpanded[item.startIdx]}
+                onToggle={() => setActionGroupExpanded(prev => ({ ...prev, [item.startIdx]: !prev[item.startIdx] }))}
+              />
+            );
+          }
+
+          const event = item.events[0];
+          const idx = item.startIdx;
+          const expanded = expandedEventIdx === idx;
+          const toggle = () => onEventClick(event, idx);
 
           switch (event.type) {
             case "user_input":
-              return <UserBubble key={i} event={event} />;
-
+              return <UserBubble key={idx} event={event} />;
             case "ai_reply":
-              return <AiReplyBubble key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
-
+              return <AiReplyBubble key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "ai_reply_streaming":
-              return <ThinkingIndicator key={i} />;
-
+              return <ThinkingIndicator key={idx} />;
             case "action_detail":
-              return <ActionLine key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
-
+              // Single action (not grouped)
+              return <ActionLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "error":
-              return <ErrorLine key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
-
+              return <ErrorLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "build_complete":
-              return <BuildLine key={i} event={event} isExpanded={expanded} onToggle={toggle} sessionId={sessionId} codeFiles={codeFiles} />;
-
-            case "transcript":
-              return (
-                <div key={i} className="mb-1 px-3" style={{ opacity: 0.4 }}>
-                  <span style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "'Geist Mono', monospace" }}>
-                    [{formatTs(event.ts)}] {event.content || event.text || ""}
-                  </span>
-                </div>
-              );
-
+              return <BuildLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} sessionId={sessionId} codeFiles={codeFiles} />;
             default:
               return null;
           }
