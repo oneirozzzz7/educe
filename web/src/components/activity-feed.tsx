@@ -273,7 +273,55 @@ function ThinkingIndicator() {
   );
 }
 
-/** Collapsed action group — shows "N actions" with expand */
+/** Action result card — terminal-style output block */
+function ActionResultCard({ event, isExpanded, onToggle }: {
+  event: AppEvent;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const output = event.output || "";
+  const lines = output.split("\n");
+  const preview = lines.slice(0, 3).join("\n");
+  const isLong = lines.length > 3;
+
+  return (
+    <div className="mb-3">
+      <div
+        className="rounded-lg cursor-pointer overflow-hidden"
+        style={{ border: "1px solid var(--border-1)", background: "var(--surface-0)" }}
+        onClick={onToggle}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--border-0)" }}>
+          <Check size={11} style={{ color: event.success ? "var(--pass)" : "var(--fail)" }} />
+          <span style={{ fontSize: 11, color: "var(--text-2)", fontFamily: "'Geist Mono', monospace" }}>
+            {event.action_type || "output"}
+          </span>
+          {isLong && (
+            <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: "auto" }}>
+              {isExpanded ? "▲" : `${lines.length} lines ▼`}
+            </span>
+          )}
+        </div>
+        {/* Content */}
+        <pre style={{
+          fontSize: 11,
+          lineHeight: 1.4,
+          color: "var(--text-2)",
+          fontFamily: "'Geist Mono', monospace",
+          margin: 0,
+          padding: "8px 12px",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+          maxHeight: isExpanded ? 400 : 72,
+          overflow: "auto",
+        }}>
+          {isExpanded ? output : preview}{!isExpanded && isLong ? "\n..." : ""}
+        </pre>
+      </div>
+    </div>
+  );
+}
 function ActionGroup({ events, isExpanded, onToggle }: {
   events: AppEvent[];
   isExpanded: boolean;
@@ -349,6 +397,7 @@ export function ActivityFeed({
   // Also treat short "✓ action_name" ai_replies as action signals (not real replies)
   const isActionSignal = (e: AppEvent) =>
     e.type === "action_detail" ||
+    e.type === "action_result" ||
     e.type === "transcript" ||
     (e.type === "ai_reply" && e.content && /^✓?\s*\w+$/.test(e.content.trim()) && e.content.length < 30);
 
@@ -416,6 +465,8 @@ export function ActivityFeed({
             case "action_detail":
               // Single action (not grouped)
               return <ActionLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
+            case "action_result":
+              return <ActionResultCard key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "error":
               return <ErrorLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "build_complete":

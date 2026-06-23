@@ -916,11 +916,18 @@ class Orchestrator:
                         metadata={"event": "tool_event", "tool_type": action.type,
                                   "tool_name": action.name, "success": result.get("success", False)}
                     ))
-                # 关键：shell/read_dir 的实际输出推送到前端，让用户看到"效果"
-                # shell 已通过 ToolStreamCard 流式展示，只保留 read_dir
-                if action.type in ("read_dir",) and result.get("output"):
+                # Action 结果推送为独立事件（不混入 assistant 对话流）
+                if action.type in ("read_dir", "read_file") and result.get("output"):
+                    import json as _json_ar
                     output_preview = result["output"][:2000]
-                    self._notify_chunk("assistant", f"\n```\n{output_preview}\n```\n")
+                    _ar_evt = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                        content="__TOOL_EVENT__" + _json_ar.dumps({
+                            "event": "action_result",
+                            "action_type": action.type,
+                            "output": output_preview,
+                            "success": result.get("success", False),
+                        }, ensure_ascii=False))
+                    self._notify(_ar_evt)
                 messages.append({"role": "user", "content":
                     f"[系统] {'✓' if result.get('success') else '✗'} {action.type} 结果：{result.get('output', '')[:500]}"})
 

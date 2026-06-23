@@ -110,6 +110,17 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "APPEND_EVENT", event };
     }
 
+    if (evt.event === "action_result") {
+      const event: AppEvent = {
+        type: "action_result",
+        ts: Date.now() / 1000,
+        action_type: evt.action_type,
+        output: evt.output,
+        success: evt.success,
+      };
+      return { type: "APPEND_EVENT", event };
+    }
+
     if (evt.event === "transcript") {
       const event: AppEvent = {
         type: "transcript",
