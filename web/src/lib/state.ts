@@ -98,6 +98,10 @@ export interface AppState {
   showSettings: boolean;
   buildExpanded: boolean;
   previewFile: string | null;
+
+  // Debug
+  debugOpen: boolean;
+  debugEvents: any[];
 }
 
 // ═══ 初始状态 ═══
@@ -133,6 +137,8 @@ export const INITIAL_STATE: AppState = {
   showSettings: false,
   buildExpanded: false,
   previewFile: null,
+  debugOpen: false,
+  debugEvents: [],
 };
 
 // ═══ Actions ═══
@@ -190,6 +196,10 @@ export type Action =
   | { type: "TOGGLE_BUILD_EXPANDED" }
   | { type: "OPEN_PREVIEW"; file: string }
   | { type: "CLOSE_PREVIEW" }
+
+  // Debug
+  | { type: "TOGGLE_DEBUG" }
+  | { type: "DEBUG_EVENT"; event: any }
   ;
 
 // ═══ Reducer ═══
@@ -462,6 +472,12 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, buildExpanded: true, previewFile: action.file };
     case "CLOSE_PREVIEW":
       return { ...state, buildExpanded: false, previewFile: null };
+
+    // ── Debug ──
+    case "TOGGLE_DEBUG":
+      return { ...state, debugOpen: !state.debugOpen };
+    case "DEBUG_EVENT":
+      return { ...state, debugEvents: [...state.debugEvents.slice(-199), action.event] };
 
     default:
       return state;
