@@ -49,9 +49,10 @@ class BuilderAgent(BaseAgent):
         # 检查是否有用户选择的决策（协作式构建Phase 2）
         user_decisions = context.metadata.get("_user_decisions")
 
-        # 复杂任务跳过 decision 分析——直接构建，避免过度分析卡住用户
+        # 简单任务跳过 decision 分析——直接构建，不需要讨论
+        # 复杂任务才进入分析，但分析可能返回空（无有意义的选择点）
         complexity = context.metadata.get("_task_complexity", "simple")
-        skip_analysis = context.metadata.get("_skip_analysis") or complexity == "complex"
+        skip_analysis = context.metadata.get("_skip_analysis") or complexity == "simple"
 
         if not user_decisions and not skip_analysis:
             analysis = await self._analyze_requirements(message.content, context)
