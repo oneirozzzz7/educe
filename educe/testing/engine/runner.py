@@ -254,8 +254,9 @@ class TestEngine:
             min_count = action.get("min_count", 1)
             await self.page.wait_for_function(
                 f"""() => {{
-                    const checks = document.body.innerText.match(/✓|✗|shell|read_dir|read_file|write_file|edit_file|actions/g);
-                    return checks && checks.length >= {min_count};
+                    const text = document.body.innerText;
+                    const matches = text.match(/✓|✗|Confirm|shell|read_dir|read_file|write_file|edit_file|actions/g);
+                    return matches && matches.length >= {min_count};
                 }}""",
                 timeout=timeout,
             )

@@ -523,7 +523,7 @@ export function ActivityFeed({
   const isActionSignal = (e: AppEvent) =>
     e.type === "action_detail" ||
     e.type === "action_result" ||
-    e.type === "transcript" ||
+    (e.type === "transcript" && /^[✅❌✓✗]/.test((e.content || "").trim())) ||
     (e.type === "ai_reply" && e.content && /^✓?\s*\w+$/.test(e.content.trim()) && e.content.length < 30);
 
   const renderItems: { type: "event" | "action_group"; events: AppEvent[]; startIdx: number }[] = [];
@@ -541,13 +541,13 @@ export function ActivityFeed({
         renderItems.push({ type: "action_group", events: group, startIdx: i });
         i = j;
         continue;
-      } else if (event.type === "transcript" || (event.type === "ai_reply" && isActionSignal(event))) {
-        // Skip single transcript or action-signal ai_reply
+      } else if ((event.type === "transcript" && isActionSignal(event)) || (event.type === "ai_reply" && isActionSignal(event))) {
+        // Skip single action-signal transcript or ai_reply
         i++;
         continue;
       }
     }
-    if (event.type === "transcript") {
+    if (event.type === "transcript" && isActionSignal(event)) {
       i++;
       continue;
     }
@@ -600,6 +600,8 @@ export function ActivityFeed({
               return <ConflictCard key={idx} event={event} />;
             case "zero_state":
               return <WelcomeCard key={idx} event={event} />;
+            case "transcript":
+              return <AiReplyBubble key={idx} event={{...event, content: event.content || ""}} isExpanded={expanded} onToggle={toggle} />;
             default:
               return null;
           }
