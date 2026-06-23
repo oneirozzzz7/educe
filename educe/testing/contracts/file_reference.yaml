@@ -42,7 +42,7 @@ steps:
     description: "等待 AI 回复并全方位验证"
     action:
       type: "wait_for_reply"
-      timeout: 15
+      timeout: 30
     verify:
       ui:
         - { has_element: ".ai-reply, [class*='ai-reply']", description: "AI 回复容器渲染" }

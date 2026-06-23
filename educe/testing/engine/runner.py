@@ -169,9 +169,11 @@ class TestEngine:
             await self.page.wait_for_timeout(300)
 
         elif action_type == "send_message":
-            # Record baseline reply count before sending (for auto_confirm_loop to compare)
+            # Record baseline state before sending (for auto_confirm_loop to compare)
             self._pre_send_reply_count = await self.page.evaluate(
                 "() => document.querySelectorAll('.ai-reply-content').length")
+            self._pre_send_feed_len = await self.page.evaluate(
+                "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
             input_box = self.page.get_by_role("textbox")
             await input_box.fill(action["text"])
             await self.page.keyboard.press("Enter")
@@ -261,13 +263,13 @@ class TestEngine:
             await self.page.wait_for_timeout(500)
 
         elif action_type == "auto_confirm_loop":
-            # Repeatedly check for and click Confirm/Run buttons until Idle
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
             did_interact = False
-            # Use baseline from the last send_message (not current state which may include prior replies)
-            baseline_count = getattr(self, '_pre_send_reply_count', 0)
-            # First: wait for SOMETHING to happen (confirm button, thinking, or new reply)
+            # Use baseline from the send_message step (captured before message was sent)
+            initial_feed_len = getattr(self, '_pre_send_feed_len', 0) or await self.page.evaluate(
+                "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+            # Wait for processing to start
             for _ in range(20):
                 if time.time() > deadline:
                     break
@@ -279,12 +281,13 @@ class TestEngine:
                 if "Thinking" in body_text or "thinking" in body_text or "思考中" in body_text:
                     did_interact = True
                     break
-                cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
-                if cur_count > baseline_count:
+                cur_feed_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                if cur_feed_len > initial_feed_len + 30:
                     did_interact = True
                     break
                 await self.page.wait_for_timeout(500)
-            # Now wait for Idle, auto-clicking Run/Confirm along the way
+            # Main loop: click confirm + wait for idle with new content
             while time.time() < deadline:
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
@@ -294,15 +297,14 @@ class TestEngine:
                     continue
                 body_text = await self.page.evaluate("() => document.body.innerText")
                 is_idle = ("进化待机" in body_text or "Idle" in body_text) and "Thinking" not in body_text and "思考中" not in body_text
-                if is_idle and did_interact:
+                cur_feed_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                has_new_content = cur_feed_len > initial_feed_len + 30
+                if is_idle and did_interact and has_new_content:
                     break
-                if not did_interact:
-                    cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
-                    if cur_count > baseline_count:
-                        did_interact = True
-                    await self.page.wait_for_timeout(500)
-                else:
-                    await self.page.wait_for_timeout(1000)
+                if not did_interact and cur_feed_len > initial_feed_len + 30:
+                    did_interact = True
+                await self.page.wait_for_timeout(1000)
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
@@ -435,10 +437,12 @@ class TestEngine:
 
     async def _verify_logic(self, check: dict) -> tuple[bool, str]:
         """Verify response semantics (anchor facts)."""
-        # Get visible content from main area (excludes sidebar/nav chrome)
+        # Get conversation content from the scrollable feed area (excludes sidebar/header/welcome)
         reply_text = await self.page.evaluate("""() => {
-            const main = document.querySelector('main') || document.body;
-            return (main.innerText || '').trim();
+            const feed = document.querySelector('[class*="overflow-y-auto"]');
+            if (feed) return feed.innerText || '';
+            const main = document.querySelector('main');
+            return (main || document.body).innerText || '';
         }""")
 
         if "contains_any" in check:
@@ -466,8 +470,10 @@ class TestEngine:
     async def _verify_format(self, check: dict) -> tuple[bool, str]:
         """Verify response format (length, structure)."""
         reply_text = await self.page.evaluate("""() => {
-            const main = document.querySelector('main') || document.body;
-            return (main.innerText || '').trim();
+            const feed = document.querySelector('[class*="overflow-y-auto"]');
+            if (feed) return feed.innerText || '';
+            const main = document.querySelector('main');
+            return (main || document.body).innerText || '';
         }""")
 
         if "max_length" in check:

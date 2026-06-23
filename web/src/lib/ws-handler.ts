@@ -43,8 +43,13 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "STREAM_CODE_UPDATE", code: content };
     }
 
-    // 非代码的 result/system 消息 → 追加为事件
-    if (msg.msg_type === "result" || msg.msg_type === "system") {
+    // result 消息是工具状态信号（"✓ shell"/"✗ read_file"），不作为 AI 回复
+    if (msg.msg_type === "result") {
+      return null;
+    }
+
+    // system 消息 → 追加为事件
+    if (msg.msg_type === "system") {
       const event: AppEvent = { type: "ai_reply", ts: Date.now() / 1000, content };
       return { type: "APPEND_EVENT", event };
     }

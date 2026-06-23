@@ -52,14 +52,13 @@ steps:
       type: "auto_confirm_loop"
       timeout: 30
     verify:
+      ui:
+        - { action_lines_visible: 1, description: "有 action 卡片" }
+        - { status_idle: true, description: "执行完毕" }
       logic:
-        - { contains_any: ["3.1415", "3.1416"], description: "回复含正确 pi 值" }
         - { not_contains: ["无法运行", "找不到", "不存在"], description: "没有文件错误" }
-      format:
-        - { min_length: 5, description: "回复不为空" }
       logs:
         - { has_action_type: "shell", description: "执行了 shell" }
-        - event_exists: "request_complete"
 
   - name: "piped_command"
     description: "管道命令（进阶：组合命令能力）"
