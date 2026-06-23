@@ -43,7 +43,7 @@ function getEventMeta(event: any): { icon: React.ReactNode; label: string; color
       icon: <Terminal size={12} />,
       label: event.name || "action",
       color: "var(--text-2)",
-      summary: event.summary || event.result || "done",
+      summary: String(event.summary || event.result || "done"),
     };
   }
   if (type === "error" || type === "action_error") {
@@ -58,7 +58,7 @@ function getEventMeta(event: any): { icon: React.ReactNode; label: string; color
     icon: <Zap size={12} />,
     label: type || "event",
     color: "var(--text-3)",
-    summary: event.content || event.message || event.name || "",
+    summary: String(event.content || event.message || event.name || ""),
   };
 }
 
@@ -90,7 +90,7 @@ function EventCard({ event }: { event: any }) {
           <span style={{ color }}>{icon}</span>
           <span style={{ fontSize: 11, fontWeight: 600, color }}>{label}</span>
           <span className="flex-1 truncate" style={{ fontSize: 12, color: "var(--text-1)" }}>
-            {summary.slice(0, 60)}
+            {(summary || "").slice(0, 60)}
           </span>
           <span style={{ fontSize: 10, color: "var(--text-3)", flexShrink: 0 }}>
             {formatTime(event.ts)}
