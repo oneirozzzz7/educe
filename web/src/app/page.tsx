@@ -5,7 +5,6 @@ import { reducer, INITIAL_STATE, type AppState, type AppEvent, type PendingActio
 import { mapWsMessage } from "@/lib/ws-handler";
 import { createWS, API_HOST, type ServerMessage } from "@/lib/ws";
 import { WorkbenchShell } from "@/components/workbench-shell";
-import { StatusBar } from "@/components/status-bar";
 import { ActivityFeed } from "@/components/activity-feed";
 import { DebugPanel } from "@/components/debug-panel";
 import { Sidebar, type SidebarRef } from "@/components/sidebar";
@@ -262,6 +261,19 @@ function CommandRail({
 }: CommandRailProps) {
   return (
     <>
+      {/* Top bar — model + settings on right */}
+      <div className="flex items-center justify-end px-4 py-2 shrink-0" style={{ borderBottom: "1px solid var(--border-0)" }}>
+        {isThinking && <span style={{ fontSize: 11, color: "var(--accent)", marginRight: "auto" }}>Thinking{elapsed > 0 ? ` ${elapsed}s` : "..."}</span>}
+        {isBuilding && <span style={{ fontSize: 11, color: "var(--pass)", marginRight: "auto" }}>Building {elapsed}s</span>}
+        <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: "var(--text-3)" }}>
+          <span className="w-[5px] h-[5px] rounded-full" style={{ background: connected ? "var(--pass)" : "var(--fail)" }} />
+          {model || "No model"}
+        </span>
+        <button onClick={onToggleDebug} className="ml-3 px-1.5 py-0.5 rounded transition-all hover:bg-[var(--surface-2)]" style={{ fontSize: 10, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", fontFamily: "'Geist Mono', monospace" }}>
+          &gt;_
+        </button>
+      </div>
+
       {/* Activity Feed */}
       <ActivityFeed
         events={events}
@@ -319,17 +331,8 @@ function CommandRail({
         </div>
       )}
 
-      {/* Status Bar */}
-      <StatusBar
-        phase={state.phase}
-        model={model}
-        connected={connected}
-        elapsed={elapsed}
-        onToggleDebug={onToggleDebug}
-      />
-
       {/* Input Area */}
-      <div style={{ padding: "8px 12px 12px", flexShrink: 0, borderTop: "1px solid var(--border-0)" }}>
+      <div style={{ padding: "8px 12px 12px", flexShrink: 0 }}>
         <EvolutionBar />
         <ReferencedFilesBar files={referencedFiles} onRemove={onRemoveFile} />
         <div style={{ position: "relative" }}>
