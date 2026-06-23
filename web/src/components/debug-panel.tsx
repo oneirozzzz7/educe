@@ -21,6 +21,8 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 ];
 
 function matchesFilter(event: any, filter: FilterType): boolean {
+  // Always hide noise events
+  if (event.type === "state_sync" || event.type === "status" || event.type === "ping") return false;
   if (filter === "all") return true;
   if (filter === "error") return event.type === "error" || event.type === "action_error";
   if (filter === "action") return event.type?.startsWith("action") || event.type === "tool_start" || event.type === "tool_end";
