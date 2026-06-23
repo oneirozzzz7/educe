@@ -24,7 +24,7 @@ export function WorkbenchShell({
   debugPanel,
 }: WorkbenchShellProps) {
   const sidebarWidth = sidebarOpen ? "240px" : "48px";
-  const debugHeight = debugOpen ? "240px" : "0px";
+  const debugHeight = debugOpen ? "180px" : "0px";
 
   return (
     <div

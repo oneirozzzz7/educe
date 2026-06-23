@@ -98,12 +98,12 @@ function EventRow({ event, index }: { event: any; index: number }) {
         <pre
           className="px-6 py-2 overflow-x-auto"
           style={{
-            fontSize: 11,
-            lineHeight: 1.5,
-            color: "var(--text-1)",
+            fontSize: 10,
+            lineHeight: 1.4,
+            color: "var(--text-2)",
             background: "var(--surface-2)",
             margin: 0,
-            maxHeight: 200,
+            maxHeight: 120,
             overflow: "auto",
           }}
         >
