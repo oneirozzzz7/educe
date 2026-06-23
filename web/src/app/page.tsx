@@ -103,7 +103,8 @@ export default function Home() {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.nativeEvent.isComposing) return;
-    if (e.key === "Enter" && !e.shiftKey && !showFilePicker) { e.preventDefault(); send(e.currentTarget.value); }
+    const val = e.currentTarget.value;
+    if (e.key === "Enter" && !e.shiftKey && !showFilePicker && !val.match(/@[/~]\S*$/)) { e.preventDefault(); send(val); }
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -184,14 +185,12 @@ export default function Home() {
             onToggleEvolution={() => setShowEvolution(true)}
             onFileSelect={(path) => {
               if (path.endsWith("/")) {
-                // Directory selected — drill down, don't attach
+                // Directory selected — drill down, keep picker open
+                setFileQuery(path);
+                setShowFilePicker(true);
                 if (inputRef.current) {
                   inputRef.current.value = `@${path}`;
                   inputRef.current.focus();
-                  // Trigger onChange to update picker
-                  const evt = new Event("input", { bubbles: true });
-                  inputRef.current.dispatchEvent(evt);
-                  setFileQuery(path);
                 }
               } else {
                 // File selected — attach
