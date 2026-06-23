@@ -1,0 +1,164 @@
+# 工具动作全覆盖 — 验证每种 action type 的基本执行链路
+# read_dir / read_file / read_lines / search_in_file / write_file / edit_file / shell 联合
+
+scenario: action_coverage
+description: "逐一验证所有内置 action 类型的正确执行"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_action_test.py"
+      content: |
+        # Line 1: imports
+        import os
+        # Line 3: function
+        def greet(name):
+            return f"Hello, {name}!"
+        # Line 6: main
+        if __name__ == "__main__":
+            print(greet("World"))
+            print(f"cwd={os.getcwd()}")
+
+steps:
+  # ═══ read_dir ═══
+  - name: "test_read_dir"
+    description: "请求列出 /tmp 目录"
+    action:
+      type: "send_message"
+      text: "列出 /tmp 目录下有哪些文件"
+    verify:
+      ui:
+        - { user_bubble_contains: "/tmp", description: "用户消息正确" }
+
+  - name: "wait_read_dir"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "执行完毕" }
+      logic:
+        - { contains_any: ["educe_action_test", ".py"], description: "结果包含测试文件" }
+      logs:
+        - { has_action_type: "read_dir", description: "使用了 read_dir" }
+
+  # ═══ read_file ═══
+  - name: "test_read_file"
+    description: "读取指定文件内容"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_action_test.py 的完整内容"
+    verify: {}
+
+  - name: "wait_read_file"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["def greet", "Hello", "import os"], description: "文件内容正确" }
+        - { not_contains: ["找不到", "不存在", "error"], description: "没有错误" }
+      logs:
+        - { has_action_type: "read_file", description: "使用了 read_file" }
+
+  # ═══ read_lines ═══
+  - name: "test_read_lines"
+    description: "读取文件指定行"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_action_test.py 的第3到第5行"
+    verify: {}
+
+  - name: "wait_read_lines"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["def greet", "return", "Hello"], description: "返回了正确行范围" }
+
+  # ═══ search_in_file ═══
+  - name: "test_search"
+    description: "在文件中搜索关键词"
+    action:
+      type: "send_message"
+      text: "在 /tmp/educe_action_test.py 中搜索 'greet'"
+    verify: {}
+
+  - name: "wait_search"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["greet", "def greet", "第", "line", "行"], description: "搜索到了关键词位置" }
+
+  # ═══ write_file ═══
+  - name: "test_write_file"
+    description: "创建新文件"
+    action:
+      type: "send_message"
+      text: "创建文件 /tmp/educe_write_test.txt，内容写 'hello from educe test v1'"
+    verify: {}
+
+  - name: "wait_write_file"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      ui:
+        - { status_idle: true, description: "写入完毕" }
+      logic:
+        - { not_contains: ["失败", "error", "无法"], description: "没有错误" }
+
+  # ═══ edit_file ═══
+  - name: "test_edit_file"
+    description: "局部修改已有文件"
+    action:
+      type: "send_message"
+      text: "把 /tmp/educe_write_test.txt 里的 'v1' 改成 'v2'"
+    verify: {}
+
+  - name: "wait_edit_file"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      ui:
+        - { status_idle: true, description: "修改完毕" }
+      logic:
+        - { not_contains: ["失败", "error", "无法"], description: "没有错误" }
+
+  # ═══ 验证修改生效 ═══
+  - name: "verify_edit_result"
+    description: "读取文件确认修改生效"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_write_test.txt 确认修改成功"
+    verify: {}
+
+  - name: "wait_verify"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["v2", "educe test v2"], description: "修改已生效" }
+        - { not_contains: ["v1"], description: "旧内容已被替换" }
+
+  # ═══ shell 执行联合验证 ═══
+  - name: "test_shell_verify"
+    description: "用 shell 验证文件系统状态"
+    action:
+      type: "send_message"
+      text: "执行 cat /tmp/educe_write_test.txt 看看内容"
+    verify: {}
+
+  - name: "wait_shell_verify"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      logic:
+        - { contains_any: ["v2", "hello from educe"], description: "shell 验证文件内容正确" }
+      logs:
+        - { has_action_type: "shell", description: "使用了 shell" }

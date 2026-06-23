@@ -1,0 +1,97 @@
+# 确认/取消/补充 — 验证 action confirm 三条路径
+# confirm → 执行 / cancel → 取消 / 重新发送覆盖
+
+scenario: confirm_cancel
+description: "验证危险操作确认卡片 + Skip取消 + Run确认的完整路径"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_confirm_target.txt"
+      content: "important data v1"
+
+steps:
+  # ═══ Case 1: 危险命令触发确认 → 用户取消 ═══
+  - name: "dangerous_command"
+    description: "发送删除命令 — 应触发确认卡片"
+    action:
+      type: "send_message"
+      text: "删除文件 /tmp/educe_confirm_target.txt"
+    verify: {}
+
+  - name: "wait_confirm_card"
+    description: "等待确认卡片出现"
+    action:
+      type: "wait_for_action"
+      min_count: 1
+      timeout: 20
+    verify:
+      ui:
+        - { has_text: "Confirm", description: "确认卡片出现" }
+
+  - name: "click_skip"
+    description: "点击 Skip 取消执行"
+    action:
+      type: "click"
+      selector: "button:has-text('Skip')"
+    verify: {}
+
+  - name: "wait_cancel_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 10
+    verify:
+      ui:
+        - { status_idle: true, description: "回到 Idle" }
+      logic:
+        - { contains_any: ["取消", "cancel", "已取消", "好的"], description: "确认取消反馈" }
+
+  # ═══ Case 2: 验证文件没被删 ═══
+  - name: "verify_not_deleted"
+    description: "确认文件还在"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_confirm_target.txt 确认还在"
+    verify: {}
+
+  - name: "wait_verify_intact"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      logic:
+        - { contains_any: ["important data", "v1"], description: "文件内容完好" }
+
+  # ═══ Case 3: 危险命令 → 确认执行 ═══
+  - name: "write_then_confirm"
+    description: "写文件操作触发确认"
+    action:
+      type: "send_message"
+      text: "创建文件 /tmp/educe_confirm_new.txt 内容为 'confirmed write'"
+    verify: {}
+
+  - name: "wait_and_confirm"
+    description: "等待确认卡片并点 Run"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      ui:
+        - { status_idle: true, description: "执行完毕" }
+      logic:
+        - { not_contains: ["失败", "error"], description: "没有错误" }
+
+  # ═══ Case 4: 验证写入生效 ═══
+  - name: "verify_confirmed_write"
+    description: "确认文件确实被创建"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_confirm_new.txt"
+    verify: {}
+
+  - name: "wait_verify_write"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      logic:
+        - { contains_any: ["confirmed write"], description: "写入内容正确" }

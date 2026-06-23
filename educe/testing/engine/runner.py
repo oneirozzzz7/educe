@@ -250,61 +250,75 @@ class TestEngine:
             await self.page.keyboard.press("Enter")
 
         elif action_type == "wait_for_action":
-            # Wait for action_detail events to appear (shell/file ops)
             timeout = action.get("timeout", 15) * 1000
+            min_count = action.get("min_count", 1)
             await self.page.wait_for_function(
-                """(minCount) => {
-                    const checks = document.body.innerText.match(/✓|done|action:/g);
-                    return (checks && checks.length >= minCount);
-                }""",
-                action.get("min_count", 1),
+                f"""() => {{
+                    const checks = document.body.innerText.match(/✓|✗|shell|read_dir|read_file|write_file|edit_file|actions/g);
+                    return checks && checks.length >= {min_count};
+                }}""",
                 timeout=timeout,
             )
             await self.page.wait_for_timeout(500)
 
+        elif action_type == "api_check":
+            # Call a backend API endpoint and verify response
+            import aiohttp
+            url = f"http://localhost:7860{action['url']}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    data = await resp.json()
+            # Store result for verify step
+            self._api_result = data
+            field = action.get("expect_field", "")
+            if field and field in data:
+                val = data[field]
+                if "expect_gte" in action:
+                    assert val >= action["expect_gte"], f"{field}={val} < {action['expect_gte']}"
+
         elif action_type == "auto_confirm_loop":
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            did_interact = False
-            # Use baseline from the send_message step (captured before message was sent)
-            initial_feed_len = getattr(self, '_pre_send_feed_len', 0) or await self.page.evaluate(
-                "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-            # Wait for processing to start
-            for _ in range(20):
-                if time.time() > deadline:
-                    break
-                confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
-                if await confirm_btn.count() > 0:
-                    did_interact = True
-                    break
-                body_text = await self.page.evaluate("() => document.body.innerText")
-                if "Thinking" in body_text or "thinking" in body_text or "思考中" in body_text:
-                    did_interact = True
-                    break
-                cur_feed_len = await self.page.evaluate(
+            # Baseline from send_message (before message was sent)
+            initial_feed_len = getattr(self, '_pre_send_feed_len', 0)
+            if not initial_feed_len:
+                initial_feed_len = await self.page.evaluate(
                     "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_feed_len > initial_feed_len + 30:
-                    did_interact = True
-                    break
-                await self.page.wait_for_timeout(500)
-            # Main loop: click confirm + wait for idle with new content
+            # The user bubble adds ~30-50 chars immediately; we need RESPONSE content (much more)
+            response_threshold = initial_feed_len + 100
+            # Phase 1: Wait for response to start (confirm btn, or significant content growth)
             while time.time() < deadline:
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
-                    did_interact = True
+                    await self.page.wait_for_timeout(1000)
+                    break
+                cur_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                if cur_len > response_threshold:
+                    break
+                await self.page.wait_for_timeout(500)
+            # Phase 2: Keep clicking confirm and wait for text to stabilize
+            last_len = await self.page.evaluate(
+                "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+            stable_count = 0
+            while time.time() < deadline:
+                confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
+                if await confirm_btn.count() > 0:
+                    await confirm_btn.first.click()
+                    stable_count = 0
                     await self.page.wait_for_timeout(1500)
                     continue
-                body_text = await self.page.evaluate("() => document.body.innerText")
-                is_idle = ("进化待机" in body_text or "Idle" in body_text) and "Thinking" not in body_text and "思考中" not in body_text
-                cur_feed_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                has_new_content = cur_feed_len > initial_feed_len + 30
-                if is_idle and did_interact and has_new_content:
-                    break
-                if not did_interact and cur_feed_len > initial_feed_len + 30:
-                    did_interact = True
                 await self.page.wait_for_timeout(1000)
+                cur_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                if cur_len == last_len:
+                    stable_count += 1
+                else:
+                    stable_count = 0
+                    last_len = cur_len
+                if stable_count >= 2 and cur_len > response_threshold:
+                    break
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:

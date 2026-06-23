@@ -1,0 +1,136 @@
+# 深度容错 — 边界情况和异常路径
+# 二进制文件 / 超大文件 / edit 失败 / 并发消息
+
+scenario: robustness_deep
+description: "深度容错：边界输入、异常路径、并发处理"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_robust_target.txt"
+      content: |
+        line1: alpha
+        line2: beta
+        line3: gamma
+        line4: delta
+    - path: "/tmp/educe_binary_test.bin"
+      content: "\x00\x01\x02\x03\xff\xfe\xfd BINARY DATA \x00\x00"
+
+steps:
+  # ═══ Case 1: 二进制文件读取 ═══
+  - name: "binary_file_read"
+    description: "读取二进制文件 — 应返回元信息而非乱码"
+    action:
+      type: "send_message"
+      text: "读取文件 /tmp/educe_binary_test.bin 的内容"
+    verify: {}
+
+  - name: "wait_binary"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      ui:
+        - { status_idle: true, description: "不崩溃" }
+      logic:
+        - { not_contains: ["\\x00\\x01", "�"], description: "没有输出乱码" }
+        - { contains_any: ["二进制", "binary", "无法", "非文本", "字节", "不支持"], description: "正确识别二进制" }
+
+  # ═══ Case 2: edit_file 内容匹配失败 ═══
+  - name: "edit_mismatch"
+    description: "编辑文件但给错误的原文 — 应报错而非损坏文件"
+    action:
+      type: "send_message"
+      text: "把 /tmp/educe_robust_target.txt 里的 'line999: nonexistent' 改成 'fixed'"
+    verify: {}
+
+  - name: "wait_edit_fail"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "不卡死" }
+      logic:
+        - { contains_any: ["找不到", "不匹配", "not found", "没有找到", "无法", "未找到", "不存在"], description: "报告匹配失败" }
+        - { not_contains: ["已修改", "成功", "完成修改"], description: "没有误报成功" }
+
+  # ═══ Case 3: 验证文件没被损坏 ═══
+  - name: "verify_not_corrupted"
+    description: "确认文件内容未被损坏"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_robust_target.txt 确认内容完整"
+    verify: {}
+
+  - name: "wait_verify_intact"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      logic:
+        - { contains_any: ["alpha", "beta", "gamma", "delta"], description: "原始内容完好" }
+
+  # ═══ Case 4: 特殊字符文件名 ═══
+  - name: "special_filename"
+    description: "处理含空格的路径"
+    action:
+      type: "send_message"
+      text: "创建文件 /tmp/educe test space.txt 内容为 'space test ok'"
+    verify: {}
+
+  - name: "wait_special_name"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "不崩溃" }
+
+  # ═══ Case 5: 连续 3 条快速消息 ═══
+  - name: "rapid_msg_1"
+    description: "快速连发第1条"
+    action:
+      type: "send_message"
+      text: "100除以4等于多少？"
+    verify: {}
+
+  - name: "rapid_msg_2"
+    description: "快速连发第2条"
+    action:
+      type: "send_message"
+      text: "200除以8等于多少？"
+    verify: {}
+
+  - name: "rapid_msg_3"
+    description: "快速连发第3条"
+    action:
+      type: "send_message"
+      text: "300除以12等于多少？"
+    verify: {}
+
+  - name: "wait_rapid_all"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 30
+    verify:
+      ui:
+        - { status_idle: true, description: "全部处理完" }
+      logic:
+        - { contains_any: ["25", "二十五"], description: "至少一条得到正确回复" }
+
+  # ═══ Case 6: 超长输入 ═══
+  - name: "long_input"
+    description: "发送超长消息测试截断处理"
+    action:
+      type: "send_message"
+      text: "请告诉我 1+1 等于多少。附加背景信息：AAAA BBBB CCCC DDDD EEEE FFFF GGGG HHHH IIII JJJJ KKKK LLLL MMMM NNNN OOOO PPPP QQQQ RRRR SSSS TTTT UUUU VVVV WWWW XXXX YYYY ZZZZ 0000 1111 2222 3333 4444 5555 6666 7777 8888 9999 以上是无意义的填充文本，请忽略。"
+    verify: {}
+
+  - name: "wait_long_input"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      logic:
+        - { contains_any: ["2", "二"], description: "正确回答了 1+1" }
+        - { not_contains: ["Traceback", "error"], description: "没有内部错误" }

@@ -1,0 +1,101 @@
+# 流式事件协议 — 验证 tool_start/tool_chunk/tool_end + action_detail + zero_state
+# 覆盖：流式执行、事件字段完整性、零状态检测
+
+scenario: streaming_events
+description: "验证流式执行协议完整性：事件序列、字段、零状态"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_stream_test.sh"
+      content: |
+        #!/bin/bash
+        echo "line1: starting"
+        sleep 1
+        echo "line2: processing"
+        sleep 1
+        echo "line3: done"
+
+steps:
+  # ═══ Case 1: 零状态检测 ═══
+  - name: "check_zero_state"
+    description: "新 session 应显示 WelcomeCard"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 5
+    verify:
+      ui:
+        - { has_text: "auto-agent", description: "WelcomeCard 显示项目名" }
+        - { has_text: "items", description: "WelcomeCard 显示文件数" }
+
+  # ═══ Case 2: shell 长命令流式输出 ═══
+  - name: "long_shell_command"
+    description: "执行耗时命令验证流式输出"
+    action:
+      type: "send_message"
+      text: "执行 bash /tmp/educe_stream_test.sh"
+    verify: {}
+
+  - name: "wait_stream_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 30
+    verify:
+      ui:
+        - { status_idle: true, description: "执行完毕" }
+        - { action_lines_visible: 1, description: "action 卡片可见" }
+      logic:
+        - { contains_any: ["line3", "done", "shell"], description: "命令执行完毕" }
+      logs:
+        - { has_action_type: "shell", description: "shell 执行了" }
+
+  # ═══ Case 3: action_detail 事件字段验证 ═══
+  - name: "test_action_detail"
+    description: "发送简单 read_dir 验证 action_detail 字段"
+    action:
+      type: "send_message"
+      text: "看看 /tmp 目录有什么"
+    verify: {}
+
+  - name: "wait_action_detail"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      ui:
+        - { action_lines_visible: 1, description: "action 卡片显示" }
+      logs:
+        - { has_action_type: "read_dir", description: "read_dir 执行" }
+
+  # ═══ Case 4: 快命令验证 ═══
+  - name: "fast_command"
+    description: "快命令（<300ms）应正确完成"
+    action:
+      type: "send_message"
+      text: "执行 echo 'fast_test_xyz'"
+    verify: {}
+
+  - name: "wait_fast"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 15
+    verify:
+      ui:
+        - { status_idle: true, description: "快命令完毕" }
+      logic:
+        - { contains_any: ["fast_test_xyz", "shell", "echo"], description: "快命令显示" }
+
+  # ═══ Case 5: 多个 action 分组 ═══
+  - name: "multi_action"
+    description: "请求多步操作验证 action 分组"
+    action:
+      type: "send_message"
+      text: "读取 /tmp/educe_stream_test.sh 的内容，然后告诉我有几行"
+    verify: {}
+
+  - name: "wait_multi_action"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["6", "7", "line", "行", "echo", "sleep"], description: "回复了文件内容信息" }

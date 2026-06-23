@@ -1,0 +1,89 @@
+# 记忆系统 — 验证 memorize/recall/conflict 全链路
+# 写入 → 检索 → 冲突检测 → prompt 注入验证
+
+scenario: memory_system
+description: "验证复利记忆：写入、冲突检测、检索、prompt 注入"
+
+setup:
+  ensure_files: []
+
+steps:
+  # ═══ Case 1: 记忆写入 ═══
+  - name: "memorize_fact"
+    description: "要求记住一个事实"
+    action:
+      type: "send_message"
+      text: "记住：这个项目的数据库用的是 PostgreSQL 14"
+    verify: {}
+
+  - name: "wait_memorize"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "记忆完成" }
+      logic:
+        - { contains_any: ["记住", "已记", "got it", "noted", "好的"], description: "确认记住了" }
+
+  # ═══ Case 2: 记忆检索 ═══
+  - name: "recall_memory"
+    description: "检索刚才记住的内容"
+    action:
+      type: "send_message"
+      text: "你记得这个项目用什么数据库吗？"
+    verify: {}
+
+  - name: "wait_recall"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["PostgreSQL", "postgres", "PG"], description: "正确回忆数据库" }
+
+  # ═══ Case 3: 记忆冲突 ═══
+  - name: "memorize_conflict"
+    description: "写入冲突记忆"
+    action:
+      type: "send_message"
+      text: "记住：项目已经从 PostgreSQL 迁移到了 MySQL 8"
+    verify: {}
+
+  - name: "wait_conflict"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "处理完毕" }
+      logic:
+        - { contains_any: ["记住", "已记", "更新", "noted", "好的", "MySQL"], description: "记忆操作完成" }
+
+  # ═══ Case 4: 验证 API 中有记忆 ═══
+  - name: "verify_memory_api"
+    description: "通过 API 确认记忆存在"
+    action:
+      type: "api_check"
+      url: "/api/memory"
+      expect_field: "total"
+      expect_gte: 1
+    verify:
+      logic:
+        - { not_empty: true, description: "记忆 API 返回数据" }
+
+  # ═══ Case 5: 新 session 验证 prompt 注入 ═══
+  - name: "new_session_context"
+    description: "直接问数据库问题（记忆应出现在上下文中）"
+    action:
+      type: "send_message"
+      text: "这个项目的技术栈里用了什么数据库？不需要看文件，直接告诉我你知道的"
+    verify: {}
+
+  - name: "wait_context_reply"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      logic:
+        - { contains_any: ["MySQL", "PostgreSQL", "数据库", "database"], description: "记忆影响了回复" }
