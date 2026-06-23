@@ -58,10 +58,11 @@ function CodeBlock({ fileUrl }: { fileUrl: string }) {
 
 /** User message bubble (right-aligned) */
 function UserBubble({ event }: { event: AppEvent }) {
+  const text = event.content || event.text || "";
   return (
-    <div className="flex justify-end mb-3" style={{ paddingLeft: "15%" }}>
-      <div className="flex flex-col items-end gap-1">
-        <div className="user-msg">{event.content || event.text || ""}</div>
+    <div className="flex justify-end mb-3">
+      <div className="flex flex-col items-end gap-1" style={{ maxWidth: "75%" }}>
+        <div className="user-msg">{text}</div>
         <span style={{ fontSize: 10, color: "var(--text-3)", paddingRight: 4 }}>{formatTs(event.ts)}</span>
       </div>
     </div>
@@ -286,7 +287,7 @@ export function ActivityFeed({
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 16px" }}>
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 24px 16px" }}>
         {events.map((event, i) => {
           const expanded = expandedEventIdx === i;
           const toggle = () => onEventClick(event, i);
