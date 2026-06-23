@@ -332,7 +332,8 @@ function CommandRail({
       )}
 
       {/* Input Area */}
-      <div style={{ padding: "8px 12px 12px", flexShrink: 0 }}>
+      <div style={{ padding: "8px 0 12px", flexShrink: 0 }}>
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 40px" }}>
         <EvolutionBar />
         <ReferencedFilesBar files={referencedFiles} onRemove={onRemoveFile} />
         <div style={{ position: "relative" }}>
@@ -357,6 +358,7 @@ function CommandRail({
           >
             &rsaquo;
           </button>
+        </div>
         </div>
       </div>
     </>
