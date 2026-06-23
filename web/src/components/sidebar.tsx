@@ -75,6 +75,9 @@ export const Sidebar = forwardRef<SidebarRef, {
           <PanelLeft size={15} />
         </button>
         <div className="mt-1" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 22, color: "var(--amber)", lineHeight: 1 }}>E</div>
+        <button onClick={() => { onNewTask?.(); }} className="w-7 h-7 rounded-md flex items-center justify-center transition-all hover:bg-[var(--surface-2)]" style={{ color: "var(--amber)" }} title="New task">
+          <span className="text-[13px] font-semibold">+</span>
+        </button>
         <div className="flex-1" />
         <button onClick={onOpenSettings} className="w-7 h-7 rounded-md flex items-center justify-center transition-all hover:bg-[var(--surface-2)]" style={{ color: "var(--text-3)" }}>
           <Settings size={13} />
@@ -85,7 +88,7 @@ export const Sidebar = forwardRef<SidebarRef, {
 
   /* ─── Expanded ─── */
   return (
-    <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: "var(--sidebar-width)", borderRight: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
+    <div className="shrink-0 flex flex-col overflow-hidden" style={{ width: "100%", borderRight: "1px solid var(--border-0)", background: "var(--surface-0)" }}>
 
       {/* ─── Brand ─── */}
       <div className="flex items-center px-5 pt-5 pb-6">
@@ -117,7 +120,7 @@ export const Sidebar = forwardRef<SidebarRef, {
       {tasks.length > 8 && (
         <div className="px-3 pb-2">
           <div className="relative">
-            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-3)" }} />
+            <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--text-3)" }} />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder={locale === "zh" ? "搜索..." : "Search..."}
               className="w-full rounded-[8px] pl-7 pr-2 py-[6px] text-[12px] outline-none transition-all focus:border-[var(--amber)]"

@@ -7,6 +7,7 @@
 /* ═══ Soft Violet 配色系统 ═══ */
 :root {
   --bg:          #131316;
+  --surface-0:   #18181c;
   --surface-1:   #1e1e24;
   --surface-2:   #282830;
   --surface-3:   #35353f;
@@ -72,11 +73,16 @@ body {
 /* ═══ AI 回复竖线 ═══ */
 .ai-reply {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  padding: 14px 16px 14px 0;
+  border-radius: 0 12px 12px 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-left: none;
 }
 .ai-reply-bar {
-  width: 2px;
-  border-radius: 1px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
   background: linear-gradient(to bottom, var(--accent), var(--accent-deep));
   flex-shrink: 0;
 }

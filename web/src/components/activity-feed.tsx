@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Check, AlertCircle, ArrowRight, Package, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, AlertCircle, Package, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { marked } from "marked";
 import { cn } from "@/lib/utils";
 import type { AppEvent, ToolStream } from "@/lib/state";
@@ -21,159 +21,7 @@ interface ActivityFeedProps {
 
 function formatTs(ts: number): string {
   const d = new Date(ts * 1000);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function truncate(text: string, max: number): string {
-  if (!text) return "";
-  return text.length > max ? text.slice(0, max) + "..." : text;
-}
-
-/** Inline expanded content for an event */
-function ExpandedContent({ event, sessionId, codeFiles }: {
-  event: AppEvent;
-  sessionId: string;
-  codeFiles: string[];
-}) {
-  switch (event.type) {
-    case "ai_reply":
-      return (
-        <div
-          className="expanded-content md"
-          style={{
-            padding: "12px 16px",
-            fontSize: 14,
-            color: "var(--text-1)",
-            lineHeight: 1.7,
-            maxWidth: 720,
-            borderLeft: "2px solid var(--accent)",
-            marginLeft: 20,
-            marginRight: 12,
-          }}
-          dangerouslySetInnerHTML={{ __html: marked.parse(event.content || "") as string }}
-        />
-      );
-
-    case "build_complete": {
-      const file = event.file || (codeFiles.length > 0 ? codeFiles[0] : null);
-      if (!file) {
-        return (
-          <div style={{ padding: "12px 16px", marginLeft: 20, color: "var(--text-2)", fontSize: 13 }}>
-            Build completed. No preview available.
-          </div>
-        );
-      }
-      const previewUrl = `http://${API_HOST}/preview/${sessionId.slice(0, 16)}/${file}`;
-      const isHtml = /\.(html?|svg)$/i.test(file);
-
-      return (
-        <div style={{ padding: "8px 16px", marginLeft: 20, marginRight: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: "var(--text-2)", fontWeight: 500 }}>{file}</span>
-            <a
-              href={previewUrl}
-              target="_blank"
-              rel="noopener"
-              style={{
-                fontSize: 11,
-                color: "var(--accent)",
-                textDecoration: "none",
-                padding: "2px 8px",
-                borderRadius: 4,
-                background: "rgba(167,139,250,0.08)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <ExternalLink size={10} />
-              Open in tab
-            </a>
-          </div>
-          {isHtml ? (
-            <iframe
-              src={previewUrl}
-              style={{
-                width: "100%",
-                height: 320,
-                border: "1px solid var(--border-0)",
-                borderRadius: 8,
-                background: "#fff",
-              }}
-              sandbox="allow-scripts allow-same-origin"
-            />
-          ) : (
-            <CodeBlock fileUrl={previewUrl} />
-          )}
-        </div>
-      );
-    }
-
-    case "action_detail":
-      return (
-        <div style={{ padding: "8px 16px", marginLeft: 20, marginRight: 12 }}>
-          <pre style={{
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: "var(--text-1)",
-            fontFamily: "'Geist Mono', monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            margin: 0,
-            padding: 12,
-            background: "var(--surface-0)",
-            borderRadius: 8,
-            border: "1px solid var(--border-0)",
-            maxHeight: 300,
-            overflow: "auto",
-          }}>
-            {event.result || event.output || event.summary || "done"}
-          </pre>
-        </div>
-      );
-
-    case "error":
-      return (
-        <div style={{ padding: "8px 16px", marginLeft: 20, marginRight: 12 }}>
-          <pre style={{
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: "var(--fail)",
-            fontFamily: "'Geist Mono', monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            margin: 0,
-            padding: 12,
-            background: "var(--fail-dim)",
-            borderRadius: 8,
-            maxHeight: 300,
-            overflow: "auto",
-          }}>
-            {event.message || event.error || event.traceback || "Unknown error"}
-          </pre>
-        </div>
-      );
-
-    default:
-      return (
-        <div style={{ padding: "8px 16px", marginLeft: 20, marginRight: 12 }}>
-          <pre style={{
-            fontSize: 11,
-            color: "var(--text-2)",
-            fontFamily: "'Geist Mono', monospace",
-            whiteSpace: "pre-wrap",
-            margin: 0,
-            padding: 8,
-            background: "var(--surface-0)",
-            borderRadius: 6,
-            maxHeight: 200,
-            overflow: "auto",
-          }}>
-            {JSON.stringify(event, null, 2)}
-          </pre>
-        </div>
-      );
-  }
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Simple code block that fetches file content */
@@ -208,155 +56,215 @@ function CodeBlock({ fileUrl }: { fileUrl: string }) {
   );
 }
 
-/** Check if an event type is expandable */
-function isExpandable(event: AppEvent): boolean {
-  if (event.type === "ai_reply" && event.content && event.content.length > 0) return true;
-  if (event.type === "build_complete") return true;
-  if (event.type === "action_detail") return true;
-  if (event.type === "error") return true;
-  return false;
+/** User message bubble (right-aligned) */
+function UserBubble({ event }: { event: AppEvent }) {
+  return (
+    <div className="flex justify-end mb-3" style={{ paddingLeft: "15%" }}>
+      <div className="flex flex-col items-end gap-1">
+        <div className="user-msg">{event.content || event.text || ""}</div>
+        <span style={{ fontSize: 10, color: "var(--text-3)", paddingRight: 4 }}>{formatTs(event.ts)}</span>
+      </div>
+    </div>
+  );
 }
 
-/** Render a single event as a compact single-line entry */
-function EventLine({ event, idx, isExpanded, onClick }: {
+/** AI reply with purple bar, collapsible */
+function AiReplyBubble({ event, isExpanded, onToggle }: {
   event: AppEvent;
-  idx: number;
   isExpanded: boolean;
-  onClick: () => void;
+  onToggle: () => void;
 }) {
-  const ts = formatTs(event.ts);
-  const expandable = isExpandable(event);
+  const content = event.content || "";
+  const lines = content.split("\n");
+  const isLong = lines.length > 5 || content.length > 300;
+  const showFull = isExpanded || !isLong;
 
-  switch (event.type) {
-    case "user_input":
-      return (
-        <div className="flex justify-end items-center gap-2 py-1 px-2">
-          <span style={{ color: "var(--text-3)", fontSize: 10 }}>{ts}</span>
-          <span
-            className="px-2.5 py-1 rounded-full text-right truncate max-w-[260px]"
+  return (
+    <div className="mb-3">
+      <div className="ai-reply">
+        <div className="ai-reply-bar" />
+        <div className="ai-reply-content" style={{ flex: 1, minWidth: 0, position: "relative" }}>
+          <div
+            className="md"
             style={{
-              background: "var(--accent-deep)",
-              color: "#fff",
-              fontSize: 12,
+              maxHeight: showFull ? "none" : 120,
+              overflow: showFull ? "visible" : "hidden",
+              maskImage: showFull ? "none" : "linear-gradient(to bottom, black 60%, transparent 100%)",
+              WebkitMaskImage: showFull ? "none" : "linear-gradient(to bottom, black 60%, transparent 100%)",
             }}
-          >
-            {truncate(event.content || event.text || "", 60)}
-          </span>
-        </div>
-      );
-
-    case "ai_reply":
-      return (
-        <div
-          className="flex items-start gap-2 py-1.5 px-2 cursor-pointer rounded hover:opacity-90"
-          style={{ background: isExpanded ? "var(--surface-1)" : "var(--accent-glow)" }}
-          onClick={onClick}
-        >
-          {isExpanded ? (
-            <ChevronDown size={12} className="shrink-0 mt-0.5" style={{ color: "var(--accent)" }} />
-          ) : (
-            <ChevronRight size={12} className="shrink-0 mt-0.5" style={{ color: "var(--accent)" }} />
+            dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }}
+          />
+          {isLong && (
+            <button
+              onClick={onToggle}
+              className="flex items-center gap-1 mt-1.5 transition-colors hover:text-[var(--accent)]"
+              style={{ fontSize: 12, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}
+            >
+              {showFull ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> Expand</>}
+            </button>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="truncate" style={{ fontSize: 12, color: "var(--text-1)", lineHeight: "1.4" }}>
-              {truncate(event.content || "", 100)}
-            </div>
-            {!isExpanded && (
-              <span style={{ fontSize: 10, color: "var(--text-3)" }}>Click to expand</span>
-            )}
-          </div>
-          <span style={{ color: "var(--text-3)", fontSize: 10, flexShrink: 0 }}>{ts}</span>
+          <span style={{ fontSize: 10, color: "var(--text-3)", display: "block", marginTop: 4 }}>{formatTs(event.ts)}</span>
         </div>
-      );
+      </div>
+    </div>
+  );
+}
 
-    case "ai_reply_streaming":
-      return (
-        <div className="flex items-center gap-2 py-1.5 px-2">
+/** Action detail line */
+function ActionLine({ event, isExpanded, onToggle }: {
+  event: AppEvent;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="mb-2">
+      <div
+        className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer transition-all hover:bg-[var(--surface-1)]"
+        onClick={onToggle}
+      >
+        <Check size={12} style={{ color: "var(--pass)", flexShrink: 0 }} />
+        <span className="truncate" style={{ fontSize: 12, color: "var(--text-2)", fontFamily: "'Geist Mono', monospace" }}>
+          {event.name || "action"}: {event.summary || event.result || "done"}
+          {event.duration_ms != null && ` (${event.duration_ms}ms)`}
+        </span>
+        <span className="ml-auto shrink-0" style={{ fontSize: 10, color: "var(--text-3)" }}>{formatTs(event.ts)}</span>
+      </div>
+      {isExpanded && (
+        <div style={{ padding: "4px 0 4px 28px", animation: "expandIn 0.2s ease-out" }}>
+          <pre style={{
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "var(--text-1)",
+            fontFamily: "'Geist Mono', monospace",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+            margin: 0,
+            padding: 12,
+            background: "var(--surface-0)",
+            borderRadius: 8,
+            border: "1px solid var(--border-0)",
+            maxHeight: 300,
+            overflow: "auto",
+          }}>
+            {event.result || event.output || event.summary || "done"}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Error event */
+function ErrorLine({ event, isExpanded, onToggle }: {
+  event: AppEvent;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="mb-2">
+      <div
+        className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer transition-all hover:bg-[var(--fail-dim)]"
+        onClick={onToggle}
+      >
+        <AlertCircle size={12} style={{ color: "var(--fail)", flexShrink: 0 }} />
+        <span className="truncate" style={{ fontSize: 12, color: "var(--fail)" }}>
+          {event.message || event.error || "Error"}
+        </span>
+        <span className="ml-auto shrink-0" style={{ fontSize: 10, color: "var(--text-3)" }}>{formatTs(event.ts)}</span>
+      </div>
+      {isExpanded && (
+        <div style={{ padding: "4px 0 4px 28px", animation: "expandIn 0.2s ease-out" }}>
+          <pre style={{
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "var(--fail)",
+            fontFamily: "'Geist Mono', monospace",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+            margin: 0,
+            padding: 12,
+            background: "var(--fail-dim)",
+            borderRadius: 8,
+            maxHeight: 300,
+            overflow: "auto",
+          }}>
+            {event.message || event.error || event.traceback || "Unknown error"}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Build complete event */
+function BuildLine({ event, isExpanded, onToggle, sessionId, codeFiles }: {
+  event: AppEvent;
+  isExpanded: boolean;
+  onToggle: () => void;
+  sessionId: string;
+  codeFiles: string[];
+}) {
+  const file = event.file || (codeFiles.length > 0 ? codeFiles[0] : null);
+
+  return (
+    <div className="mb-2">
+      <div
+        className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer transition-all hover:bg-[var(--pass-dim)]"
+        onClick={onToggle}
+      >
+        <Package size={12} style={{ color: "var(--pass)", flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: "var(--pass)" }}>
+          Build complete{event.files ? ` (${event.files} files)` : ""}
+        </span>
+        <span className="ml-auto shrink-0" style={{ fontSize: 10, color: "var(--text-3)" }}>{formatTs(event.ts)}</span>
+      </div>
+      {isExpanded && file && (
+        <div style={{ padding: "8px 0 4px 28px", animation: "expandIn 0.2s ease-out" }}>
+          {(() => {
+            const previewUrl = `http://${API_HOST}/preview/${sessionId.slice(0, 16)}/${file}`;
+            const isHtml = /\.(html?|svg)$/i.test(file);
+            return (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: "var(--text-2)", fontWeight: 500 }}>{file}</span>
+                  <a href={previewUrl} target="_blank" rel="noopener"
+                    style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", padding: "2px 8px", borderRadius: 4, background: "rgba(167,139,250,0.08)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <ExternalLink size={10} /> Open
+                  </a>
+                </div>
+                {isHtml ? (
+                  <iframe src={previewUrl} style={{ width: "100%", height: 320, border: "1px solid var(--border-0)", borderRadius: 8, background: "#fff" }} sandbox="allow-scripts allow-same-origin" />
+                ) : (
+                  <CodeBlock fileUrl={previewUrl} />
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Thinking indicator */
+function ThinkingIndicator() {
+  return (
+    <div className="mb-3">
+      <div className="ai-reply" style={{ opacity: 0.7 }}>
+        <div className="ai-reply-bar" style={{ background: "var(--accent)", opacity: 0.5 }} />
+        <div className="flex items-center gap-2 py-2">
           <div className="thinking-dots">
             <span /><span /><span />
           </div>
-          <span style={{ fontSize: 12, color: "var(--text-2)" }}>typing...</span>
+          <span style={{ fontSize: 13, color: "var(--text-2)" }}>Thinking...</span>
         </div>
-      );
-
-    case "action_detail":
-      return (
-        <div
-          className={cn("flex items-center gap-2 py-0.5 px-2", expandable && "cursor-pointer")}
-          onClick={expandable ? onClick : undefined}
-        >
-          {isExpanded ? (
-            <ChevronDown size={11} style={{ color: "var(--pass)" }} />
-          ) : (
-            <Check size={11} style={{ color: "var(--pass)" }} />
-          )}
-          <span style={{ fontSize: 11, color: "var(--text-2)", fontFamily: "'Geist Mono', monospace" }}>
-            {event.name || "action"}: {truncate(event.summary || event.result || "done", 50)}
-            {event.duration_ms != null && ` (${event.duration_ms}ms)`}
-          </span>
-          <span className="ml-auto" style={{ color: "var(--text-3)", fontSize: 10 }}>{ts}</span>
-        </div>
-      );
-
-    case "error":
-      return (
-        <div
-          className={cn("flex items-center gap-2 py-1 px-2", expandable && "cursor-pointer")}
-          onClick={expandable ? onClick : undefined}
-        >
-          <AlertCircle size={12} style={{ color: "var(--fail)" }} />
-          <span
-            className="px-2 py-0.5 rounded truncate max-w-[280px]"
-            style={{ background: "var(--fail-dim)", color: "var(--fail)", fontSize: 11 }}
-          >
-            {truncate(event.message || event.error || "Error", 80)}
-          </span>
-          <span className="ml-auto" style={{ color: "var(--text-3)", fontSize: 10 }}>{ts}</span>
-        </div>
-      );
-
-    case "transcript":
-      return (
-        <div className="flex items-center gap-2 py-0.5 px-2" style={{ opacity: 0.5 }}>
-          <span style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "'Geist Mono', monospace" }}>
-            [{ts}] {truncate(event.content || event.text || "", 60)}
-          </span>
-        </div>
-      );
-
-    case "build_complete":
-      return (
-        <div
-          className="flex items-center gap-2 py-1 px-2 cursor-pointer"
-          onClick={onClick}
-        >
-          {isExpanded ? (
-            <ChevronDown size={12} style={{ color: "var(--pass)" }} />
-          ) : (
-            <Package size={12} style={{ color: "var(--pass)" }} />
-          )}
-          <span style={{ fontSize: 12, color: "var(--pass)" }}>
-            Build complete{event.files ? ` (${event.files} files)` : ""}
-          </span>
-          <span className="ml-auto" style={{ color: "var(--text-3)", fontSize: 10 }}>{ts}</span>
-        </div>
-      );
-
-    default:
-      return (
-        <div className="flex items-center gap-2 py-0.5 px-2" onClick={onClick}>
-          <span style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "'Geist Mono', monospace" }}>
-            [{ts}] {event.type}: {truncate(JSON.stringify(event).slice(0, 60), 60)}
-          </span>
-        </div>
-      );
-  }
+      </div>
+    </div>
+  );
 }
 
 /**
- * ActivityFeed - Compressed event stream with inline expandable content.
- * Each event type gets a compact single-line rendering. Clicking an expandable
- * event reveals its full content inline below it.
+ * ActivityFeed - Chat-style event stream with bubbles and expandable AI replies.
  */
 export function ActivityFeed({
   events,
@@ -370,62 +278,62 @@ export function ActivityFeed({
 }: ActivityFeedProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new events
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [events.length, Object.keys(toolStreams).length]);
 
-  // Active tool streams (running ones shown inline)
   const activeStreams = Object.values(toolStreams).filter(ts => ts.status === "running");
 
   return (
-    <div
-      className="flex-1 overflow-y-auto"
-      style={{ background: "var(--bg)" }}
-    >
-      <div className="flex flex-col gap-0.5 py-2">
-        {events.map((event, i) => (
-          <div key={i}>
-            <EventLine
-              event={event}
-              idx={i}
-              isExpanded={expandedEventIdx === i}
-              onClick={() => onEventClick(event, i)}
-            />
-            {/* Inline expanded content */}
-            {expandedEventIdx === i && isExpandable(event) && (
-              <div
-                className="expanded-section"
-                style={{
-                  overflow: "hidden",
-                  animation: "expandIn 0.2s ease-out",
-                }}
-              >
-                <ExpandedContent
-                  event={event}
-                  sessionId={sessionId}
-                  codeFiles={codeFiles}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+    <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 16px" }}>
+        {events.map((event, i) => {
+          const expanded = expandedEventIdx === i;
+          const toggle = () => onEventClick(event, i);
+
+          switch (event.type) {
+            case "user_input":
+              return <UserBubble key={i} event={event} />;
+
+            case "ai_reply":
+              return <AiReplyBubble key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
+
+            case "ai_reply_streaming":
+              return <ThinkingIndicator key={i} />;
+
+            case "action_detail":
+              return <ActionLine key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
+
+            case "error":
+              return <ErrorLine key={i} event={event} isExpanded={expanded} onToggle={toggle} />;
+
+            case "build_complete":
+              return <BuildLine key={i} event={event} isExpanded={expanded} onToggle={toggle} sessionId={sessionId} codeFiles={codeFiles} />;
+
+            case "transcript":
+              return (
+                <div key={i} className="mb-1 px-3" style={{ opacity: 0.4 }}>
+                  <span style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "'Geist Mono', monospace" }}>
+                    [{formatTs(event.ts)}] {event.content || event.text || ""}
+                  </span>
+                </div>
+              );
+
+            default:
+              return null;
+          }
+        })}
 
         {/* Active tool streams */}
         {activeStreams.map(ts => (
-          <div key={ts.id} className="px-2">
+          <div key={ts.id} className="mb-2">
             <ToolStreamCard toolStream={ts} onCancel={onCancelTool} />
           </div>
         ))}
 
-        {/* Thinking indicator (when no streaming event yet) */}
+        {/* Thinking (when no streaming event) */}
         {isThinking && !events.some(e => e.type === "ai_reply_streaming") && (
-          <div className="flex items-center gap-2 py-1.5 px-2">
-            <div className="thinking-dots">
-              <span /><span /><span />
-            </div>
-            <span style={{ fontSize: 12, color: "var(--text-2)" }}>thinking...</span>
-          </div>
+          <ThinkingIndicator />
         )}
 
         <div ref={bottomRef} />
