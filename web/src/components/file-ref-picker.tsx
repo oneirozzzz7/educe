@@ -23,6 +23,7 @@ export function FileRefPicker({ onSelect, onClose, query }: FileRefPickerProps) 
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
+      if (e.isComposing) return;
       if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, files.length - 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
       else if (e.key === "Enter" && files[selectedIdx]) { e.preventDefault(); onSelect(files[selectedIdx]); }

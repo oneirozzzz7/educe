@@ -103,6 +103,7 @@ export default function Home() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter" && !e.shiftKey && !showFilePicker) { e.preventDefault(); send(e.currentTarget.value); }
   }
 
