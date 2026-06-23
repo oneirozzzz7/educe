@@ -199,8 +199,69 @@ class TestEngine:
 
         elif action_type == "screenshot":
             name = action.get("name", f"screenshot_{int(time.time())}")
-            path = Path(__file__).parent.parent / "testing" / "results" / f"{name}.png"
+            path = Path(__file__).parent.parent / "results" / f"{name}.png"
             await self.page.screenshot(path=str(path))
+
+        elif action_type == "multi_turn_wait":
+            # Wait until status returns to Idle (all rounds finished)
+            timeout = action.get("timeout", 30) * 1000
+            await self.page.wait_for_function(
+                """() => {
+                    const status = document.querySelector('[class*="status"]');
+                    const text = document.body.innerText;
+                    return text.includes('Idle') && !text.includes('Thinking') && !text.includes('thinking');
+                }""",
+                timeout=timeout,
+            )
+            await self.page.wait_for_timeout(1500)
+
+        elif action_type == "generate_question":
+            # Call LLM to generate a randomized question
+            from educe.testing.engine.question_gen import generate_question
+            template = action["template"]
+            context = action.get("context", {})
+            question = await generate_question(template, context)
+            # Store for later use, then type it
+            self._generated_question = question
+            input_box = self.page.get_by_role("textbox")
+            await input_box.fill(question)
+            await self.page.keyboard.press("Enter")
+
+        elif action_type == "wait_for_action":
+            # Wait for action_detail events to appear (shell/file ops)
+            timeout = action.get("timeout", 15) * 1000
+            await self.page.wait_for_function(
+                """(minCount) => {
+                    const checks = document.body.innerText.match(/✓|done|action:/g);
+                    return (checks && checks.length >= minCount);
+                }""",
+                action.get("min_count", 1),
+                timeout=timeout,
+            )
+            await self.page.wait_for_timeout(500)
+
+        elif action_type == "auto_confirm_loop":
+            # Repeatedly check for and click Confirm buttons until Idle
+            timeout_s = action.get("timeout", 30)
+            deadline = time.time() + timeout_s
+            # First wait for non-Idle state (processing started)
+            for _ in range(10):
+                body_text = await self.page.evaluate("() => document.body.innerText")
+                if "Thinking" in body_text or "thinking" in body_text or "Building" in body_text:
+                    break
+                await self.page.wait_for_timeout(500)
+            # Now wait for Idle, auto-clicking Confirm along the way
+            while time.time() < deadline:
+                confirm_btn = self.page.locator("button.btn-primary, button:has-text('Confirm')")
+                if await confirm_btn.count() > 0:
+                    await confirm_btn.first.click()
+                    await self.page.wait_for_timeout(1500)
+                    continue
+                body_text = await self.page.evaluate("() => document.body.innerText")
+                if "Idle" in body_text and "Thinking" not in body_text:
+                    break
+                await self.page.wait_for_timeout(1000)
+            await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
         """Run a single verification check. Returns {passed, dimension, description, detail}."""
@@ -284,16 +345,31 @@ class TestEngine:
             content = await self.page.content()
             return text in content, f"page contains '{text}'"
 
+        if "action_lines_visible" in check:
+            # Check that action detail lines are rendered in the feed
+            min_count = check.get("action_lines_visible", 1)
+            count = await self.page.evaluate("""() => {
+                const text = document.body.innerText;
+                const matches = text.match(/action:|✓|done|shell:|read_file:|write_file:/g);
+                return matches ? matches.length : 0;
+            }""")
+            return count >= min_count, f"action lines visible={count}, min={min_count}"
+
+        if "status_idle" in check:
+            text = await self.page.evaluate("() => document.body.innerText")
+            return "Idle" in text, f"status contains Idle"
+
         return False, f"Unknown UI check: {check}"
 
     async def _verify_logic(self, check: dict) -> tuple[bool, str]:
         """Verify response semantics (anchor facts)."""
-        # Get the latest AI reply text from the page
+        # Get the last meaningful AI reply (aggregate all .ai-reply content)
         reply_text = await self.page.evaluate("""() => {
-            const replies = document.querySelectorAll('.ai-reply-content, .ai-reply');
+            const replies = document.querySelectorAll('.ai-reply-content .md, .ai-reply .md, .ai-reply-content');
             if (replies.length === 0) return '';
+            // Get the LAST reply's text (most recent)
             const last = replies[replies.length - 1];
-            return last.innerText || last.textContent || '';
+            return (last.innerText || last.textContent || '').trim();
         }""")
 
         if "contains_any" in check:
@@ -305,6 +381,16 @@ class TestEngine:
             forbidden = check["not_contains"]
             found = [t for t in forbidden if t in reply_text]
             return len(found) == 0, f"forbidden={forbidden}, found={found}"
+
+        if "judge_quality" in check:
+            from educe.testing.engine.question_gen import judge_quality
+            criteria = check["judge_quality"]
+            min_score = check.get("min_score", 6)
+            question = getattr(self, '_generated_question', 'unknown')
+            return await judge_quality(reply_text, question, criteria, min_score)
+
+        if "not_empty" in check:
+            return len(reply_text.strip()) > 0, f"reply length={len(reply_text)}"
 
         return False, f"Unknown logic check: {check}"
 
@@ -415,6 +501,24 @@ class TestEngine:
                     else:
                         return False, f"Found unwanted {target_name}"
             return True, f"No {target_name} event (good)"
+
+        if "action_count_gte" in check:
+            min_count = check["action_count_gte"]
+            action_events = [e for e in events if e.get("name") == "action_executed"]
+            return len(action_events) >= min_count, f"action_executed count={len(action_events)}, min={min_count}"
+
+        if "multi_round" in check:
+            rounds = [e for e in events if e.get("name") == "turn_start"]
+            min_rounds = check.get("multi_round", 2)
+            return len(rounds) >= min_rounds, f"rounds={len(rounds)}, min={min_rounds}"
+
+        if "has_action_type" in check:
+            target_type = check["has_action_type"]
+            found = any(
+                e.get("name") == "action_executed" and e.get("data", {}).get("type") == target_type
+                for e in events
+            )
+            return found, f"action type '{target_type}' found={found}"
 
         return False, f"Unknown log check: {check}"
 

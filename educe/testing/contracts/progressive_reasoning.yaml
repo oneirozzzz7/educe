@@ -1,0 +1,106 @@
+# 进阶推理 — LLM 生成随机化问题，3级递进难度
+# 每次运行产生不同问题（基于时间种子），但验证不变量成立
+# 用 judge LLM 评分回复质量，不硬编码答案
+
+scenario: progressive_reasoning
+description: "3级递进难度，LLM 生成随机问题。验证回复质量随难度递增保持水准。"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_prog_test.py"
+      content: |
+        import json
+        data = {
+            "users": [
+                {"name": "Alice", "age": 30, "scores": [85, 92, 78]},
+                {"name": "Bob", "age": 25, "scores": [90, 88, 95]},
+                {"name": "Charlie", "age": 35, "scores": [70, 75, 80]}
+            ]
+        }
+        print(json.dumps(data, indent=2))
+
+steps:
+  # ═══ Tier 1: 基础 — 直接可回答的问题 ═══
+  - name: "tier1_basic"
+    description: "基础级：LLM 生成一个关于文件内容的基础问题"
+    action:
+      type: "generate_question"
+      template: |
+        生成一个关于以下 Python 数据结构的基础问题（难度1/3）。
+        数据：3个用户(Alice/Bob/Charlie)，每人有 name、age、scores(3个分数)。
+        要求：问题只需要简单查找或计算（如"谁年龄最大"、"Bob的平均分是多少"）。
+        种子={seed}，请根据种子变换问题。附加前缀"@/tmp/educe_prog_test.py "。
+      context: {}
+    verify:
+      ui:
+        - { user_bubble_contains: "educe_prog_test", description: "消息含文件引用" }
+
+  - name: "tier1_wait"
+    action:
+      type: "multi_turn_wait"
+      timeout: 20
+    verify:
+      logic:
+        - { not_empty: true, description: "有回复" }
+        - { not_contains: ["不知道", "无法确定"], description: "没有拒绝回答" }
+      format:
+        - { min_length: 5, description: "回复有内容" }
+        - { max_length: 800, description: "基础问题不该长篇大论" }
+      logs:
+        - event_exists: "request_complete"
+
+  # ═══ Tier 2: 中级 — 需要执行代码验证的问题 ═══
+  - name: "tier2_intermediate"
+    description: "中级：需要运行脚本或做多步推理"
+    action:
+      type: "generate_question"
+      template: |
+        生成一个需要实际运行代码来回答的中级问题（难度2/3）。
+        场景：有个 Python 文件 /tmp/educe_prog_test.py 会打印一个 JSON 结构。
+        要求：问题需要运行文件、解析输出、做计算（如"运行这个脚本，告诉我所有人平均分的标准差"、"运行后找出分数最高的人"）。
+        种子={seed}，请变换问题。直接输出问题，前缀"请运行 /tmp/educe_prog_test.py 然后 "。
+      context: {}
+    verify: {}
+
+  - name: "tier2_wait"
+    action:
+      type: "multi_turn_wait"
+      timeout: 30
+    verify:
+      logic:
+        - { not_empty: true, description: "有回复" }
+        - { not_contains: ["抱歉", "我无法", "不支持"], description: "没有拒绝" }
+        - judge_quality: "回答是否基于实际运行结果（不是编造），逻辑是否正确，有没有引用具体数字"
+          min_score: 6
+      logs:
+        - { has_action_type: "shell", description: "确实运行了脚本" }
+        - event_exists: "action_executed"
+
+  # ═══ Tier 3: 高级 — 多步推理 + 代码生成 + 验证 ═══
+  - name: "tier3_advanced"
+    description: "高级：需要写代码、运行、分析结果"
+    action:
+      type: "generate_question"
+      template: |
+        生成一个高难度任务（难度3/3），需要编写新代码来解决。
+        背景：用户有 /tmp/educe_prog_test.py（打印3人的 JSON 数据含 scores 数组）。
+        要求：任务需要写一个新的分析脚本（如"写个脚本读取这个 JSON 输出，计算每人的分数趋势（递增/递减/波动），输出结论"、"写个脚本找出分数方差最大的人，并画个简单的 ASCII 柱状图"）。
+        种子={seed}。直接输出任务描述。
+      context: {}
+    verify: {}
+
+  - name: "tier3_wait"
+    action:
+      type: "multi_turn_wait"
+      timeout: 45
+    verify:
+      logic:
+        - { not_empty: true, description: "有回复" }
+        - judge_quality: "任务完成度：是否真的写了代码并运行？结果是否合理？有没有清晰的结论？"
+          min_score: 5
+      format:
+        - { min_length: 30, description: "高级任务回复应该较详细" }
+        - { has_structure: true, description: "有结构化输出" }
+      logs:
+        - { multi_round: 2, description: "多轮执行" }
+        - { action_count_gte: 2, description: "至少2个 action（写+运行）" }

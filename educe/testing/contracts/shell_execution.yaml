@@ -1,0 +1,81 @@
+# Shell 执行 — 从简单到复杂的命令执行链路验证
+# 验证：用户请求运行命令 → orchestrator 执行 shell → 输出正确 → 日志完整
+
+scenario: shell_execution
+description: "验证 shell 命令执行全链路：简单命令 → Python 脚本 → 管道命令"
+
+setup:
+  ensure_files:
+    - path: "/tmp/educe_test_calc.py"
+      content: |
+        import math
+        print(f"pi={math.pi:.4f}")
+        print(f"e={math.e:.4f}")
+        print(f"sqrt2={math.sqrt(2):.4f}")
+
+steps:
+  - name: "simple_shell_command"
+    description: "请求执行简单 echo 命令"
+    action:
+      type: "send_message"
+      text: "执行命令 echo 'educe_test_ok_12345' 并告诉我输出"
+    verify:
+      ui:
+        - { user_bubble_contains: "echo", description: "用户消息含 echo" }
+
+  - name: "wait_shell_result"
+    description: "等待命令执行完成（自动确认 action）并获得回复"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      ui:
+        - { action_lines_visible: 1, description: "至少有1个 action 行显示" }
+        - { status_idle: true, description: "状态回到 Idle" }
+      logic:
+        - { contains_any: ["educe_test_ok_12345"], description: "回复含命令输出" }
+        - { not_contains: ["失败", "error", "无法"], description: "没有错误提示" }
+      logs:
+        - event_sequence: ["ws_received", "model_called", "request_complete"]
+
+  - name: "python_script_execution"
+    description: "请求运行 Python 脚本（进阶：需要多步推理）"
+    action:
+      type: "send_message"
+      text: "运行 python /tmp/educe_test_calc.py，告诉我 pi 的值精确到小数点后4位"
+    verify:
+      ui:
+        - { user_bubble_contains: "python", description: "用户消息含 python" }
+
+  - name: "wait_python_result"
+    description: "等待 Python 脚本执行结果"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 30
+    verify:
+      logic:
+        - { contains_any: ["3.1415", "3.1416"], description: "回复含正确 pi 值" }
+        - { not_contains: ["无法运行", "找不到", "不存在"], description: "没有文件错误" }
+      format:
+        - { min_length: 5, description: "回复不为空" }
+      logs:
+        - { has_action_type: "shell", description: "执行了 shell" }
+        - event_exists: "request_complete"
+
+  - name: "piped_command"
+    description: "管道命令（进阶：组合命令能力）"
+    action:
+      type: "send_message"
+      text: "执行 echo 'hello world foo bar' | wc -w 告诉我单词数"
+    verify: {}
+
+  - name: "wait_pipe_result"
+    description: "等待管道命令结果"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      logic:
+        - { contains_any: ["4", "四"], description: "回复含正确单词数 4" }
+      logs:
+        - { has_action_type: "shell", description: "执行了 shell" }

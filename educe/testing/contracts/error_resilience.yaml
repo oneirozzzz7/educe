@@ -1,0 +1,104 @@
+# 容错性 — 验证错误路径的优雅处理
+# 故意触发：不存在的文件、失败的命令、超时场景
+# 验证：不崩溃、有有用错误提示、日志记录错误事件
+
+scenario: error_resilience
+description: "故意触发错误路径，验证框架优雅处理而非崩溃"
+
+setup:
+  ensure_files: []
+
+steps:
+  # ═══ Case 1: 读取不存在的文件 ═══
+  - name: "nonexistent_file"
+    description: "请求读取不存在的文件"
+    action:
+      type: "send_message"
+      text: "读取文件 /tmp/educe_this_file_does_not_exist_xyz789.txt 的内容"
+    verify: {}
+
+  - name: "wait_nonexistent_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "不会卡死，状态回到 Idle" }
+      logic:
+        - { contains_any: ["不存在", "找不到", "No such", "not found", "无法读取"], description: "告知文件不存在" }
+        - { not_contains: ["Traceback", "Exception", "NoneType"], description: "没有暴露内部错误栈" }
+      format:
+        - { min_length: 5, description: "有回复不是空的" }
+        - { max_length: 500, description: "错误提示不啰嗦" }
+      logs:
+        - event_exists: "request_complete"
+
+  # ═══ Case 2: 执行失败的命令 ═══
+  - name: "failing_command"
+    description: "请求执行会报错的命令"
+    action:
+      type: "send_message"
+      text: "运行命令 python -c 'import nonexistent_module_xyz' 告诉我结果"
+    verify: {}
+
+  - name: "wait_fail_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 25
+    verify:
+      ui:
+        - { status_idle: true, description: "状态恢复" }
+      logic:
+        - { contains_any: ["ModuleNotFoundError", "No module", "报错", "错误", "失败", "error"], description: "正确报告了错误" }
+        - { not_contains: ["成功", "运行正常"], description: "不会谎称成功" }
+      logs:
+        - { has_action_type: "shell", description: "确实尝试了执行" }
+        - event_exists: "request_complete"
+
+  # ═══ Case 3: 边界输入 — 空消息/特殊字符 ═══
+  - name: "special_characters"
+    description: "发送含特殊字符的消息"
+    action:
+      type: "send_message"
+      text: "计算 1<2 && 3>1 的布尔结果，同时告诉我 \"hello\" 有几个字符"
+    verify: {}
+
+  - name: "wait_special_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 20
+    verify:
+      ui:
+        - { status_idle: true, description: "特殊字符不导致卡死" }
+      logic:
+        - { not_empty: true, description: "有回复" }
+        - { contains_any: ["true", "True", "5", "五", "正确"], description: "能理解特殊字符语义" }
+      logs:
+        - event_exists: "request_complete"
+
+  # ═══ Case 4: 并发恢复 — 快速连续发两条 ═══
+  - name: "rapid_messages"
+    description: "快速连续发送消息（测试 session 串行化）"
+    action:
+      type: "send_message"
+      text: "1+1=?"
+    verify: {}
+
+  - name: "rapid_second"
+    description: "立刻发第二条（不等第一条完成）"
+    action:
+      type: "send_message"
+      text: "2+2=?"
+    verify: {}
+
+  - name: "wait_rapid_result"
+    action:
+      type: "auto_confirm_loop"
+      timeout: 30
+    verify:
+      ui:
+        - { status_idle: true, description: "最终恢复到 Idle" }
+      logic:
+        - { contains_any: ["4", "四"], description: "至少第二条得到正确回复" }
+      logs:
+        - event_exists: "request_complete"

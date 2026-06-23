@@ -56,7 +56,15 @@ async def main():
             scenarios = list_contracts()
 
         for scenario_name in scenarios:
-            print(f"▶ Running: {scenario_name}...")
+            print(f"\n▶ Running: {scenario_name}...")
+            # Create fresh session for each scenario
+            await page.goto(frontend_url)
+            await page.wait_for_timeout(1500)
+            new_btn = page.get_by_role("button", name="+")
+            if await new_btn.count() > 0:
+                await new_btn.click()
+                await page.wait_for_timeout(2000)
+
             contract = load_contract(scenario_name)
             result = await engine.run_scenario(contract)
             status = "✅" if result.passed else "❌"
