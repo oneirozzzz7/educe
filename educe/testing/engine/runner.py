@@ -334,6 +334,34 @@ class TestEngine:
             }""")
             return raw_html is None, f"raw html leaked: {raw_html}"
 
+        if "layout_sane" in check:
+            issues = await self.page.evaluate("""() => {
+                const problems = [];
+                // User bubbles: width should be >= height for short text
+                const bubbles = document.querySelectorAll('.user-msg');
+                for (const b of bubbles) {
+                    const r = b.getBoundingClientRect();
+                    if (r.height > r.width * 1.5 && b.textContent.length < 20) {
+                        problems.push('user-msg text vertical: ' + r.width.toFixed(0) + 'x' + r.height.toFixed(0) + ' "' + b.textContent.slice(0,10) + '"');
+                    }
+                }
+                // AI replies: should not be too narrow or too wide relative to viewport
+                const replies = document.querySelectorAll('.ai-reply');
+                for (const r of replies) {
+                    const rect = r.getBoundingClientRect();
+                    if (rect.width < 100) problems.push('ai-reply too narrow: ' + rect.width.toFixed(0) + 'px');
+                    if (rect.width > window.innerWidth * 0.95) problems.push('ai-reply too wide: ' + rect.width.toFixed(0) + 'px vs viewport ' + window.innerWidth);
+                }
+                // Check for elements overflowing viewport
+                const all = document.querySelectorAll('.user-msg, .ai-reply, .ai-reply-content');
+                for (const el of all) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.right > window.innerWidth + 5) problems.push(el.className + ' overflows right: ' + rect.right.toFixed(0));
+                }
+                return problems.length > 0 ? problems : null;
+            }""")
+            return issues is None, f"layout issues: {issues}"
+
         if "button_text_changed" in check:
             expected = check["button_text_changed"]
             btn = self.page.get_by_role("button", name=expected)

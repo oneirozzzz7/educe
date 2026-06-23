@@ -49,6 +49,7 @@ steps:
         - { has_markdown: true, description: "Markdown 渲染正确（有 <p>/<code>/<strong>）" }
         - { no_raw_html: true, description: "没有 HTML 标签泄漏" }
         - { no_overflow: true, description: "文字没有溢出容器" }
+        - { layout_sane: true, description: "气泡布局合理（不竖排/不过宽/不溢出）" }
       logic:
         - { contains_any: ["4", "5", "四", "五"], description: "回答了行数" }
         - { contains_any: ["0", "零"], description: "回答了第一个输出" }
