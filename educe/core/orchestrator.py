@@ -591,7 +591,11 @@ class Orchestrator:
 
         messages = [{"role": "system", "content": system}]
         messages.extend(history)
-        messages.append({"role": "user", "content": user_input})
+        # 文件引用注入到 user 消息
+        user_content = user_input
+        if file_context:
+            user_content = f"{user_input}\n\n{file_context}"
+        messages.append({"role": "user", "content": user_content})
 
         max_rounds = 20
         final_reply = ""
