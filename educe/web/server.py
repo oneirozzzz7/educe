@@ -589,6 +589,67 @@ def create_app(config: EduceConfig | None = None) -> Any:
             "has_edits": has_edits,
         }
 
+    # ═══════════════════════════════════════
+    #  日志系统 API（前端透明可查）
+    # ═══════════════════════════════════════
+
+    @app.get("/api/logs/sessions")
+    async def list_log_sessions(limit: int = 20, offset: int = 0):
+        index_path = Path(".educe/logs/index.jsonl")
+        if not index_path.exists():
+            return {"sessions": [], "total": 0}
+        lines = index_path.read_text(encoding="utf-8").strip().split("\n")
+        lines = [l for l in lines if l.strip()]
+        lines.reverse()
+        total = len(lines)
+        page = lines[offset:offset + limit]
+        sessions = []
+        for line in page:
+            try:
+                sessions.append(json.loads(line))
+            except Exception:
+                pass
+        return {"sessions": sessions, "total": total}
+
+    @app.get("/api/logs/sessions/{session_id}/events")
+    async def get_session_events(session_id: str, limit: int = 100, offset: int = 0, type_filter: str = ""):
+        import glob
+        pattern = f".educe/logs/sessions/*/{session_id[:16]}/events.jsonl"
+        matches = glob.glob(pattern)
+        if not matches:
+            return {"events": [], "total": 0}
+        events_path = Path(matches[0])
+        lines = events_path.read_text(encoding="utf-8").strip().split("\n")
+        lines = [l for l in lines if l.strip()]
+        events = []
+        for line in lines:
+            try:
+                evt = json.loads(line)
+                if type_filter and evt.get("type") not in type_filter.split(","):
+                    continue
+                events.append(evt)
+            except Exception:
+                pass
+        total = len(events)
+        page = events[offset:offset + limit]
+        return {"events": page, "total": total}
+
+    @app.get("/api/logs/trace/{trace_id}")
+    async def get_trace(trace_id: str):
+        import glob
+        patterns = glob.glob(".educe/logs/sessions/*/*/trace.jsonl")
+        for trace_path in patterns:
+            try:
+                for line in Path(trace_path).read_text(encoding="utf-8").strip().split("\n"):
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    if entry.get("trace_id") == trace_id:
+                        return entry
+            except Exception:
+                continue
+        return {"error": "trace not found"}
+
     @app.post("/api/feedback")
     async def submit_feedback(request: Request):
         import json as _json
