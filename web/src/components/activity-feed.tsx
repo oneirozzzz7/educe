@@ -80,10 +80,20 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
   return (
     <div className="mb-4">
       <div className="ai-reply">
-        <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center" style={{ background: "var(--accent-dim)", marginTop: 2 }}>
+        <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center cursor-pointer" onClick={isLong ? onToggle : undefined} style={{ background: "var(--accent-dim)", marginTop: 2 }}>
           <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>E</span>
         </div>
         <div className="ai-reply-content" style={{ flex: 1, minWidth: 0 }}>
+          {/* Collapse button at top when expanded */}
+          {isLong && showFull && (
+            <button
+              onClick={onToggle}
+              className="flex items-center gap-1 mb-2 transition-colors hover:text-[var(--accent)]"
+              style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}
+            >
+              <ChevronUp size={11} /> Collapse
+            </button>
+          )}
           <div
             className="md"
             style={{
@@ -94,13 +104,13 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
             }}
             dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }}
           />
-          {isLong && (
+          {isLong && !showFull && (
             <button
               onClick={onToggle}
               className="flex items-center gap-1 mt-2 transition-colors hover:text-[var(--accent)]"
               style={{ fontSize: 12, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}
             >
-              {showFull ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> Expand</>}
+              <ChevronDown size={12} /> Expand
             </button>
           )}
         </div>
