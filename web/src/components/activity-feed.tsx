@@ -336,14 +336,20 @@ export function ActivityFeed({
   const activeStreams = Object.values(toolStreams).filter(ts => ts.status === "running");
 
   // Group consecutive action_detail and transcript events
-  const renderItems: { type: "event" | "action_group" | "transcript_group"; events: AppEvent[]; startIdx: number }[] = [];
+  // Also treat short "✓ action_name" ai_replies as action signals (not real replies)
+  const isActionSignal = (e: AppEvent) =>
+    e.type === "action_detail" ||
+    e.type === "transcript" ||
+    (e.type === "ai_reply" && e.content && /^✓?\s*\w+$/.test(e.content.trim()) && e.content.length < 30);
+
+  const renderItems: { type: "event" | "action_group"; events: AppEvent[]; startIdx: number }[] = [];
   let i = 0;
   while (i < events.length) {
     const event = events[i];
-    if (event.type === "action_detail") {
-      const group: AppEvent[] = [event];
-      let j = i + 1;
-      while (j < events.length && (events[j].type === "action_detail" || events[j].type === "transcript")) {
+    if (isActionSignal(event)) {
+      const group: AppEvent[] = [];
+      let j = i;
+      while (j < events.length && isActionSignal(events[j])) {
         if (events[j].type === "action_detail") group.push(events[j]);
         j++;
       }
@@ -351,10 +357,18 @@ export function ActivityFeed({
         renderItems.push({ type: "action_group", events: group, startIdx: i });
         i = j;
         continue;
+      } else if (event.type === "transcript" || (event.type === "ai_reply" && isActionSignal(event))) {
+        // Skip single transcript or action-signal ai_reply
+        i++;
+        continue;
       }
     }
     if (event.type === "transcript") {
-      // Skip transcripts entirely in the main view
+      i++;
+      continue;
+    }
+    // Skip action-signal ai_replies that didn't get grouped
+    if (event.type === "ai_reply" && isActionSignal(event)) {
       i++;
       continue;
     }
