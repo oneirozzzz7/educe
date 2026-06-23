@@ -76,7 +76,7 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
 }) {
   const content = event.content || "";
   const lines = content.split("\n");
-  const isLong = lines.length > 5 || content.length > 300;
+  const isLong = lines.length > 8 || content.length > 500;
   const showFull = isExpanded || !isLong;
 
   return (
@@ -87,7 +87,7 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
           <div
             className="md"
             style={{
-              maxHeight: showFull ? "none" : 120,
+              maxHeight: showFull ? "none" : 160,
               overflow: showFull ? "visible" : "hidden",
               maskImage: showFull ? "none" : "linear-gradient(to bottom, black 60%, transparent 100%)",
               WebkitMaskImage: showFull ? "none" : "linear-gradient(to bottom, black 60%, transparent 100%)",
