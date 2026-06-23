@@ -77,14 +77,14 @@ steps:
         - { has_text: "Collapse", description: "如有 Expand 则点击后变为 Collapse" }
 
   - name: "verify_debug_panel"
-    description: "打开 Debug Panel 验证可观测性"
+    description: "打开 Activity Panel 验证可观测性"
     action:
       type: "click"
-      target: "Debug toggle"
+      target: "Activity toggle"
       selector: "button:has-text('>_')"
     verify:
       ui:
-        - { has_text: "Debug", description: "Debug 面板标题可见" }
+        - { has_text: "Activity", description: "Activity 面板标题可见" }
       observability:
         - { events_visible: true, description: "事件列表里有本次请求的事件" }
 

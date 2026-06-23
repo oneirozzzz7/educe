@@ -207,9 +207,9 @@ class TestEngine:
             timeout = action.get("timeout", 30) * 1000
             await self.page.wait_for_function(
                 """() => {
-                    const status = document.querySelector('[class*="status"]');
                     const text = document.body.innerText;
-                    return text.includes('Idle') && !text.includes('Thinking') && !text.includes('thinking');
+                    return (text.includes('进化待机') || text.includes('Idle'))
+                        && !text.includes('Thinking') && !text.includes('thinking') && !text.includes('思考中');
                 }""",
                 timeout=timeout,
             )
@@ -241,24 +241,24 @@ class TestEngine:
             await self.page.wait_for_timeout(500)
 
         elif action_type == "auto_confirm_loop":
-            # Repeatedly check for and click Confirm buttons until Idle
+            # Repeatedly check for and click Confirm/Run buttons until Idle
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
             # First wait for non-Idle state (processing started)
             for _ in range(10):
                 body_text = await self.page.evaluate("() => document.body.innerText")
-                if "Thinking" in body_text or "thinking" in body_text or "Building" in body_text:
+                if "Thinking" in body_text or "thinking" in body_text or "Building" in body_text or "思考中" in body_text:
                     break
                 await self.page.wait_for_timeout(500)
-            # Now wait for Idle, auto-clicking Confirm along the way
+            # Now wait for Idle, auto-clicking Run/Confirm along the way
             while time.time() < deadline:
-                confirm_btn = self.page.locator("button.btn-primary, button:has-text('Confirm')")
+                confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
                     await self.page.wait_for_timeout(1500)
                     continue
                 body_text = await self.page.evaluate("() => document.body.innerText")
-                if "Idle" in body_text and "Thinking" not in body_text:
+                if ("进化待机" in body_text or "Idle" in body_text) and "Thinking" not in body_text and "思考中" not in body_text:
                     break
                 await self.page.wait_for_timeout(1000)
             await self.page.wait_for_timeout(500)
@@ -385,7 +385,8 @@ class TestEngine:
 
         if "status_idle" in check:
             text = await self.page.evaluate("() => document.body.innerText")
-            return "Idle" in text, f"status contains Idle"
+            is_idle = "进化待机" in text or "Idle" in text
+            return is_idle, f"status contains idle marker (found={'进化待机' in text or 'Idle' in text})"
 
         return False, f"Unknown UI check: {check}"
 
