@@ -928,6 +928,38 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         orchestrator.on_chunk(lambda a, c: asyncio.ensure_future(send_chunk(a, c)))
 
+        # 零状态检测：新 session 自动推送项目环境摘要
+        if not orchestrator.conversation.turns:
+            try:
+                import os as _os_zero
+                cwd = _os_zero.getcwd()
+                entries = sorted(_os_zero.listdir(cwd))
+                visible = [e for e in entries if not e.startswith(".")][:20]
+                hidden_count = len([e for e in entries if e.startswith(".")])
+                has_git = ".git" in entries
+                has_package = any(f in entries for f in ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"])
+                has_readme = any(f.lower().startswith("readme") for f in entries)
+
+                suggestions = []
+                if has_readme:
+                    suggestions.append("读取 README 了解项目")
+                if has_package:
+                    suggestions.append("分析项目结构和依赖")
+                suggestions.append("帮我写代码 / 做工具")
+
+                await websocket.send_json({
+                    "type": "zero_state",
+                    "cwd": cwd,
+                    "files": visible,
+                    "file_count": len(entries),
+                    "hidden_count": hidden_count,
+                    "has_git": has_git,
+                    "has_package": has_package,
+                    "suggestions": suggestions,
+                })
+            except Exception as e:
+                log.debug("zero_state detection failed: %s", e)
+
         try:
             while True:
                 data = await websocket.receive_json()

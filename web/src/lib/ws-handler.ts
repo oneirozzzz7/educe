@@ -195,6 +195,21 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return { type: "ACTION_CONFIRM_REQUEST", actions: msg.actions || [] };
   }
 
+  // ── zero_state（新 session 项目环境检测）──
+  if (type === "zero_state") {
+    const event: AppEvent = {
+      type: "zero_state",
+      ts: Date.now() / 1000,
+      cwd: msg.cwd,
+      files: msg.files,
+      file_count: msg.file_count,
+      has_git: msg.has_git,
+      has_package: msg.has_package,
+      suggestions: msg.suggestions,
+    };
+    return { type: "APPEND_EVENT", event };
+  }
+
   // ── decision_request（build 路径的协作决策）──
   if (type === "decision_request") {
     return { type: "DECISION_REQUEST", decisions: msg.decisions || [] };

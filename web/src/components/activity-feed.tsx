@@ -378,6 +378,56 @@ function ActionGroup({ events, isExpanded, onToggle }: {
   );
 }
 
+/** Zero-state welcome card — shows project context and suggestions */
+function WelcomeCard({ event, onSuggestionClick }: { event: AppEvent; onSuggestionClick?: (text: string) => void }) {
+  const files = event.files || [];
+  const cwd = event.cwd || ".";
+  const dirName = cwd.split("/").pop() || cwd;
+
+  return (
+    <div className="mb-4">
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-1)", background: "var(--surface-1)" }}>
+        <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-0)" }}>
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>
+              {dirName}/
+            </span>
+            <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+              {event.file_count} items{event.has_git ? " · git" : ""}{event.has_package ? " · package" : ""}
+            </span>
+          </div>
+          {files.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {files.slice(0, 12).map((f: string) => (
+                <span key={f} style={{ fontSize: 11, color: "var(--text-2)", background: "var(--surface-0)", padding: "2px 6px", borderRadius: 4 }}>
+                  {f}
+                </span>
+              ))}
+              {files.length > 12 && (
+                <span style={{ fontSize: 11, color: "var(--text-3)" }}>+{files.length - 12}</span>
+              )}
+            </div>
+          )}
+        </div>
+        {event.suggestions && event.suggestions.length > 0 && (
+          <div className="px-4 py-2.5 flex flex-wrap gap-2">
+            {event.suggestions.map((s: string, i: number) => (
+              <button
+                key={i}
+                onClick={() => onSuggestionClick?.(s)}
+                className="cursor-pointer transition-all hover:brightness-110"
+                style={{ fontSize: 12, color: "var(--accent)", background: "var(--accent-dim)", border: "none", padding: "4px 10px", borderRadius: 12 }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Memory conflict card — shows conflicting entries for user resolution */
 function ConflictCard({ event }: { event: AppEvent }) {
   const [resolved, setResolved] = useState(false);
@@ -548,6 +598,8 @@ export function ActivityFeed({
               return <BuildLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} sessionId={sessionId} codeFiles={codeFiles} />;
             case "memory_conflict":
               return <ConflictCard key={idx} event={event} />;
+            case "zero_state":
+              return <WelcomeCard key={idx} event={event} />;
             default:
               return null;
           }
