@@ -11,10 +11,7 @@ interface WorkbenchShellProps {
 }
 
 /**
- * WorkbenchShell - CSS Grid layout container with 2 zones + optional debug:
- * - Left sidebar (48px collapsed / 240px expanded)
- * - Center content (flex, full remaining width)
- * - Bottom debug-panel (collapsible, 0 or 240px)
+ * WorkbenchShell - Layout: sidebar left + main center + debug right drawer
  */
 export function WorkbenchShell({
   sidebarOpen,
@@ -24,31 +21,21 @@ export function WorkbenchShell({
   debugPanel,
 }: WorkbenchShellProps) {
   const sidebarWidth = sidebarOpen ? "240px" : "48px";
-  const debugHeight = debugOpen ? "180px" : "0px";
 
   return (
     <div
-      className="w-screen h-screen overflow-hidden"
-      style={{
-        display: "grid",
-        gridTemplateColumns: `${sidebarWidth} 1fr`,
-        gridTemplateRows: `1fr ${debugHeight}`,
-        gridTemplateAreas: `
-          "sidebar main"
-          "sidebar debug"
-        `,
-        background: "var(--bg)",
-        transition: "grid-template-columns 0.2s ease, grid-template-rows 0.2s ease",
-      }}
+      className="w-screen h-screen overflow-hidden flex"
+      style={{ background: "var(--bg)" }}
     >
       {/* Sidebar */}
       <aside
         style={{
-          gridArea: "sidebar",
+          width: sidebarWidth,
           background: "var(--surface-1)",
           borderRight: "1px solid var(--border-0)",
           overflow: "hidden",
           transition: "width 0.2s ease",
+          flexShrink: 0,
         }}
       >
         {sidebar}
@@ -57,23 +44,26 @@ export function WorkbenchShell({
       {/* Main Content */}
       <main
         style={{
-          gridArea: "main",
+          flex: 1,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          minWidth: 0,
         }}
       >
         {commandRail}
       </main>
 
-      {/* Debug Panel (collapsible) */}
+      {/* Debug Panel — right side drawer */}
       {debugOpen && debugPanel && (
         <section
           style={{
-            gridArea: "debug",
+            width: 360,
             background: "var(--surface-1)",
-            borderTop: "1px solid var(--border-0)",
+            borderLeft: "1px solid var(--border-0)",
             overflow: "hidden",
+            flexShrink: 0,
+            animation: "slide-in-right 0.2s ease",
           }}
         >
           {debugPanel}

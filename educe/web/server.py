@@ -766,6 +766,30 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         return {"files": results[:limit], "frequent": frequent}
 
+    @app.get("/api/ls")
+    async def list_directory(path: str = "/"):
+        """列出指定目录的文件和文件夹（供 @ 绝对路径补全）"""
+        import os
+        target = Path(path)
+        if not target.exists():
+            return {"exists": False, "entries": [], "error": "path not found"}
+        if not target.is_dir():
+            return {"exists": True, "is_file": True, "entries": [], "path": str(target)}
+        try:
+            entries = []
+            for entry in sorted(target.iterdir()):
+                name = entry.name
+                if name.startswith(".") and name not in (".env",):
+                    continue
+                entries.append({
+                    "name": name,
+                    "is_dir": entry.is_dir(),
+                    "path": str(entry),
+                })
+            return {"exists": True, "entries": entries[:50]}
+        except PermissionError:
+            return {"exists": True, "entries": [], "error": "permission denied"}
+
     @app.websocket("/ws/{session_id}")
     async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await websocket.accept()
