@@ -56,20 +56,17 @@ function CodeBlock({ fileUrl }: { fileUrl: string }) {
   );
 }
 
-/** User message bubble (right-aligned) */
+/** User message (right-aligned, minimal) */
 function UserBubble({ event }: { event: AppEvent }) {
   const text = event.content || event.text || "";
   return (
-    <div className="flex justify-end mb-3">
-      <div className="flex flex-col items-end gap-1" style={{ maxWidth: "75%" }}>
-        <div className="user-msg">{text}</div>
-        <span style={{ fontSize: 10, color: "var(--text-3)", paddingRight: 4 }}>{formatTs(event.ts)}</span>
-      </div>
+    <div className="flex justify-end mb-4">
+      <div className="user-msg">{text}</div>
     </div>
   );
 }
 
-/** AI reply with purple bar, collapsible */
+/** AI reply — clean text flow with small icon */
 function AiReplyBubble({ event, isExpanded, onToggle }: {
   event: AppEvent;
   isExpanded: boolean;
@@ -81,10 +78,12 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
   const showFull = isExpanded || !isLong;
 
   return (
-    <div className="mb-3">
+    <div className="mb-4">
       <div className="ai-reply">
-        <div className="ai-reply-bar" />
-        <div className="ai-reply-content" style={{ flex: 1, minWidth: 0, position: "relative" }}>
+        <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center" style={{ background: "var(--accent-dim)", marginTop: 2 }}>
+          <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>E</span>
+        </div>
+        <div className="ai-reply-content" style={{ flex: 1, minWidth: 0 }}>
           <div
             className="md"
             style={{
@@ -98,13 +97,12 @@ function AiReplyBubble({ event, isExpanded, onToggle }: {
           {isLong && (
             <button
               onClick={onToggle}
-              className="flex items-center gap-1 mt-1.5 transition-colors hover:text-[var(--accent)]"
+              className="flex items-center gap-1 mt-2 transition-colors hover:text-[var(--accent)]"
               style={{ fontSize: 12, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "inherit" }}
             >
               {showFull ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> Expand</>}
             </button>
           )}
-          <span style={{ fontSize: 10, color: "var(--text-3)", display: "block", marginTop: 4 }}>{formatTs(event.ts)}</span>
         </div>
       </div>
     </div>
@@ -250,14 +248,15 @@ function BuildLine({ event, isExpanded, onToggle, sessionId, codeFiles }: {
 /** Thinking indicator */
 function ThinkingIndicator() {
   return (
-    <div className="mb-3">
-      <div className="ai-reply" style={{ opacity: 0.7 }}>
-        <div className="ai-reply-bar" style={{ background: "var(--accent)", opacity: 0.5 }} />
-        <div className="flex items-center gap-2 py-2">
+    <div className="mb-4">
+      <div className="ai-reply">
+        <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center" style={{ background: "var(--accent-dim)", marginTop: 2 }}>
+          <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>E</span>
+        </div>
+        <div className="flex items-center gap-2 py-1">
           <div className="thinking-dots">
             <span /><span /><span />
           </div>
-          <span style={{ fontSize: 13, color: "var(--text-2)" }}>Thinking...</span>
         </div>
       </div>
     </div>
@@ -287,7 +286,7 @@ export function ActivityFeed({
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 24px 16px" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 40px 16px" }}>
         {events.map((event, i) => {
           const expanded = expandedEventIdx === i;
           const toggle = () => onEventClick(event, i);
