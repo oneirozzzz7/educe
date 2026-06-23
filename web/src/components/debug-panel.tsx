@@ -36,13 +36,17 @@ function formatTimestamp(ts: number): string {
 }
 
 function summarizeEvent(event: any): string {
-  if (event.content) return event.content.slice(0, 80);
-  if (event.message) return event.message.slice(0, 80);
+  // Human-readable summaries instead of raw JSON
+  if (event.type === "state_sync") return `session=${(event.session_id || "").slice(0, 8)} phase=${event.phase || "idle"}`;
+  if (event.type === "status") return event.content || "status update";
+  if (event.type === "user_input") return event.content?.slice(0, 60) || event.text?.slice(0, 60) || "";
+  if (event.type === "ai_reply") return (event.content || "").slice(0, 60);
+  if (event.type === "action_detail") return `${event.name || "action"}: ${(event.summary || event.result || "done").slice(0, 50)}`;
+  if (event.type === "error") return event.message || event.error || "error";
+  if (event.content) return event.content.slice(0, 60);
+  if (event.message) return event.message.slice(0, 60);
   if (event.name) return event.name;
-  if (event.result) return typeof event.result === "string" ? event.result.slice(0, 80) : JSON.stringify(event.result).slice(0, 80);
-  const { type, ts, ...rest } = event;
-  const s = JSON.stringify(rest);
-  return s.length > 80 ? s.slice(0, 80) + "..." : s;
+  return event.type || "event";
 }
 
 function EventRow({ event, index }: { event: any; index: number }) {
