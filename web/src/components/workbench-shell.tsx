@@ -7,15 +7,13 @@ interface WorkbenchShellProps {
   debugOpen: boolean;
   sidebar: React.ReactNode;
   commandRail: React.ReactNode;
-  canvas: React.ReactNode;
   debugPanel?: React.ReactNode;
 }
 
 /**
- * WorkbenchShell - CSS Grid layout container with 4 zones:
+ * WorkbenchShell - CSS Grid layout container with 2 zones + optional debug:
  * - Left sidebar (48px collapsed / 240px expanded)
- * - Center command-rail (flex, min 360px)
- * - Right artifact-canvas (flex, min 400px)
+ * - Center content (flex, full remaining width)
  * - Bottom debug-panel (collapsible, 0 or 240px)
  */
 export function WorkbenchShell({
@@ -23,7 +21,6 @@ export function WorkbenchShell({
   debugOpen,
   sidebar,
   commandRail,
-  canvas,
   debugPanel,
 }: WorkbenchShellProps) {
   const sidebarWidth = sidebarOpen ? "240px" : "48px";
@@ -34,11 +31,11 @@ export function WorkbenchShell({
       className="w-screen h-screen overflow-hidden"
       style={{
         display: "grid",
-        gridTemplateColumns: `${sidebarWidth} minmax(360px, 1fr) minmax(400px, 1fr)`,
+        gridTemplateColumns: `${sidebarWidth} 1fr`,
         gridTemplateRows: `1fr ${debugHeight}`,
         gridTemplateAreas: `
-          "sidebar rail canvas"
-          "sidebar debug debug"
+          "sidebar main"
+          "sidebar debug"
         `,
         background: "var(--bg)",
         transition: "grid-template-columns 0.2s ease, grid-template-rows 0.2s ease",
@@ -57,30 +54,17 @@ export function WorkbenchShell({
         {sidebar}
       </aside>
 
-      {/* Command Rail */}
+      {/* Main Content */}
       <main
         style={{
-          gridArea: "rail",
+          gridArea: "main",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          borderRight: "1px solid var(--border-0)",
         }}
       >
         {commandRail}
       </main>
-
-      {/* Artifact Canvas */}
-      <section
-        style={{
-          gridArea: "canvas",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {canvas}
-      </section>
 
       {/* Debug Panel (collapsible) */}
       {debugOpen && debugPanel && (

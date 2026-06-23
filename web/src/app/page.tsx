@@ -8,7 +8,6 @@ import { WorkbenchShell } from "@/components/workbench-shell";
 import { StatusBar } from "@/components/status-bar";
 import { ActivityFeed } from "@/components/activity-feed";
 import { DebugPanel } from "@/components/debug-panel";
-import { ArtifactCanvas } from "@/components/artifact-canvas";
 import { Sidebar, type SidebarRef } from "@/components/sidebar";
 import { SettingsModal } from "@/components/settings-modal";
 import { EvolutionStatusPanel } from "@/components/evolution-status";
@@ -16,6 +15,8 @@ import { EvolutionBar } from "@/components/evolution-bar";
 import { FeedbackButton } from "@/components/feedback-button";
 import { FileRefPicker, ReferencedFilesBar } from "@/components/file-ref-picker";
 import { ToolStreamCard } from "@/components/tool-stream-card";
+import { DecisionCard } from "@/components/decision-card";
+import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
 
 // ═══ Main Page ═══
 
@@ -131,6 +132,10 @@ export default function Home() {
     dispatch({ type: "TOOL_CANCEL", id });
   }
 
+  function handleEventClick(_event: AppEvent, idx: number) {
+    dispatch({ type: "EXPAND_EVENT", idx });
+  }
+
   // ── Elapsed time (for status bar) ──
   const elapsed = isThinking ? stream.thinkingElapsed : isBuilding ? stream.buildElapsed : 0;
 
@@ -159,6 +164,9 @@ export default function Home() {
             isThinking={isThinking}
             isBuilding={isBuilding}
             pendingConfirm={pendingConfirm}
+            pendingDecisions={pendingDecisions}
+            pendingPropose={pendingPropose}
+            reflexBubble={reflexBubble}
             elapsed={elapsed}
             connected={connected}
             model={model}
@@ -184,16 +192,7 @@ export default function Home() {
             }}
             onRemoveFile={(f) => setReferencedFiles(prev => prev.filter(x => x !== f))}
             onCloseFilePicker={() => setShowFilePicker(false)}
-            onEventClick={(event) => {
-              if (event.type === "ai_reply") {
-                dispatch({ type: "OPEN_PREVIEW", file: "" });
-              }
-            }}
-          />
-        }
-        canvas={
-          <ArtifactCanvas
-            state={state}
+            onEventClick={handleEventClick}
             onDecisionSubmit={handleDecisionSubmit}
             onCalibrate={handleCalibrate}
           />
@@ -226,6 +225,9 @@ interface CommandRailProps {
   isThinking: boolean;
   isBuilding: boolean;
   pendingConfirm: PendingAction[] | null;
+  pendingDecisions: { question: string; options: string[] }[] | null;
+  pendingPropose: AppState["pendingPropose"];
+  reflexBubble: AppState["reflexBubble"];
   elapsed: number;
   connected: boolean;
   model: string;
@@ -244,26 +246,58 @@ interface CommandRailProps {
   onFileSelect: (path: string) => void;
   onRemoveFile: (f: string) => void;
   onCloseFilePicker: () => void;
-  onEventClick: (event: AppEvent) => void;
+  onEventClick: (event: AppEvent, idx: number) => void;
+  onDecisionSubmit: (choices: { question: string; choice: string }[]) => void;
+  onCalibrate: (action: "confirm" | "dismiss" | "snooze", eventId: string) => void;
 }
 
 function CommandRail({
   state, events, toolStreams, isThinking, isBuilding, pendingConfirm,
+  pendingDecisions, pendingPropose, reflexBubble,
   elapsed, connected, model, referencedFiles, showFilePicker, fileQuery,
   inputRef, onSend, onConfirm, onCancel, onKeyDown, onInputChange,
   onCancelTool, onToggleDebug, onToggleEvolution, onFileSelect, onRemoveFile,
-  onCloseFilePicker, onEventClick,
+  onCloseFilePicker, onEventClick, onDecisionSubmit, onCalibrate,
 }: CommandRailProps) {
   return (
     <>
       {/* Activity Feed */}
       <ActivityFeed
         events={events}
+        expandedEventIdx={state.expandedEventIdx}
         onEventClick={onEventClick}
         toolStreams={toolStreams}
         isThinking={isThinking}
         onCancelTool={onCancelTool}
+        sessionId={state.sessionId}
+        codeFiles={state.codeFiles}
       />
+
+      {/* Pending Decisions (inline, above input) */}
+      {pendingDecisions && (
+        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border-0)" }}>
+          <DecisionCard decisions={pendingDecisions} onSubmit={onDecisionSubmit} />
+        </div>
+      )}
+
+      {/* Pending Propose (inline, above input) */}
+      {pendingPropose && (
+        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border-0)" }}>
+          <ProposeCard
+            eventId={pendingPropose.eventId}
+            phrase={pendingPropose.phrase}
+            cause={pendingPropose.cause}
+            confidence={pendingPropose.confidence}
+            organ={pendingPropose.organ}
+            onCalibrate={onCalibrate}
+          />
+          {reflexBubble && (
+            <div style={{ marginTop: 8 }}>
+              <ReflexBubble phrase={reflexBubble.phrase} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pending Confirm Card (inline in feed area) */}
       {pendingConfirm && (

@@ -98,6 +98,7 @@ export interface AppState {
   showSettings: boolean;
   buildExpanded: boolean;
   previewFile: string | null;
+  expandedEventIdx: number | null;
 
   // Debug
   debugOpen: boolean;
@@ -137,6 +138,7 @@ export const INITIAL_STATE: AppState = {
   showSettings: false,
   buildExpanded: false,
   previewFile: null,
+  expandedEventIdx: null,
   debugOpen: false,
   debugEvents: [],
 };
@@ -196,6 +198,8 @@ export type Action =
   | { type: "TOGGLE_BUILD_EXPANDED" }
   | { type: "OPEN_PREVIEW"; file: string }
   | { type: "CLOSE_PREVIEW" }
+  | { type: "EXPAND_EVENT"; idx: number }
+  | { type: "COLLAPSE_EVENT" }
 
   // Debug
   | { type: "TOGGLE_DEBUG" }
@@ -220,6 +224,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         events: [...state.events, action.event],
+        // Auto-collapse expanded item when user sends a new message
+        expandedEventIdx: action.event.type === "user_input" ? null : state.expandedEventIdx,
       };
 
     case "SYNC_STATE": {
@@ -472,6 +478,11 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, buildExpanded: true, previewFile: action.file };
     case "CLOSE_PREVIEW":
       return { ...state, buildExpanded: false, previewFile: null };
+    case "EXPAND_EVENT":
+      // Toggle: if same index clicked again, collapse
+      return { ...state, expandedEventIdx: state.expandedEventIdx === action.idx ? null : action.idx };
+    case "COLLAPSE_EVENT":
+      return { ...state, expandedEventIdx: null };
 
     // ── Debug ──
     case "TOGGLE_DEBUG":
