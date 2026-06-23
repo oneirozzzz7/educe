@@ -659,6 +659,9 @@ class Orchestrator:
 
             # 解析 action
             reply_text, actions = parse_actions(raw)
+            log.info("_action_loop | round=%d actions=%d reply_len=%d raw_tail='%s'",
+                     round_idx, len(actions), len(reply_text),
+                     raw[-200:].replace('\n', '\\n') if raw else "")
             log_activity(_sid, "model_output",
                         round=round_idx,
                         has_actions=len(actions),
@@ -695,9 +698,12 @@ class Orchestrator:
                         "let me implement", "let me modify", "I'll now",
                     ]
                     has_continuation = (
-                        round_idx > 0 and round_idx < max_rounds - 2
+                        round_idx < max_rounds - 2
                         and any(sig in raw for sig in _CONTINUATION_SIGNALS)
                     )
+                    matched_sigs = [s for s in _CONTINUATION_SIGNALS if s in raw]
+                    log.info("_action_loop | round=%d continuation_check: matched=%s has=%s",
+                             round_idx, matched_sigs, has_continuation)
                     if has_continuation:
                         # 模型想继续但没输出 action → 追加提示让它执行
                         messages.append({"role": "assistant", "content": raw})

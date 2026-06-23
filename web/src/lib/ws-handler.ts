@@ -170,6 +170,11 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return { type: "ACTION_CONFIRM_REQUEST", actions: msg.actions || [] };
   }
 
+  // ── decision_request（build 路径的协作决策）──
+  if (type === "decision_request") {
+    return { type: "DECISION_REQUEST", decisions: msg.decisions || [] };
+  }
+
   // ── build_progress ──
   if (type === "build_progress") {
     const event: AppEvent = {

@@ -14,6 +14,7 @@ import { ProposeCard, ReflexBubble } from "@/components/evolution-card";
 import { EvolutionStatusPanel } from "@/components/evolution-status";
 import { EvolutionBar } from "@/components/evolution-bar";
 import { FileRefPicker, ReferencedFilesBar } from "@/components/file-ref-picker";
+import { DecisionCard } from "@/components/decision-card";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -475,7 +476,7 @@ export default function Home() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { events, stream, phase, pendingConfirm, connected, model, toolStreams, pendingPropose, reflexBubble } = state;
+  const { events, stream, phase, pendingConfirm, pendingDecisions, connected, model, toolStreams, pendingPropose, reflexBubble } = state;
   const isBuilding = phase === "building";
   const isThinking = stream.thinking;
 
@@ -736,6 +737,18 @@ export default function Home() {
                   <button className="btn-primary" onClick={handleConfirm}>确认</button>
                   <button className="btn-ghost" onClick={handleCancel}>取消</button>
                 </div>
+              </div>
+            )}
+
+            {pendingDecisions && (
+              <div style={{ marginBottom: 16 }}>
+                <DecisionCard
+                  decisions={pendingDecisions}
+                  onSubmit={(choices) => {
+                    wsRef.current?.sendRaw({ type: "decision_response", decisions: choices });
+                    dispatch({ type: "DECISION_SUBMITTED" });
+                  }}
+                />
               </div>
             )}
 

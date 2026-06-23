@@ -58,6 +58,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
     sessions: dict[str, Orchestrator] = {}
     session_files: dict[str, dict[str, Any]] = {}  # session_id -> {file_id: FileAttachment}
+    session_locks: dict[str, asyncio.Lock] = {}     # per-session serialization
+    session_tasks: dict[str, asyncio.Task] = {}     # current running task per session
 
     # 全局SelfEvolver（跨session共享）
     shared_self_evolver = None
@@ -1139,8 +1141,16 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 async def _run_and_sync():
                     try:
                         await orchestrator.run(user_input, file_content=file_content)
+                    except asyncio.CancelledError:
+                        log.info("session %s: task cancelled (superseded by new message)", session_id[:8])
+                        return
                     except Exception as e:
-                        await websocket.send_json({"type": "error", "content": str(e)})
+                        log.error("session %s: orchestrator.run failed: %s", session_id[:8], str(e)[:200])
+                        try:
+                            await websocket.send_json({"type": "error", "content": str(e)[:200]})
+                        except Exception:
+                            pass
+                        return
                     if hasattr(orchestrator, 'state'):
                         code_files = orchestrator.context.artifacts.get("code_files", [])
                         if code_files and code_files != orchestrator.state.code_files:
@@ -1151,7 +1161,7 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         try:
                             await websocket.send_json({"type": "state_sync", **orchestrator.state.to_snapshot()})
                         except Exception as e:
-                            log.debug("suppressed: %s", e)
+                            log.debug("state_sync send failed: %s", e)
                     await asyncio.sleep(0.05)
                     if not orchestrator.context.metadata.get("_pending_decisions") and not orchestrator.context.metadata.get("_pending_plans"):
                         expert_name = orchestrator.context.metadata.get("expert_name", "")
@@ -1159,9 +1169,33 @@ def create_app(config: EduceConfig | None = None) -> Any:
                             await websocket.send_json({"type": "expert", "content": expert_name})
                         await websocket.send_json({"type": "status", "content": "idle"})
 
-                asyncio.create_task(_run_and_sync())
+                # Cancel-previous: 新消息取消正在进行的旧任务
+                lock = session_locks.setdefault(session_id, asyncio.Lock())
+                prev_task = session_tasks.get(session_id)
+                if prev_task and not prev_task.done():
+                    prev_task.cancel()
+                    try:
+                        await prev_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                    log.info("session %s: previous task cancelled", session_id[:8])
+                    # 清理残留状态
+                    orchestrator.context.metadata.pop("_pending_actions", None)
+                    orchestrator.context.metadata.pop("_clarify_pending", None)
+
+                async def _guarded_run():
+                    async with lock:
+                        await _run_and_sync()
+
+                task = asyncio.create_task(_guarded_run())
+                session_tasks[session_id] = task
 
         except WebSocketDisconnect:
+            # Cancel running task on disconnect
+            prev_task = session_tasks.pop(session_id, None)
+            if prev_task and not prev_task.done():
+                prev_task.cancel()
+            session_locks.pop(session_id, None)
             # Close session logger (protected — must not lose logs)
             try:
                 if orchestrator and orchestrator.session_logger:

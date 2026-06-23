@@ -69,6 +69,9 @@ export interface AppState {
   // 待确认操作
   pendingConfirm: PendingAction[] | null;
 
+  // 待决策（build 协作）
+  pendingDecisions: { question: string; options: string[] }[] | null;
+
   // 工具流式状态
   toolStreams: Record<string, ToolStream>;
 
@@ -116,6 +119,7 @@ export const INITIAL_STATE: AppState = {
     runOutput: "",
   },
   pendingConfirm: null,
+  pendingDecisions: null,
   toolStreams: {},
   pendingPropose: null,
   reflexBubble: null,
@@ -161,6 +165,10 @@ export type Action =
   | { type: "ACTION_CONFIRM_REQUEST"; actions: PendingAction[] }
   | { type: "ACTION_CONFIRMED" }
   | { type: "ACTION_CANCELLED" }
+
+  // 决策机制（build 协作）
+  | { type: "DECISION_REQUEST"; decisions: { question: string; options: string[] }[] }
+  | { type: "DECISION_SUBMITTED" }
 
   // 工具流式
   | { type: "TOOL_START"; id: string; tool: string; meta: Record<string, any> }
@@ -251,7 +259,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if (state.phase === "building") {
         return { ...state, stream: { ...state.stream, code: state.stream.code + action.content } };
       }
-      // 文字回复 → 追加到已有的 ai_reply_streaming，或创建新的
+      // 文字回复 → 追加到已有的 ai_reply_streaming，或在末尾创建新的
       {
         const streamIdx = state.events.findLastIndex(e => e.type === "ai_reply_streaming");
         if (streamIdx >= 0) {
@@ -259,19 +267,9 @@ export function reducer(state: AppState, action: Action): AppState {
           updated[streamIdx] = { ...updated[streamIdx], content: updated[streamIdx].content + action.content };
           return { ...state, events: updated, stream: { ...state.stream, thinking: false } };
         }
-        // 没有 streaming reply → 找最早一个没有紧跟 ai_reply 的 user_input，在其后插入
+        // 没有 streaming reply → 直接 append 到末尾
         const events = [...state.events];
-        let insertIdx = events.length;
-        for (let i = 0; i < events.length; i++) {
-          if (events[i].type === "user_input") {
-            const next = events[i + 1];
-            if (!next || (next.type !== "ai_reply" && next.type !== "ai_reply_streaming")) {
-              insertIdx = i + 1;
-              break;
-            }
-          }
-        }
-        events.splice(insertIdx, 0, { type: "ai_reply_streaming", ts: Date.now() / 1000, content: action.content });
+        events.push({ type: "ai_reply_streaming", ts: Date.now() / 1000, content: action.content });
         return { ...state, events, stream: { ...state.stream, thinking: false } };
       }
 
@@ -435,6 +433,21 @@ export function reducer(state: AppState, action: Action): AppState {
         pendingConfirm: null,
       };
     }
+
+    // ── 决策机制（build 协作）──
+    case "DECISION_REQUEST":
+      return {
+        ...state,
+        pendingDecisions: action.decisions,
+        stream: { ...state.stream, thinking: false },
+      };
+
+    case "DECISION_SUBMITTED":
+      return {
+        ...state,
+        pendingDecisions: null,
+        stream: { ...state.stream, thinking: true },
+      };
 
     // ── UI ──
     case "TOGGLE_SIDEBAR":
