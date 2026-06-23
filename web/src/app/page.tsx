@@ -183,11 +183,24 @@ export default function Home() {
             onToggleDebug={() => dispatch({ type: "TOGGLE_DEBUG" })}
             onToggleEvolution={() => setShowEvolution(true)}
             onFileSelect={(path) => {
-              setReferencedFiles(prev => prev.includes(path) ? prev : [...prev, path]);
-              setShowFilePicker(false);
-              if (inputRef.current) {
-                inputRef.current.value = inputRef.current.value.replace(/@\S*$/, "");
-                inputRef.current.focus();
+              if (path.endsWith("/")) {
+                // Directory selected — drill down, don't attach
+                if (inputRef.current) {
+                  inputRef.current.value = `@${path}`;
+                  inputRef.current.focus();
+                  // Trigger onChange to update picker
+                  const evt = new Event("input", { bubbles: true });
+                  inputRef.current.dispatchEvent(evt);
+                  setFileQuery(path);
+                }
+              } else {
+                // File selected — attach
+                setReferencedFiles(prev => prev.includes(path) ? prev : [...prev, path]);
+                setShowFilePicker(false);
+                if (inputRef.current) {
+                  inputRef.current.value = inputRef.current.value.replace(/@\S*$/, "");
+                  inputRef.current.focus();
+                }
               }
             }}
             onRemoveFile={(f) => setReferencedFiles(prev => prev.filter(x => x !== f))}
