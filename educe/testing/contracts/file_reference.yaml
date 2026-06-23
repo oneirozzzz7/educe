@@ -81,7 +81,7 @@ steps:
     action:
       type: "click"
       target: "Debug toggle"
-      selector: "button[title*='debug'], button:has-text('Toggle debug')"
+      selector: "button:has-text('>_')"
     verify:
       ui:
         - { has_text: "Debug", description: "Debug 面板标题可见" }
