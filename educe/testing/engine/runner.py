@@ -169,6 +169,9 @@ class TestEngine:
             await self.page.wait_for_timeout(300)
 
         elif action_type == "send_message":
+            # Record baseline reply count before sending (for auto_confirm_loop to compare)
+            self._pre_send_reply_count = await self.page.evaluate(
+                "() => document.querySelectorAll('.ai-reply-content').length")
             input_box = self.page.get_by_role("textbox")
             await input_box.fill(action["text"])
             await self.page.keyboard.press("Enter")
@@ -205,28 +208,29 @@ class TestEngine:
         elif action_type == "multi_turn_wait":
             # Wait until model finishes: first wait for processing to start, then for idle
             timeout = action.get("timeout", 30) * 1000
-            # Wait for either thinking state or new AI reply to appear
+            baseline_count = getattr(self, '_pre_send_reply_count', 0)
+            # Wait for either thinking state or new AI reply beyond baseline
             try:
                 await self.page.wait_for_function(
-                    """() => {
+                    f"""() => {{
                         const text = document.body.innerText;
                         const hasThinking = text.includes('Thinking') || text.includes('thinking') || text.includes('思考中');
-                        const hasReply = document.querySelectorAll('.ai-reply-content').length > 0;
-                        return hasThinking || hasReply;
-                    }""",
+                        const replyCount = document.querySelectorAll('.ai-reply-content').length;
+                        return hasThinking || replyCount > {baseline_count};
+                    }}""",
                     timeout=min(timeout, 10000),
                 )
             except Exception:
                 pass
-            # Then wait for idle (processing complete)
+            # Then wait for idle + new content
             await self.page.wait_for_function(
-                """() => {
+                f"""() => {{
                     const text = document.body.innerText;
                     const isIdle = (text.includes('进化待机') || text.includes('Idle'))
                         && !text.includes('Thinking') && !text.includes('thinking') && !text.includes('思考中');
-                    const hasContent = document.querySelectorAll('.ai-reply-content').length > 0;
-                    return isIdle && hasContent;
-                }""",
+                    const replyCount = document.querySelectorAll('.ai-reply-content').length;
+                    return isIdle && replyCount > {baseline_count};
+                }}""",
                 timeout=timeout,
             )
             await self.page.wait_for_timeout(1500)
@@ -261,7 +265,8 @@ class TestEngine:
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
             did_interact = False
-            initial_reply_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
+            # Use baseline from the last send_message (not current state which may include prior replies)
+            baseline_count = getattr(self, '_pre_send_reply_count', 0)
             # First: wait for SOMETHING to happen (confirm button, thinking, or new reply)
             for _ in range(20):
                 if time.time() > deadline:
@@ -275,7 +280,7 @@ class TestEngine:
                     did_interact = True
                     break
                 cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
-                if cur_count > initial_reply_count:
+                if cur_count > baseline_count:
                     did_interact = True
                     break
                 await self.page.wait_for_timeout(500)
@@ -293,7 +298,7 @@ class TestEngine:
                     break
                 if not did_interact:
                     cur_count = await self.page.evaluate("() => document.querySelectorAll('.ai-reply-content').length")
-                    if cur_count > initial_reply_count:
+                    if cur_count > baseline_count:
                         did_interact = True
                     await self.page.wait_for_timeout(500)
                 else:

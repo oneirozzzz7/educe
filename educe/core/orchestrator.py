@@ -717,6 +717,23 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                            summary=f"{len(actions)} actions: {[a.type for a in actions]}",
                            data={"count": len(actions), "types": [a.type for a in actions]})
 
+                # 检测"读文件代替执行"：用户要求运行但模型用 read_file 看源码
+                _EXEC_KW = ["运行", "执行", "跑一下", "run ", "execute"]
+                if (round_idx == 0
+                    and any(kw in user_input for kw in _EXEC_KW)
+                    and actions[0].type in ("read_file", "read_lines")
+                    and not any(a.type == "shell" for a in actions)):
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({"role": "user", "content":
+                        "[系统] ⚠️ 用户要求的是实际运行脚本，不是读取源码。"
+                        "read_file 看代码 ≠ 运行。请用 ```shell python 文件路径``` 真正执行脚本，"
+                        "然后基于真实输出回答用户的问题。"})
+                    log.info("_action_loop | round %d read-instead-of-run detected, forcing shell", round_idx)
+                    self._slog("framework", "read_not_run",
+                               summary=f"round {round_idx}, user asked exec but model used {actions[0].type}",
+                               data={"action_types": [a.type for a in actions]})
+                    continue
+
                 # Shadow A/B: 记录 LLM 在反射命中情境下的实际决策
                 shadow_input = self.context.metadata.pop("_shadow_reflex_input", None)
                 if shadow_input and hasattr(self, '_reflex_router') and round_idx == 0:
