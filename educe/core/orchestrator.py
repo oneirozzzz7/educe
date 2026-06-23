@@ -134,9 +134,9 @@ class Orchestrator:
     def _auto_write_memory(self, mem_type: str, content: str, *,
                            scope: str = "", tags: list | None = None,
                            detail_key: str = "") -> bool:
-        """统一入口：自动写入记忆（带去重、限速、透明日志）。
+        """统一入口：自动写入记忆（带去重、限速、冲突检测、透明日志）。
 
-        Returns True if written, False if skipped (dedup/rate-limit).
+        Returns True if written, False if skipped (dedup/rate-limit/conflict).
         """
         from educe.core.project_memory import ProjectMemoryStore, MemoryEntry
         import time as _time_mem
@@ -181,6 +181,30 @@ class Orchestrator:
             provenance={"born": _time_mem.strftime("%Y-%m-%d %H:%M"), "confirmed": [], "challenged": []},
             verified_at=_time_mem.time(),
         )
+
+        # 冲突检测：同类型+同范围+标签交集但内容不同 → 标记双方为 disputed
+        conflicts = store.find_conflicts(entry)
+        if conflicts:
+            conflict_ids = [c.id for c in conflicts]
+            store.add(entry)
+            store.mark_disputed([entry.id] + conflict_ids)
+            self.context.metadata["_auto_memory_count"] = count + 1
+            log.warning("auto_memory CONFLICT: new [%s] '%s' vs %d existing entries",
+                        mem_type, content[:40], len(conflicts))
+            self._slog("memory", "conflict_detected",
+                       summary=f"[{mem_type}] {content[:40]} conflicts with {len(conflicts)} entries",
+                       data={"new_id": mem_id, "conflict_ids": conflict_ids,
+                             "new_content": content, "existing": [c.content for c in conflicts]})
+            # 推送冲突事件到前端
+            import json as _json_conflict
+            self._emit_tool_event({
+                "type": "memory_conflict",
+                "new_entry": {"id": mem_id, "type": mem_type, "content": content},
+                "conflicts": [{"id": c.id, "type": c.type, "content": c.content,
+                               "born": c.provenance.get("born", "")} for c in conflicts],
+            })
+            return True
+
         store.add(entry)
         self.context.metadata["_auto_memory_count"] = count + 1
         log.info("auto_memory written: [%s] %s (confidence=%.2f)", mem_type, content[:60], entry.confidence)

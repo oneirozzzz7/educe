@@ -177,6 +177,16 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "APPEND_EVENT", event };
     }
 
+    if (evt.event === "memory_conflict" || evt.type === "memory_conflict") {
+      const event: AppEvent = {
+        type: "memory_conflict",
+        ts: Date.now() / 1000,
+        new_entry: evt.new_entry,
+        conflicts: evt.conflicts,
+      };
+      return { type: "APPEND_EVENT", event };
+    }
+
     return null;
   }
 

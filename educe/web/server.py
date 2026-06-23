@@ -696,6 +696,37 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         return {"status": "error", "message": f"Organ '{organ_id}' not found"}
 
+    # ═══ Memory conflict resolution ═══
+
+    @app.get("/api/memory/conflicts")
+    async def memory_conflicts():
+        """列出所有待仲裁的记忆冲突"""
+        from educe.core.project_memory import ProjectMemoryStore
+        store = ProjectMemoryStore()
+        disputed = store.get_disputed()
+        return {"conflicts": [e.to_dict() for e in disputed]}
+
+    @app.post("/api/memory/resolve")
+    async def memory_resolve(request: Request):
+        """仲裁记忆冲突：保留 winner，归档 losers"""
+        data = await request.json()
+        winner_id = data.get("winner_id", "")
+        loser_ids = data.get("loser_ids", [])
+        if not winner_id:
+            return {"status": "error", "message": "winner_id required"}
+        from educe.core.project_memory import ProjectMemoryStore
+        store = ProjectMemoryStore()
+        store.resolve_conflict(winner_id, loser_ids)
+        return {"status": "ok", "winner": winner_id, "archived": loser_ids}
+
+    @app.get("/api/memory")
+    async def memory_list():
+        """列出所有活跃记忆"""
+        from educe.core.project_memory import ProjectMemoryStore
+        store = ProjectMemoryStore()
+        active = store.get_active()
+        return {"memories": [e.to_dict() for e in active], "total": len(store.get_all())}
+
     @app.get("/api/credentials")
     async def list_credentials():
         """列出凭据（不含 value）"""

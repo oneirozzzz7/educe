@@ -34,9 +34,10 @@ class MemoryEntry:
     provenance: dict = field(default_factory=lambda: {"born": "", "confirmed": [], "challenged": []})
     verified_at: float = 0
     related: list[str] = field(default_factory=list)
+    status: str = "active"       # active | disputed | archived
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "type": self.type,
             "content": self.content,
@@ -48,6 +49,9 @@ class MemoryEntry:
             "verified_at": self.verified_at,
             "related": self.related,
         }
+        if self.status != "active":
+            d["status"] = self.status
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "MemoryEntry":
@@ -62,6 +66,7 @@ class MemoryEntry:
             provenance=d.get("provenance", {"born": "", "confirmed": [], "challenged": []}),
             verified_at=d.get("verified_at", 0),
             related=d.get("related", []),
+            status=d.get("status", "active"),
         )
 
 
@@ -139,6 +144,8 @@ class ProjectMemoryStore:
 
         sections = {"fact": [], "scar": [], "convention": []}
         for e in active:
+            if e.status == "disputed":
+                continue
             bucket = sections.get(e.type, sections.get("fact"))
             if bucket is not None:
                 bucket.append(e)
@@ -161,3 +168,69 @@ class ProjectMemoryStore:
                 parts.append(f"- ⚠️ {e.content}")
 
         return "\n".join(parts)
+
+    def find_conflicts(self, new_entry: MemoryEntry) -> list[MemoryEntry]:
+        """检测与新记忆可能冲突的已有记忆。
+
+        冲突条件：同 type + 同 scope + 标签有交集 + 内容不同。
+        """
+        conflicts = []
+        new_tags = set(new_entry.tags)
+        new_key = new_entry.content[:40].lower().strip()
+
+        for existing in self._entries:
+            if existing.status == "archived":
+                continue
+            if existing.type != new_entry.type:
+                continue
+            if existing.scope != new_entry.scope:
+                continue
+            if existing.content == new_entry.content:
+                continue
+            existing_tags = set(existing.tags)
+            if new_tags & existing_tags:
+                conflicts.append(existing)
+                continue
+            existing_key = existing.content[:40].lower().strip()
+            if _content_overlap(new_key, existing_key) > 0.5:
+                conflicts.append(existing)
+
+        return conflicts
+
+    def mark_disputed(self, entry_ids: list[str]) -> None:
+        """将指定记忆标记为 disputed（不注入 prompt，等待仲裁）"""
+        for e in self._entries:
+            if e.id in entry_ids:
+                e.status = "disputed"
+                e.provenance.setdefault("challenged", []).append(
+                    time.strftime("%Y-%m-%d %H:%M"))
+        self._save()
+
+    def resolve_conflict(self, winner_id: str, loser_ids: list[str]) -> None:
+        """仲裁结果：winner 提升置信度并恢复 active，loser 归档"""
+        for e in self._entries:
+            if e.id == winner_id:
+                e.status = "active"
+                e.confidence = min(1.0, e.confidence + 0.15)
+                e.provenance.setdefault("confirmed", []).append(
+                    time.strftime("%Y-%m-%d %H:%M"))
+                e.verified_at = time.time()
+            elif e.id in loser_ids:
+                e.status = "archived"
+                e.confidence = 0.0
+        self._save()
+
+    def get_disputed(self) -> list[MemoryEntry]:
+        """返回所有待仲裁的记忆"""
+        return [e for e in self._entries if e.status == "disputed"]
+
+
+def _content_overlap(a: str, b: str) -> float:
+    """简单的字符级 Jaccard 相似度"""
+    if not a or not b:
+        return 0.0
+    set_a = set(a)
+    set_b = set(b)
+    intersection = set_a & set_b
+    union = set_a | set_b
+    return len(intersection) / len(union) if union else 0.0

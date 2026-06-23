@@ -378,6 +378,72 @@ function ActionGroup({ events, isExpanded, onToggle }: {
   );
 }
 
+/** Memory conflict card — shows conflicting entries for user resolution */
+function ConflictCard({ event }: { event: AppEvent }) {
+  const [resolved, setResolved] = useState(false);
+  const newEntry = event.new_entry || {};
+  const conflicts = event.conflicts || [];
+
+  async function resolve(winnerId: string, loserIds: string[]) {
+    try {
+      await fetch(`http://${API_HOST}/api/memory/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winner_id: winnerId, loser_ids: loserIds }),
+      });
+      setResolved(true);
+    } catch {}
+  }
+
+  if (resolved) {
+    return (
+      <div className="mb-3 px-3 py-2 rounded-lg" style={{ background: "var(--pass-dim)", fontSize: 12, color: "var(--pass)" }}>
+        ✓ Memory conflict resolved
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3 rounded-lg overflow-hidden" style={{ border: "1px solid var(--warning, orange)", background: "var(--surface-1)" }}>
+      <div className="px-3 py-2 flex items-center gap-2" style={{ background: "rgba(255,165,0,0.08)", borderBottom: "1px solid var(--border-0)" }}>
+        <AlertCircle size={12} style={{ color: "orange" }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>Memory Conflict</span>
+      </div>
+      <div style={{ padding: "8px 12px", fontSize: 12 }}>
+        <div style={{ marginBottom: 8 }}>
+          <span style={{ color: "var(--text-3)" }}>New:</span>{" "}
+          <span style={{ color: "var(--text-1)" }}>{newEntry.content}</span>
+        </div>
+        {conflicts.map((c: any, i: number) => (
+          <div key={i} style={{ marginBottom: 8 }}>
+            <span style={{ color: "var(--text-3)" }}>Existing ({c.born || "?"}):</span>{" "}
+            <span style={{ color: "var(--text-1)" }}>{c.content}</span>
+          </div>
+        ))}
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={() => resolve(newEntry.id, conflicts.map((c: any) => c.id))}
+            className="px-3 py-1 rounded text-xs cursor-pointer"
+            style={{ background: "var(--accent-dim)", color: "var(--accent)", border: "none" }}
+          >
+            Keep New
+          </button>
+          {conflicts.map((c: any) => (
+            <button
+              key={c.id}
+              onClick={() => resolve(c.id, [newEntry.id])}
+              className="px-3 py-1 rounded text-xs cursor-pointer"
+              style={{ background: "var(--surface-2)", color: "var(--text-2)", border: "none" }}
+            >
+              Keep Existing
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * ActivityFeed - Chat-style event stream.
  * Actions/transcripts are grouped into collapsible cards.
@@ -480,6 +546,8 @@ export function ActivityFeed({
               return <ErrorLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "build_complete":
               return <BuildLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} sessionId={sessionId} codeFiles={codeFiles} />;
+            case "memory_conflict":
+              return <ConflictCard key={idx} event={event} />;
             default:
               return null;
           }
