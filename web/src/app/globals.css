@@ -58,8 +58,8 @@ body {
 /* ═══ 用户输入 ═══ */
 .user-msg {
   display: inline-block;
-  padding: 10px 16px;
-  border-radius: 18px 18px 4px 18px;
+  padding: 8px 14px;
+  border-radius: 16px 16px 4px 16px;
   background: var(--accent-deep);
   color: #fff;
   font-size: 14px;
@@ -68,6 +68,8 @@ body {
   word-break: break-word;
   white-space: pre-wrap;
   max-width: 75%;
+  min-width: max-content;
+  text-align: left;
 }
 
 /* ═══ AI 回复竖线 ═══ */
@@ -79,6 +81,7 @@ body {
   background: var(--surface-1);
   border: 1px solid var(--border-0);
   border-left: none;
+  max-width: 85%;
 }
 .ai-reply-bar {
   width: 3px;
