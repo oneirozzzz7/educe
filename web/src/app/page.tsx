@@ -324,20 +324,17 @@ function CommandRail({
         </div>
       )}
 
-      {/* Pending Confirm Card (inline in feed area) */}
+      {/* Pending Confirm — compact inline bar */}
       {pendingConfirm && (
-        <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border-0)" }}>
-          <div className="confirm-card">
-            <div className="confirm-card-title">Confirm Action</div>
-            {pendingConfirm.map((a, i) => (
-              <div key={i} className="confirm-card-item">
-                {a.type === "build" ? "Build: " : "Action: "}{a.display}
-              </div>
-            ))}
-            <textarea className="confirm-card-input" placeholder="Additional notes (optional)" rows={2} />
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-              <button className="btn-primary" onClick={onConfirm}>Confirm</button>
-              <button className="btn-ghost" onClick={onCancel}>Cancel</button>
+        <div style={{ padding: "6px 0", flexShrink: 0 }}>
+          <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 40px" }}>
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg" style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)" }}>
+              <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 500, flexShrink: 0 }}>Confirm</span>
+              <span className="flex-1 truncate" style={{ fontSize: 12, color: "var(--text-2)" }}>
+                {pendingConfirm.map(a => a.display).join("; ").slice(0, 100)}
+              </span>
+              <button className="px-3 py-1 rounded-md text-[12px] font-medium transition-all hover:opacity-80" style={{ background: "var(--accent)", color: "#fff" }} onClick={onConfirm}>Run</button>
+              <button className="px-3 py-1 rounded-md text-[12px] transition-all hover:bg-[var(--surface-2)]" style={{ color: "var(--text-3)", border: "1px solid var(--border-1)" }} onClick={onCancel}>Skip</button>
             </div>
           </div>
         </div>
