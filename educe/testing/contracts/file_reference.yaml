@@ -1,0 +1,105 @@
+# 文件引用 — 全深度集成测试
+# 验证：@ 选择文件 → 注入 prompt → 模型直接回答 → 全链路可观测
+
+scenario: file_reference
+description: "用户通过 @ 引用文件，验证文件内容注入 prompt 且模型基于文件内容直接回答"
+
+setup:
+  # 确保测试文件存在
+  ensure_files:
+    - path: "/tmp/educe_test_fib.py"
+      content: |
+        a, b = 0, 1
+        for _ in range(5):
+            print(a)
+            a, b = b, a + b
+
+steps:
+  - name: "attach_file"
+    description: "输入 @/tmp/educe_test_fib.py 并选择"
+    action:
+      type: "type_and_select"
+      input: "@/tmp/educe_test_fib.py"
+      select: "enter"  # 按 Enter 确认选择
+    verify:
+      ui:
+        - { has_text: "📎", description: "文件标签出现" }
+        - { has_text: "educe_test_fib.py", description: "文件名显示" }
+
+  - name: "send_question"
+    description: "发送基于文件内容的问题"
+    action:
+      type: "send_message"
+      text: "这个文件有几行代码？第一个 print 输出什么？"
+    verify:
+      ui:
+        - { has_element: ".user-msg, [class*='user']", description: "用户气泡渲染" }
+        - { user_bubble_contains: "几行代码", description: "消息文本正确" }
+      pipeline:
+        - { ws_sent: true, description: "WS 消息发出" }
+
+  - name: "wait_and_verify_reply"
+    description: "等待 AI 回复并全方位验证"
+    action:
+      type: "wait_for_reply"
+      timeout: 15
+    verify:
+      ui:
+        - { has_element: ".ai-reply, [class*='ai-reply']", description: "AI 回复容器渲染" }
+        - { has_markdown: true, description: "Markdown 渲染正确（有 <p>/<code>/<strong>）" }
+        - { no_raw_html: true, description: "没有 HTML 标签泄漏" }
+        - { no_overflow: true, description: "文字没有溢出容器" }
+      logic:
+        - { contains_any: ["4", "5", "四", "五"], description: "回答了行数" }
+        - { contains_any: ["0", "零"], description: "回答了第一个输出" }
+        - { not_contains: ["不知道", "哪个文件", "请告诉我"], description: "没有兜圈子" }
+      format:
+        - { max_length: 500, description: "回复不啰嗦" }
+        - { min_length: 10, description: "回复不截断" }
+        - { has_structure: true, description: "有段落/列表等结构感" }
+      logs:
+        - event_field: { path: "data.has_file", equals: true }
+        - event_exists: "model_called"
+        - event_exists: "model_responded"
+        - event_exists: "request_complete"
+        - event_sequence: ["ws_received", "model_called", "model_responded", "request_complete"]
+        - field_gt: { event: "model_called", path: "data.prompt_chars", value: 4200 }
+        - no_event_type: { name: "action_executed", action_type: "read_dir", description: "文件已注入不该再 read_dir" }
+
+  - name: "verify_expand_collapse"
+    description: "如果有展开按钮则点击验证交互"
+    action:
+      type: "click_if_exists"
+      selector: "button:has-text('Expand')"
+    verify:
+      ui:
+        - { has_text: "Collapse", description: "如有 Expand 则点击后变为 Collapse" }
+
+  - name: "verify_debug_panel"
+    description: "打开 Debug Panel 验证可观测性"
+    action:
+      type: "click"
+      target: "Debug toggle"
+      selector: "button[title*='debug'], button:has-text('Toggle debug')"
+    verify:
+      ui:
+        - { has_text: "Debug", description: "Debug 面板标题可见" }
+      observability:
+        - { events_visible: true, description: "事件列表里有本次请求的事件" }
+
+  - name: "aesthetic_judge"
+    description: "截图 → LLM judge 评分（仅 --full 模式）"
+    condition: "full_only"
+    action:
+      type: "screenshot"
+      name: "file_reference_final_state"
+    verify:
+      aesthetic:
+        judge_prompt: |
+          评价这个聊天界面截图的 UI 质量（1-10 分）：
+          - 布局：消息气泡对齐、间距合理
+          - 美观：颜色协调、字体清晰、有视觉层次
+          - 功能：用户消息和 AI 回复可区分
+          - 完整：没有溢出、截断、错位
+          回复格式：{"score": N, "issues": ["issue1", ...]}
+        min_score: 7

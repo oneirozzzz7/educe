@@ -1,0 +1,38 @@
+# Educe test framework config
+# 不硬编码模型 — 从环境变量或此文件读取
+
+models:
+  # 逻辑测试用（快速、准确）
+  test_runner:
+    base_url: "http://api.example.com/v1"
+    # key from env: EDUCE_TEST_API_KEY
+    model: "Qwen3-235B-A22B"
+    format: "openai"
+
+  # Judge 评分用（质量高）
+  judge:
+    base_url: "http://api.example.com/anthropic/v1"
+    # key from env: EDUCE_TEST_API_KEY
+    model: "Claude-Sonnet-4.6"
+    format: "anthropic"
+
+endpoints:
+  backend: "http://localhost:7860"
+  frontend: "http://localhost:3000"
+  ws: "ws://localhost:7860/ws"
+
+timeouts:
+  action_reply: 15  # seconds to wait for LLM reply
+  ui_render: 5      # seconds to wait for DOM update
+
+# 深度控制 — 哪些验证维度默认开启
+default_verifiers:
+  - logic      # 语义锚点
+  - ui         # DOM 正确性 + 交互可用
+  - logs       # 日志事件序列完整
+  - pipeline   # 前后端数据流通
+
+# 需要 --full 才开启
+full_only_verifiers:
+  - aesthetic  # 截图 → LLM judge 评分
+  - observability  # Debug Panel 实时同步
