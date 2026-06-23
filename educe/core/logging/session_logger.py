@@ -56,6 +56,7 @@ class SessionLogger:
             status="running",
         )
         self._write_meta()
+        self._debug_hook = None  # optional: async callback for real-time WS push
 
         global _active_logger
         _active_logger = self
@@ -92,6 +93,14 @@ class SessionLogger:
         self._n_events += 1
         if status == "error":
             self._n_errors += 1
+        if self._debug_hook:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(self._debug_hook(evt.to_dict()))
+            except RuntimeError:
+                pass
         return evt
 
     def set_task(self, task: str) -> None:

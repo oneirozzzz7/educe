@@ -878,6 +878,24 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 data = await websocket.receive_json()
                 user_input = data.get("message", "")
 
+                # 调试订阅：实时推送日志事件到前端
+                if data.get("type") == "debug_subscribe":
+                    _debug_level = data.get("level", "events")
+                    async def _debug_hook(event_dict):
+                        try:
+                            await websocket.send_json({"type": "debug_event", "event": event_dict})
+                        except Exception:
+                            pass
+                    if orchestrator.session_logger:
+                        orchestrator.session_logger._debug_hook = _debug_hook
+                    log.info("session %s: debug subscribed (level=%s)", session_id[:8], _debug_level)
+                    continue
+
+                if data.get("type") == "debug_unsubscribe":
+                    if orchestrator.session_logger:
+                        orchestrator.session_logger._debug_hook = None
+                    continue
+
                 # 处理用户反馈（thumbs up/down）
                 if data.get("type") == "feedback":
                     signal = data.get("signal", "")
@@ -1196,6 +1214,17 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 orchestrator.context.metadata.pop("_pending_request", None)
                 orchestrator.context.metadata.pop("_pending_decisions", None)
 
+                # 生命周期事件：ws_received
+                import time as _time_ws
+                _request_start = _time_ws.time()
+                _request_id = f"{session_id[:8]}_{int(_request_start*1000)%100000}"
+                sl = orchestrator.session_logger
+                if sl:
+                    sl.event(type="lifecycle", name="ws_received",
+                             summary=f"msg_len={len(user_input)}",
+                             data={"request_id": _request_id, "msg_len": len(user_input),
+                                   "has_file": bool(file_content)})
+
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 orchestrator.context.metadata["session_id"] = session_id
 
@@ -1204,14 +1233,29 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         await orchestrator.run(user_input, file_content=file_content)
                     except asyncio.CancelledError:
                         log.info("session %s: task cancelled (superseded by new message)", session_id[:8])
+                        if sl:
+                            sl.event(type="lifecycle", name="task_cancelled",
+                                     summary="superseded by new message",
+                                     data={"request_id": _request_id})
                         return
                     except Exception as e:
                         log.error("session %s: orchestrator.run failed: %s", session_id[:8], str(e)[:200])
+                        if sl:
+                            sl.event(type="lifecycle", name="request_error", status="error",
+                                     summary=str(e)[:100],
+                                     data={"request_id": _request_id, "error": str(e)[:200]})
                         try:
                             await websocket.send_json({"type": "error", "content": str(e)[:200]})
                         except Exception:
                             pass
                         return
+                    # 生命周期事件：request_complete
+                    _wall_ms = (_time_ws.time() - _request_start) * 1000
+                    if sl:
+                        sl.event(type="lifecycle", name="request_complete",
+                                 duration_ms=_wall_ms,
+                                 summary=f"wall={_wall_ms:.0f}ms",
+                                 data={"request_id": _request_id, "wall_ms": round(_wall_ms)})
                     if hasattr(orchestrator, 'state'):
                         code_files = orchestrator.context.artifacts.get("code_files", [])
                         if code_files and code_files != orchestrator.state.code_files:
@@ -1240,9 +1284,19 @@ def create_app(config: EduceConfig | None = None) -> Any:
                     except (asyncio.CancelledError, Exception):
                         pass
                     log.info("session %s: previous task cancelled", session_id[:8])
+                    if sl:
+                        sl.event(type="lifecycle", name="task_cancelled",
+                                 summary="cancel-previous triggered",
+                                 data={"request_id": _request_id, "reason": "new_message"})
                     # 清理残留状态
                     orchestrator.context.metadata.pop("_pending_actions", None)
                     orchestrator.context.metadata.pop("_clarify_pending", None)
+
+                # 生命周期事件：task_created
+                if sl:
+                    sl.event(type="lifecycle", name="task_created",
+                             summary=f"request_id={_request_id}",
+                             data={"request_id": _request_id})
 
                 async def _guarded_run():
                     async with lock:

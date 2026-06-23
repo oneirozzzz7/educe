@@ -611,6 +611,12 @@ class Orchestrator:
                        data={"round": round_idx, "messages_len": len(messages)},
                        trace_payload=[m.get("content", "")[:200] for m in messages[-3:]],
                        trace_kind="messages")
+            # 生命周期：model_called
+            _prompt_chars = sum(len(m.get("content", "")) for m in messages)
+            self._slog("lifecycle", "model_called",
+                       summary=f"round={round_idx} prompt_chars={_prompt_chars} model={self.config.default_model.model}",
+                       data={"round": round_idx, "prompt_chars": _prompt_chars,
+                             "model": self.config.default_model.model, "messages_count": len(messages)})
             # 模型调用（action 轮次用非流式，避免标签被流式推送到前端）
             _t0 = __import__("time").time()
             try:
@@ -659,6 +665,12 @@ class Orchestrator:
 
             # 解析 action
             reply_text, actions = parse_actions(raw)
+            # 生命周期：model_responded
+            self._slog("lifecycle", "model_responded",
+                       summary=f"round={round_idx} actions={len(actions)} chars={len(raw)} ms={_llm_ms:.0f}",
+                       data={"round": round_idx, "actions_count": len(actions),
+                             "action_types": [a.type for a in actions],
+                             "raw_len": len(raw), "duration_ms": round(_llm_ms)})
             log.info("_action_loop | round=%d actions=%d reply_len=%d raw_tail='%s'",
                      round_idx, len(actions), len(reply_text),
                      raw[-200:].replace('\n', '\\n') if raw else "")
