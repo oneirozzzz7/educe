@@ -928,6 +928,18 @@ def create_app(config: EduceConfig | None = None) -> Any:
 
         orchestrator.on_chunk(lambda a, c: asyncio.ensure_future(send_chunk(a, c)))
 
+        # 自动启用结构化日志推送（只推送 5 类有用事件）
+        _PUSH_EVENT_TYPES = {"lifecycle", "llm_call", "tool_call", "memory"}
+        if orchestrator.session_logger:
+            async def _auto_debug_push(event_dict):
+                if event_dict.get("type") not in _PUSH_EVENT_TYPES:
+                    return
+                try:
+                    await websocket.send_json({"type": "debug_event", "event": event_dict})
+                except Exception:
+                    pass
+            orchestrator.session_logger._debug_hook = _auto_debug_push
+
         # 零状态检测：新 session 自动推送项目环境摘要
         if not orchestrator.conversation.turns:
             try:

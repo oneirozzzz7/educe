@@ -27,6 +27,11 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     return { type: "IDLE" };
   }
 
+  // ── debug_event（结构化日志实时推送）──
+  if (type === "debug_event") {
+    return { type: "DEBUG_EVENT", event: { ...msg.event, ts: Date.now() / 1000 } };
+  }
+
   // ── chunk（实时文字/代码流）──
   if (type === "chunk") {
     return { type: "STREAM_CHUNK", content: msg.content || "" };

@@ -56,8 +56,6 @@ export default function Home() {
       if (!actions) return;
       if (Array.isArray(actions)) { actions.forEach(a => dispatch(a)); }
       else { dispatch(actions); }
-      // Also buffer all raw messages to debug panel
-      dispatch({ type: "DEBUG_EVENT", event: { ...msg, ts: Date.now() / 1000 } });
     });
 
     return () => { ws.close(); };

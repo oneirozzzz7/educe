@@ -1,23 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, ChevronDown, ChevronRight, MessageSquare, Zap, AlertTriangle, Terminal, Send } from "lucide-react";
+import { X, Zap, Clock, Terminal, Brain, AlertTriangle, Database } from "lucide-react";
 
 interface DebugPanelProps {
   open: boolean;
   events: any[];
   onClose: () => void;
-}
-
-function isNoise(event: any): boolean {
-  if (event.type === "state_sync" || event.type === "status" || event.type === "ping") return true;
-  if (event.type === "agent_message" && event.msg_type === "result") return true;
-  if (event.type === "chunk") return true;
-  if (event.type === "tool_start" || event.type === "tool_chunk" || event.type === "tool_end" || event.type === "tool_cancel") return true;
-  // tool_event without action_detail/action_result/build_complete = internal noise
-  if (event.type === "tool_event" && !event.event) return true;
-  if (event.type === "tool_event" && !["action_detail", "action_result", "build_complete", "transcript"].includes(event.event)) return true;
-  return false;
 }
 
 function formatTime(ts: number): string {
@@ -26,124 +15,88 @@ function formatTime(ts: number): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function getEventMeta(event: any): { icon: React.ReactNode; label: string; color: string; summary: string } {
+function getEventDisplay(event: any): { icon: React.ReactNode; label: string; detail: string; color: string } | null {
+  const name = event.name || "";
   const type = event.type || "";
+  const data = event.data || {};
+  const summary = event.summary || "";
 
-  if (type === "user_input" || type === "user_confirm") {
-    return {
-      icon: <Send size={12} />,
-      label: "You",
-      color: "var(--accent)",
-      summary: event.content?.slice(0, 80) || event.text?.slice(0, 80) || "",
-    };
+  // lifecycle
+  if (name === "ws_received" || name === "request_start") {
+    return { icon: <Zap size={11} />, label: "Request", detail: summary.slice(0, 60), color: "var(--accent)" };
   }
-  if (type === "ai_reply" || type === "ai_reply_streaming") {
-    return {
-      icon: <MessageSquare size={12} />,
-      label: "AI",
-      color: "var(--pass)",
-      summary: (event.content || "").slice(0, 80) || "responding...",
-    };
+  if (name === "request_complete") {
+    const ms = data.wall_ms || event.duration_ms || 0;
+    return { icon: <Clock size={11} />, label: "Done", detail: `${ms}ms`, color: "var(--pass)" };
   }
-  if (type === "agent_message") {
-    return {
-      icon: <MessageSquare size={12} />,
-      label: event.sender || "AI",
-      color: "var(--pass)",
-      summary: (event.content || event.summary || "").slice(0, 80),
-    };
+  if (name === "request_error") {
+    return { icon: <AlertTriangle size={11} />, label: "Error", detail: data.error?.slice(0, 60) || summary, color: "var(--fail)" };
   }
-  if (type === "action_detail" || type === "action_result" || type.startsWith("tool")) {
-    return {
-      icon: <Terminal size={12} />,
-      label: event.name || event.action_type || event.event || "action",
-      color: "var(--text-2)",
-      summary: String(event.summary || event.command || event.content || event.label || event.result || "done"),
-    };
+  if (name === "task_cancelled") {
+    return { icon: <X size={11} />, label: "Cancelled", detail: summary, color: "var(--text-3)" };
   }
-  if (type === "error" || type === "action_error") {
-    return {
-      icon: <AlertTriangle size={12} />,
-      label: "Error",
-      color: "var(--fail)",
-      summary: event.message || event.error || "something went wrong",
-    };
+
+  // llm_call
+  if (name === "model_called") {
+    const model = data.model || "";
+    const round = data.round ?? "";
+    return { icon: <Brain size={11} />, label: `LLM #${round}`, detail: model, color: "var(--text-2)" };
   }
-  return {
-    icon: <Zap size={12} />,
-    label: type || "event",
-    color: "var(--text-3)",
-    summary: String(event.content || event.message || event.name || ""),
-  };
+  if (name === "llm_response" || name === "model_responded") {
+    const ms = event.duration_ms || data.duration_ms || 0;
+    const actions = data.actions_count || 0;
+    return { icon: <Brain size={11} />, label: `Response`, detail: `${ms}ms · ${actions} actions`, color: ms > 5000 ? "var(--warning, orange)" : "var(--pass)" };
+  }
+
+  // tool_call
+  if (name === "tool_result" || name === "action_executed") {
+    const toolType = data.action_type || data.type || "";
+    const success = data.success !== false;
+    return { icon: <Terminal size={11} />, label: toolType, detail: success ? "✓" : "✗ " + (data.output_preview || "").slice(0, 40), color: success ? "var(--pass)" : "var(--fail)" };
+  }
+  if (name === "shell_exec") {
+    return { icon: <Terminal size={11} />, label: "shell", detail: summary.slice(0, 50), color: "var(--text-2)" };
+  }
+
+  // memory
+  if (name === "conflict_detected") {
+    return { icon: <Database size={11} />, label: "Conflict", detail: summary.slice(0, 50), color: "var(--warning, orange)" };
+  }
+  if (name === "auto_write") {
+    return { icon: <Database size={11} />, label: "Memory", detail: summary.slice(0, 50), color: "var(--text-3)" };
+  }
+
+  // fallback: skip unknown events
+  return null;
 }
 
-function EventCard({ event }: { event: any }) {
+function EventRow({ event }: { event: any }) {
   const [expanded, setExpanded] = useState(false);
-  const { icon, label, color, summary } = getEventMeta(event);
+  const display = getEventDisplay(event);
+  if (!display) return null;
 
   return (
-    <div style={{ paddingLeft: 20, position: "relative" }}>
-      {/* Timeline dot */}
-      <div style={{
-        position: "absolute",
-        left: 7,
-        top: 12,
-        width: 6,
-        height: 6,
-        borderRadius: "50%",
-        background: color,
-      }} />
-
-      {/* Card */}
-      <div
-        className="rounded-lg mb-2 cursor-pointer transition-all hover:bg-[var(--surface-2)]"
-        style={{ padding: "8px 12px", background: expanded ? "var(--surface-2)" : "transparent" }}
-        onClick={() => setExpanded(!expanded)}
-      >
-        {/* Header row */}
-        <div className="flex items-center gap-2">
-          <span style={{ color }}>{icon}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color }}>{label}</span>
-          <span className="flex-1 truncate" style={{ fontSize: 12, color: "var(--text-1)" }}>
-            {(summary || "").slice(0, 60)}
-          </span>
-          <span style={{ fontSize: 10, color: "var(--text-3)", flexShrink: 0 }}>
-            {formatTime(event.ts)}
-          </span>
+    <div
+      className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer transition-all hover:bg-[var(--surface-2)]"
+      onClick={() => setExpanded(!expanded)}
+    >
+      <span style={{ color: display.color, flexShrink: 0 }}>{display.icon}</span>
+      <span style={{ fontSize: 11, fontWeight: 500, color: display.color, flexShrink: 0, minWidth: 55 }}>
+        {display.label}
+      </span>
+      <span className="flex-1 truncate" style={{ fontSize: 11, color: "var(--text-2)" }}>
+        {display.detail}
+      </span>
+      <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0 }}>
+        {formatTime(event.ts)}
+      </span>
+      {expanded && (
+        <div className="w-full mt-1 pl-7" onClick={e => e.stopPropagation()}>
+          <pre style={{ fontSize: 10, color: "var(--text-3)", margin: 0, whiteSpace: "pre-wrap", maxHeight: 80, overflow: "auto" }}>
+            {JSON.stringify(event.data || event, null, 2).slice(0, 300)}
+          </pre>
         </div>
-
-        {/* Expanded details */}
-        {expanded && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-0)" }}>
-            {/* Readable fields */}
-            {event.duration_ms && (
-              <div style={{ fontSize: 11, color: "var(--text-2)", marginBottom: 4 }}>
-                Duration: {event.duration_ms}ms
-              </div>
-            )}
-            {event.result && typeof event.result === "string" && (
-              <pre style={{
-                fontSize: 11, color: "var(--text-2)", margin: 0, whiteSpace: "pre-wrap",
-                wordBreak: "break-all", maxHeight: 80, overflow: "auto",
-              }}>
-                {event.result.slice(0, 200)}
-              </pre>
-            )}
-            {/* Raw JSON toggle */}
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ fontSize: 10, color: "var(--text-3)", cursor: "pointer" }}>
-                Raw data
-              </summary>
-              <pre style={{
-                fontSize: 10, lineHeight: 1.3, color: "var(--text-3)", margin: "4px 0 0",
-                maxHeight: 100, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all",
-              }}>
-                {JSON.stringify(event, null, 2)}
-              </pre>
-            </details>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -152,13 +105,14 @@ export function DebugPanel({ open, events, onClose }: DebugPanelProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const filtered = events.filter(e => !isNoise(e));
+  // Only show events that have meaningful display
+  const displayable = events.filter(e => getEventDisplay(e) !== null);
 
   useEffect(() => {
     if (autoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [filtered.length, autoScroll]);
+  }, [displayable.length, autoScroll]);
 
   function handleScroll() {
     if (!scrollRef.current) return;
@@ -170,43 +124,28 @@ export function DebugPanel({ open, events, onClose }: DebugPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div
-        className="flex items-center px-4 shrink-0"
-        style={{ height: 44, borderBottom: "1px solid var(--border-0)" }}
-      >
+      <div className="flex items-center px-4 shrink-0" style={{ height: 44, borderBottom: "1px solid var(--border-0)" }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-0)" }}>Activity</span>
-        {filtered.length > 0 && (
+        {displayable.length > 0 && (
           <span className="ml-2 px-1.5 py-0.5 rounded-full" style={{ fontSize: 10, color: "var(--text-3)", background: "var(--surface-2)" }}>
-            {filtered.length}
+            {displayable.length}
           </span>
         )}
         <div className="flex-1" />
-        <button
-          onClick={onClose}
-          className="w-6 h-6 rounded-md flex items-center justify-center transition-all hover:bg-[var(--surface-2)]"
-        >
+        <button onClick={onClose} className="w-6 h-6 rounded-md flex items-center justify-center transition-all hover:bg-[var(--surface-2)]">
           <X size={14} style={{ color: "var(--text-3)" }} />
         </button>
       </div>
 
-      {/* Timeline */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto"
-        onScroll={handleScroll}
-        style={{ padding: "12px 8px 12px 12px" }}
-      >
-        {filtered.length === 0 ? (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleScroll} style={{ padding: "8px 4px" }}>
+        {displayable.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2" style={{ color: "var(--text-3)" }}>
             <Zap size={20} style={{ opacity: 0.3 }} />
             <span style={{ fontSize: 12 }}>No activity yet</span>
-            <span style={{ fontSize: 10 }}>Events will appear here as you interact</span>
+            <span style={{ fontSize: 10 }}>Structured events stream here as requests process</span>
           </div>
         ) : (
-          <div style={{ borderLeft: "1px solid var(--border-1)", marginLeft: 9 }}>
-            {filtered.map((event, i) => <EventCard key={i} event={event} />)}
-          </div>
+          displayable.map((event, i) => <EventRow key={i} event={event} />)
         )}
       </div>
     </div>
