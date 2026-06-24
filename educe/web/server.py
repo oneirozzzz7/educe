@@ -757,6 +757,78 @@ def create_app(config: EduceConfig | None = None) -> Any:
             return {"status": "ok"}
         return {"status": "error", "message": "not found"}
 
+    @app.get("/api/decisions")
+    async def get_decision_audit():
+        """Phase 0 审计：框架做了多少隐式决策"""
+        ledger_file = Path(".educe/logs/decisions/decision_ledger.jsonl")
+        if not ledger_file.exists():
+            return {"total_decisions": 0, "by_decision_point": {}, "by_who": {}, "records": []}
+        import json as _json
+        records = []
+        for line in ledger_file.read_text(encoding="utf-8").strip().split("\n"):
+            if line.strip():
+                records.append(_json.loads(line))
+        by_point = {}
+        by_who = {"framework": 0, "model": 0, "user": 0}
+        for r in records:
+            dp = r.get("decision_point", "unknown")
+            by_point[dp] = by_point.get(dp, 0) + 1
+            who = r.get("who_decided", "unknown")
+            if who in by_who:
+                by_who[who] += 1
+        return {
+            "total_decisions": len(records),
+            "by_decision_point": by_point,
+            "by_who": by_who,
+            "recent": records[-20:],
+        }
+
+    @app.get("/api/artifacts/{artifact_id}")
+    async def download_artifact(artifact_id: str):
+        """下载模型生成的文件产物（通过路径 base64 编码）"""
+        from fastapi.responses import FileResponse
+        import base64
+        try:
+            file_path = base64.urlsafe_b64decode(artifact_id).decode()
+        except Exception:
+            file_path = artifact_id
+        p = Path(file_path)
+        if not p.exists():
+            return {"error": "file not found"}
+        import mimetypes
+        mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+        return FileResponse(path=str(p), filename=p.name, media_type=mime)
+
+    @app.get("/api/artifacts")
+    async def list_artifacts():
+        """列出所有 session 产出的文件产物（来自 EffectStream）"""
+        all_artifacts = []
+        for orch in sessions.values():
+            if hasattr(orch, 'effects'):
+                all_artifacts.extend(orch.effects.artifacts())
+        return {"artifacts": all_artifacts}
+
+    @app.get("/api/effects")
+    async def list_effects():
+        """查看框架的完整感知流"""
+        all_effects = []
+        for orch in sessions.values():
+            if hasattr(orch, 'effects'):
+                all_effects.extend(orch.effects.to_dicts(50))
+        return {"effects": all_effects, "summary": {
+            sid: orch.effects.summary() for sid, orch in sessions.items()
+            if hasattr(orch, 'effects')
+        }}
+
+    @app.get("/api/situation")
+    async def get_situation():
+        """实时态势感知——框架当前知道什么"""
+        situations = {}
+        for sid, orch in sessions.items():
+            if hasattr(orch, 'effects'):
+                situations[sid] = orch.effects.situation.to_dict()
+        return {"situations": situations}
+
     @app.get("/api/files")
     async def list_project_files(q: str = "", limit: int = 20):
         """列出项目文件（供 @ 选择器模糊搜索，常读文件置顶）"""
@@ -952,6 +1024,29 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 has_package = any(f in entries for f in ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"])
                 has_readme = any(f.lower().startswith("readme") for f in entries)
 
+                # 尝试从项目配置读取项目名
+                project_name = None
+                pyproject = Path(cwd) / "pyproject.toml"
+                if pyproject.exists():
+                    try:
+                        content = pyproject.read_text(encoding="utf-8")
+                        for line in content.split("\n"):
+                            if line.strip().startswith("name"):
+                                project_name = line.split("=", 1)[1].strip().strip('"').strip("'")
+                                break
+                    except Exception:
+                        pass
+                if not project_name:
+                    pkg_json = Path(cwd) / "package.json"
+                    if pkg_json.exists():
+                        try:
+                            import json as _json_pn
+                            project_name = _json_pn.loads(pkg_json.read_text(encoding="utf-8")).get("name")
+                        except Exception:
+                            pass
+                if not project_name:
+                    project_name = Path(cwd).name
+
                 suggestions = []
                 if has_readme:
                     suggestions.append("读取 README 了解项目")
@@ -976,6 +1071,12 @@ def create_app(config: EduceConfig | None = None) -> Any:
             while True:
                 data = await websocket.receive_json()
                 user_input = data.get("message", "")
+
+                # I/O Gateway: user_in effect
+                if hasattr(orchestrator, 'effects') and user_input:
+                    orchestrator.effects.emit("user_in",
+                        intent={},
+                        outcome={"message": user_input[:200], "has_file": bool(data.get("files"))})
 
                 # 调试订阅：实时推送日志事件到前端
                 if data.get("type") == "debug_subscribe":

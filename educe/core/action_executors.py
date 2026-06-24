@@ -228,6 +228,15 @@ class ActionExecutorMixin:
             log_activity(session_id, "shell_exec", cmd=cmd[:100],
                          success=proc.returncode == 0, exit_code=proc.returncode)
 
+            # I/O Gateway: shell effect
+            if hasattr(self, 'effects'):
+                self.effects.emit("shell",
+                    intent={"cmd": cmd[:200], "cwd": str(work_dir)},
+                    outcome={"exit_code": proc.returncode,
+                             "stdout_len": len(stdout),
+                             "stderr_len": len(stderr),
+                             "stdout_preview": stdout[:300]})
+
             if proc.returncode == 0:
                 import re as _re_cd
                 cd_match = _re_cd.match(r'cd\s+(/[^\s;&|]+)', cmd)
@@ -319,37 +328,58 @@ class ActionExecutorMixin:
             return {"success": False, "output": f"不是文件: {target}（如果是目录请用 read_dir）"}
 
         size = path.stat().st_size
-        mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        mime = mimetypes.guess_type(path.name)[0] or "unknown"
         ext = path.suffix.lower()
 
-        # 诚实降级：二进制文件返回元信息+能力建议
-        binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico",
-                       ".mp3", ".wav", ".ogg", ".mp4", ".avi", ".mov",
-                       ".zip", ".tar", ".gz", ".rar", ".7z",
-                       ".exe", ".dll", ".so", ".dylib", ".bin"}
-        if ext in binary_exts or (mime and not mime.startswith("text/")):
-            info = f"文件: {path.name}\n类型: {mime}\n大小: {size} bytes ({size//1024}KB)"
-            if ext in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
-                info += "\n\n这是图片文件。可以：\n- 用 shell: `file {path}` 查看详细信息\n- 用 shell: `python3 -c \"from PIL import Image; img=Image.open('{path}'); print(img.size, img.mode)\"` 查看尺寸\n- 如果需要分析图片内容，请通过前端上传（支持视觉模型）"
-            elif ext == ".pdf":
-                info += "\n\n这是 PDF 文件。可以用 shell: `python3 -c \"from PyPDF2 import PdfReader; r=PdfReader('{path}'); print(len(r.pages), '页')\"` 查看页数"
-            elif ext in {".xlsx", ".xls"}:
-                info += "\n\n这是 Excel 文件。可以用 shell: `python3 -c \"import openpyxl; wb=openpyxl.load_workbook('{path}'); print(wb.sheetnames)\"` 查看 sheet"
-            elif ext in {".zip", ".tar", ".gz"}:
-                info += "\n\n这是压缩文件。可以用 shell: `file {path}` 或 `tar -tzf {path} | head` 查看内容列表"
-            else:
-                info += "\n\n这是二进制文件，无法直接读取文本内容。可以用 shell: `file {path}` 查看类型，或 `xxd {path} | head` 查看十六进制"
-            return {"success": True, "output": info}
-
-        if size > 100_000:
-            return {"success": False, "output": f"文件过大 ({size}B)，最大支持 100KB。可以用 read_lines 读取部分行。"}
-
+        # 读取前 8KB 探测编码
+        sample = path.read_bytes()[:8192]
         try:
-            content = path.read_text(encoding="utf-8", errors="ignore")[:10000]
-            lines = len(content.split("\n"))
-            return {"success": True, "output": f"文件: {path.name} ({lines}行, {len(content)}字符)\n```\n{content}\n```"}
-        except Exception as e:
-            return {"success": False, "output": f"读取失败: {e}"}
+            sample.decode("utf-8")
+            encoding = "utf-8"
+            decodable = True
+        except UnicodeDecodeError:
+            try:
+                sample.decode("gbk")
+                encoding = "gbk"
+                decodable = True
+            except UnicodeDecodeError:
+                encoding = "unknown"
+                decodable = False
+
+        has_null = b"\x00" in sample
+
+        if not decodable or has_null:
+            meta = f"文件: {path.name}\n类型: {mime}\n扩展名: {ext}\n大小: {size} bytes\n编码: {encoding}\n可解码: {decodable}\nNull字节: {has_null}"
+            hex_preview = sample[:256].hex(" ", 1)
+            if hasattr(self, 'effects'):
+                self.effects.emit("file_read",
+                    intent={"path": target},
+                    outcome={"success": True, "path": str(path), "size": size,
+                             "encoding": encoding, "decodable": False})
+            return {"success": True, "output": f"{meta}\n\n[前256字节 hex]\n{hex_preview}"}
+
+        # 可以作为文本读取
+        content = path.read_text(encoding=encoding, errors="replace")
+        truncated = False
+        if size > 100_000:
+            content = content[:10000]
+            truncated = True
+
+        lines = content.count("\n") + 1
+
+        if truncated:
+            header = f"文件: {path.name} ({lines}行, 截断至前10000字符, 原文件{size}字节)"
+        else:
+            header = f"文件: {path.name} ({lines}行, {size}字节)"
+
+        # I/O Gateway: file_read effect
+        if hasattr(self, 'effects'):
+            self.effects.emit("file_read",
+                intent={"path": target},
+                outcome={"success": True, "path": str(path), "size": size,
+                         "lines": lines, "encoding": encoding, "decodable": True})
+
+        return {"success": True, "output": f"{header}\n```\n{content}\n```"}
 
     async def _exec_write_file(self, action, session_id: str = "") -> dict:
         """写入/修改指定文件（流式：先推内容再写盘）
@@ -471,6 +501,20 @@ class ActionExecutorMixin:
                     })
 
             path.write_text(content, encoding="utf-8")
+
+            # I/O Gateway: file_write effect
+            if hasattr(self, 'effects'):
+                self.effects.emit("file_write",
+                    intent={"path": file_path},
+                    outcome={"success": True, "path": str(path), "size": len(content),
+                             "mode": mode, "lines": len(content.splitlines())})
+                self._emit_tool_event({
+                    "type": "artifact_produced",
+                    "path": str(path),
+                    "filename": path.name,
+                    "size": len(content),
+                    "mode": mode,
+                })
 
             duration_ms = int((_time_wf.monotonic() - start_mono) * 1000)
             lines_count = len(content.splitlines())

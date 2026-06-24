@@ -88,6 +88,15 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
 
         self.self_evolver = None
 
+        from educe.core.decision_ledger import DecisionLedger
+        self.decision_ledger = DecisionLedger(Path(".educe/logs/decisions"))
+
+        from educe.core.environment_observer import EnvironmentObserver
+        self.env_observer = EnvironmentObserver()
+
+        from educe.core.effect_stream import EffectStream
+        self.effects = EffectStream()
+
         from educe.core.streaming_registry import StreamingRegistry
         self.streaming_registry = StreamingRegistry()
 
@@ -523,6 +532,13 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 else:
                     injected_ids.append(u.id)
 
+            # Phase 0 埋点：行为规则注入/抑制决策
+            if withheld_ids:
+                self.decision_ledger.record(
+                    "behavior_withhold", "framework",
+                    f"withhold {len(withheld_ids)} behavior units for A/B",
+                    context={"withheld": withheld_ids, "injected": injected_ids})
+
             # 渲染注入（排除 withheld 的）
             if injected_ids:
                 behavior_rules = manifest.render_for_prompt("")  # 不传 context，全量注入
@@ -547,6 +563,10 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
         if not _bare_mode:
             skill_prompt = self._match_composite_skills(user_input, round_idx=0)
             if skill_prompt:
+                self.decision_ledger.record(
+                    "skill_inject", "framework",
+                    f"inject composite skill into prompt",
+                    context={"input": user_input[:200], "skill_prompt_len": len(skill_prompt)})
                 system += skill_prompt
 
         # 阶段3: ReflexRouter 降级提示（守卫失败或准反射时附加）
@@ -632,12 +652,24 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
         from educe.core.exploration_ledger import ExplorationLedger
         ledger = ExplorationLedger()
 
+        # Runtime Facts: 动作账本聚合，注入模型上下文
+        from educe.core.runtime_facts import RuntimeFacts
+        runtime_facts = RuntimeFacts()
+        runtime_facts.set_anchor(user_input)
+
         # Verify-Compile Loop: 轨迹收集器
         from educe.core.trace_compiler import TraceCollector
         trace_collector = TraceCollector()
         trace_collector.start(user_input)
 
         for round_idx in range(max_rounds):
+            runtime_facts.advance_turn()
+            self.effects.set_round(round_idx)
+            # 注入态势感知（第二轮起）
+            situation_text = self.effects.situation.render_for_model()
+            if situation_text:
+                messages.append({"role": "user", "content": situation_text})
+
             self._slog("framework", "turn_start",
                        summary=f"round {round_idx}",
                        data={"round": round_idx, "messages_len": len(messages)},
@@ -682,6 +714,12 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 })
                 raw = ""
             _llm_ms = (__import__("time").time() - _t0) * 1000
+
+            # I/O Gateway: 模型调用 effect
+            self.effects.emit("model",
+                intent={"model": self.config.default_model.model, "prompt_chars": _prompt_chars},
+                outcome={"response_len": len(raw) if raw else 0, "ms": round(_llm_ms),
+                         "has_reply": bool(raw and not raw.strip().startswith("```"))})
 
             log.info("_action_loop | round=%d raw_len=%d", round_idx, len(raw) if raw else 0)
 
@@ -810,6 +848,7 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                     for i in range(0, len(raw), 20):
                         self._notify_chunk("assistant", raw[i:i+20])
                     final_reply = raw
+                    runtime_facts.record_reply()
                     if hasattr(self, 'state'):
                         self.state.add_ai_reply(raw)
                 break
@@ -879,6 +918,18 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
             pending_actions = [a for a in actions if _needs_confirmation(a)]
             immediate_actions = [a for a in actions if a not in pending_actions]
 
+            # Phase 0 埋点：记录 confirm gate 决策
+            for a in pending_actions:
+                self.decision_ledger.record(
+                    "confirm_gate", "framework",
+                    f"require confirm: {a.type} {a.params[:80]}",
+                    context={"action_type": a.type, "params": a.params[:200], "round": round_idx})
+            for a in immediate_actions:
+                self.decision_ledger.record(
+                    "confirm_gate", "framework",
+                    f"auto approve: {a.type} {a.params[:80]}",
+                    context={"action_type": a.type, "params": a.params[:200], "round": round_idx})
+
             # 立即执行不需要确认的（recall、lookup_tools、use_tool）
             if immediate_actions:
                 messages.append({"role": "assistant", "content": raw})
@@ -902,6 +953,7 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                             type=action.type,
                             success=result.get("success", False),
                             output_preview=result.get("output", "")[:80])
+                runtime_facts.record_action(action.type, action.params, round_idx)
                 output_str = result.get("output", "")
                 self._slog("tool_call", "tool_result",
                            status="ok" if result.get("success") else "error",
@@ -1013,6 +1065,7 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 for i in range(0, len(reply_text), 20):
                     self._notify_chunk("assistant", reply_text[i:i+20])
                 self.conversation.add_assistant(reply_text)
+                runtime_facts.record_reply()
                 if hasattr(self, 'state'):
                     self.state.add_ai_reply(reply_text)
 
@@ -1021,6 +1074,12 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 reflection = ledger.build_reflection()
                 messages.append({"role": "user", "content": reflection})
                 trace_collector.mark_nudge()
+                self.decision_ledger.record(
+                    "nudge_inject", "framework",
+                    f"force convergence nudge #{ledger.nudge_count}",
+                    context={"nudge_count": ledger.nudge_count,
+                             "redundancy_score": getattr(ledger, '_last_redundancy', 0),
+                             "round": round_idx})
                 log.info("_action_loop | round %d nudge injected (nudge_count=%d)", round_idx, ledger.nudge_count)
                 self._slog("framework", "nudge_triggered",
                            summary=f"nudge #{ledger.nudge_count}",
@@ -1034,6 +1093,11 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 if read_only and immediate_actions:
                     messages.append({"role": "user", "content":
                         "[系统] 探索预算已用尽。请直接执行修改（edit_file），或告知用户你无法完成此任务。"})
+                    self.decision_ledger.record(
+                        "safety_net", "framework",
+                        "block read-only actions, force convergence",
+                        context={"round": round_idx, "nudge_count": ledger.nudge_count,
+                                 "blocked_actions": [a.type for a in immediate_actions]})
                     log.info("_action_loop | round %d safety net triggered", round_idx)
                     self._slog("framework", "safety_net",
                                summary=f"round {round_idx}, nudge_count={ledger.nudge_count}",
@@ -1085,6 +1149,10 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 # 暂存到 context，等用户确认
                 self.context.metadata["_pending_actions"] = confirm_items
                 self.context.metadata["_pending_user_input"] = user_input
+
+                # record blocked actions for runtime_facts
+                for a in pending_actions:
+                    runtime_facts.record_blocked(a.type, a.params, round_idx)
 
                 # 发送确认请求到前端
                 confirm_msg = Message(
@@ -1635,6 +1703,10 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 return ""
 
             if result.handled:
+                self.decision_ledger.record(
+                    "reflex_bypass", "framework",
+                    f"skip LLM, direct execute skill={result.skill_id}",
+                    context={"skill_id": result.skill_id, "input": user_input[:200]})
                 self._slog("framework", "reflex_hit",
                            summary=f"reflex bypassed LLM, skill={result.skill_id}",
                            data={"skill_id": result.skill_id, "response_len": len(result.response)})
