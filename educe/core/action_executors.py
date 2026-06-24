@@ -5,7 +5,10 @@ Action Executor Mixin — 从 orchestrator.py 抽取的工具执行方法。
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+
+from educe.core.activity_log import log_activity
 
 log = logging.getLogger("educe.orchestrator")
 
