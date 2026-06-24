@@ -29,7 +29,13 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
 
   // ── debug_event（结构化日志实时推送）──
   if (type === "debug_event") {
-    return { type: "DEBUG_EVENT", event: { ...msg.event, ts: Date.now() / 1000 } };
+    const evt = msg.event || {};
+    const actions: Action[] = [{ type: "DEBUG_EVENT", event: { ...evt, ts: Date.now() / 1000 } }];
+    // model_called = LLM 开始思考 → 显示 thinking dots
+    if (evt.name === "model_called") {
+      actions.push({ type: "THINKING_START" });
+    }
+    return actions;
   }
 
   // ── chunk（实时文字/代码流）──
