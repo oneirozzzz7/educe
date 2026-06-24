@@ -208,19 +208,21 @@ class TestEngine:
             await self.page.screenshot(path=str(path))
 
         elif action_type == "multi_turn_wait":
-            # Wait for request to complete: thinking dots disappear + content grew
+            # Wait for request to complete: no thinking dots + stable for 2s
             timeout = action.get("timeout", 30) * 1000
-            initial_feed_len = getattr(self, '_pre_send_feed_len', 0)
-            await self.page.wait_for_function(
-                f"""() => {{
-                    const hasDots = document.querySelector('.thinking-dots') !== null;
-                    const feed = document.querySelector('[class*="overflow-y-auto"]') || document.body;
-                    const grew = feed.innerText.length > {initial_feed_len + 80};
-                    return !hasDots && grew;
-                }}""",
-                timeout=timeout,
-            )
-            await self.page.wait_for_timeout(1500)
+            last_change = time.time()
+            deadline_s = time.time() + timeout / 1000
+            while time.time() < deadline_s:
+                has_thinking = await self.page.evaluate(
+                    "() => document.querySelector('.thinking-dots') !== null")
+                if has_thinking:
+                    last_change = time.time()
+                    await self.page.wait_for_timeout(500)
+                    continue
+                if time.time() - last_change >= 2.0:
+                    break
+                await self.page.wait_for_timeout(500)
+            await self.page.wait_for_timeout(1000)
 
         elif action_type == "generate_question":
             # Call LLM to generate a randomized question
@@ -265,31 +267,27 @@ class TestEngine:
         elif action_type == "auto_confirm_loop":
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            # Simple loop: click Run/Confirm when it appears, exit when request_complete fires
-            # The frontend sets phase="idle" on request_complete, which removes thinking dots
-            # We detect this by checking: no confirm buttons + no thinking + feed content grew
-            initial_feed_len = getattr(self, '_pre_send_feed_len', 0)
-            if not initial_feed_len:
-                initial_feed_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-            clicked_confirm = False
+            # Simple reliable loop:
+            # 1. Click Run/Confirm whenever it appears
+            # 2. Exit when: no thinking dots + no confirm buttons + waited at least 2s after last change
+            last_change_time = time.time()
             while time.time() < deadline:
                 # Click Run/Confirm if available
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
-                    clicked_confirm = True
+                    last_change_time = time.time()
                     await self.page.wait_for_timeout(1000)
                     continue
-                # Check: thinking dots gone + content grew (request_complete received)
+                # Check: thinking dots present = still processing
                 has_thinking = await self.page.evaluate(
                     "() => document.querySelector('.thinking-dots') !== null")
-                cur_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                content_grew = cur_len > initial_feed_len + 80
-                if not has_thinking and content_grew:
-                    # Double-check: wait 1s more to ensure no late content
-                    await self.page.wait_for_timeout(1000)
+                if has_thinking:
+                    last_change_time = time.time()
+                    await self.page.wait_for_timeout(500)
+                    continue
+                # No thinking, no confirm — check if stable for 2s
+                if time.time() - last_change_time >= 2.0:
                     break
                 await self.page.wait_for_timeout(500)
             await self.page.wait_for_timeout(500)

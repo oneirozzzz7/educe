@@ -43,14 +43,19 @@ function getEventDisplay(event: any): { icon: React.ReactNode; label: string; de
     const round = data.round ?? "";
     return { icon: <Brain size={11} />, label: `LLM #${round}`, detail: model, color: "var(--text-2)" };
   }
-  if (name === "llm_response" || name === "model_responded") {
-    const ms = event.duration_ms || data.duration_ms || 0;
+  if (name === "llm_response") {
+    const ms = Math.round(event.duration_ms || data.duration_ms || 0);
+    const tokens = data.prompt_tokens ? `${data.prompt_tokens}→${data.completion_tokens}tok` : "";
+    return { icon: <Brain size={11} />, label: `Tokens`, detail: tokens || `${ms}ms`, color: "var(--text-3)" };
+  }
+  if (name === "model_responded") {
+    const ms = Math.round(event.duration_ms || data.duration_ms || 0);
     const actions = data.actions_count || 0;
     const types = (data.action_types || []).join(", ");
     const preview = data.reply_preview || "";
     const detail = actions > 0
       ? `${ms}ms · ${types}`
-      : `${ms}ms · ${preview.slice(0, 40) || "no action"}`;
+      : preview ? `${ms}ms · ${preview.slice(0, 40)}` : `${ms}ms`;
     return { icon: <Brain size={11} />, label: `Response`, detail, color: ms > 5000 ? "var(--warning, orange)" : "var(--pass)" };
   }
 
@@ -76,42 +81,57 @@ function getEventDisplay(event: any): { icon: React.ReactNode; label: string; de
   return null;
 }
 
-function EventRow({ event }: { event: any }) {
+function EventRow({ event, isFirst }: { event: any; isFirst?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const display = getEventDisplay(event);
   if (!display) return null;
 
   const data = event.data || {};
+  const isRequest = event.name === "ws_received";
+  const isDone = event.name === "request_complete";
 
   return (
-    <div className="mb-0.5">
-      <div
-        className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all hover:bg-[var(--surface-2)]"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span style={{ color: display.color, flexShrink: 0 }}>{display.icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 500, color: display.color, flexShrink: 0, minWidth: 55 }}>
-          {display.label}
-        </span>
-        <span className="flex-1 truncate" style={{ fontSize: 11, color: "var(--text-2)" }}>
-          {display.detail}
-        </span>
-        <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0 }}>
-          {formatTime(event.ts)}
-        </span>
-      </div>
-      {expanded && (
-        <div className="pl-8 pr-2 pb-2" style={{ fontSize: 11, color: "var(--text-3)" }}>
-          {data.user_message && <div style={{ color: "var(--text-2)" }}>"{data.user_message}"</div>}
-          {data.reply_preview && <div style={{ color: "var(--text-2)", marginTop: 2 }}>→ {data.reply_preview}</div>}
-          {data.action_params && data.action_params.length > 0 && (
-            <div style={{ marginTop: 2 }}>{data.action_types?.map((t: string, i: number) => `${t}: ${data.action_params[i] || ""}`).join(" | ")}</div>
-          )}
-          {data.error && <div style={{ color: "var(--fail)", marginTop: 2 }}>{data.error}</div>}
-          {event.duration_ms && <div>⏱ {event.duration_ms}ms</div>}
+    <>
+      {isRequest && !isFirst && <div style={{ height: 1, background: "var(--border-0)", margin: "6px 8px" }} />}
+      <div className="mb-0.5">
+        <div
+          className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all hover:bg-[var(--surface-2)]"
+          style={{ background: isDone ? "rgba(34,197,94,0.04)" : isRequest ? "rgba(167,139,250,0.04)" : "transparent" }}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span style={{ color: display.color, flexShrink: 0 }}>{display.icon}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: display.color, flexShrink: 0, minWidth: 60 }}>
+            {display.label}
+          </span>
+          <span className="flex-1 truncate" style={{ fontSize: 11, color: "var(--text-1)" }}>
+            {display.detail}
+          </span>
+          <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0, fontFamily: "'Geist Mono', monospace" }}>
+            {formatTime(event.ts)}
+          </span>
         </div>
-      )}
-    </div>
+        {expanded && (
+          <div className="pl-9 pr-2 pb-2 pt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>
+            {data.user_message && (
+              <div style={{ color: "var(--text-1)", background: "var(--surface-0)", padding: "4px 8px", borderRadius: 6, marginBottom: 4 }}>
+                "{data.user_message}"
+              </div>
+            )}
+            {data.reply_preview && (
+              <div style={{ color: "var(--text-2)", background: "var(--surface-0)", padding: "4px 8px", borderRadius: 6, marginBottom: 4 }}>
+                → {data.reply_preview}
+              </div>
+            )}
+            {data.action_params && data.action_params.length > 0 && (
+              <div style={{ color: "var(--text-3)", fontFamily: "'Geist Mono', monospace", fontSize: 10 }}>
+                {data.action_types?.map((t: string, i: number) => `${t}: ${data.action_params[i] || ""}`).join("\n")}
+              </div>
+            )}
+            {data.error && <div style={{ color: "var(--fail)" }}>{data.error}</div>}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -159,7 +179,7 @@ export function DebugPanel({ open, events, onClose }: DebugPanelProps) {
             <span style={{ fontSize: 10 }}>Structured events stream here as requests process</span>
           </div>
         ) : (
-          displayable.map((event, i) => <EventRow key={i} event={event} />)
+          displayable.map((event, i) => <EventRow key={i} event={event} isFirst={i === 0} />)
         )}
       </div>
     </div>

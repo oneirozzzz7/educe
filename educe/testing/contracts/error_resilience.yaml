@@ -50,7 +50,7 @@ steps:
         - { status_idle: true, description: "状态恢复" }
       logic:
         - { contains_any: ["ModuleNotFoundError", "No module", "报错", "错误", "失败", "error", "nonexistent_module", "exit"], description: "正确报告了错误" }
-        - { not_contains: ["成功", "运行正常"], description: "不会谎称成功" }
+        - { not_contains: ["运行正常", "执行成功", "没有错误"], description: "不会谎称成功" }
       logs:
         - { has_action_type: "shell", description: "确实尝试了执行" }
         - event_exists: "request_complete"
