@@ -22,6 +22,11 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
     }
   }
 
+  // ── request_complete（请求处理完毕的明确信号）──
+  if (type === "request_complete") {
+    return { type: "IDLE" };
+  }
+
   // ── chunk（实时文字/代码流）──
   if (type === "chunk") {
     return { type: "STREAM_CHUNK", content: msg.content || "" };

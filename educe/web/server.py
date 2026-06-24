@@ -1352,6 +1352,12 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                      data={"request_id": _request_id, "error": str(e)[:200]})
                         try:
                             await websocket.send_json({"type": "error", "content": str(e)[:200]})
+                            await websocket.send_json({
+                                "type": "request_complete",
+                                "request_id": _request_id,
+                                "wall_ms": round((_time_ws.time() - _request_start) * 1000),
+                                "success": False,
+                            })
                         except Exception:
                             pass
                         return
@@ -1362,6 +1368,16 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                  duration_ms=_wall_ms,
                                  summary=f"wall={_wall_ms:.0f}ms",
                                  data={"request_id": _request_id, "wall_ms": round(_wall_ms)})
+                    # 推送 request_complete WS 事件（前端/测试可靠判断请求完毕）
+                    try:
+                        await websocket.send_json({
+                            "type": "request_complete",
+                            "request_id": _request_id,
+                            "wall_ms": round(_wall_ms),
+                            "success": True,
+                        })
+                    except Exception:
+                        pass
                     if hasattr(orchestrator, 'state'):
                         code_files = orchestrator.context.artifacts.get("code_files", [])
                         if code_files and code_files != orchestrator.state.code_files:

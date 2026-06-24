@@ -208,30 +208,15 @@ class TestEngine:
             await self.page.screenshot(path=str(path))
 
         elif action_type == "multi_turn_wait":
-            # Wait until model finishes: first wait for processing to start, then for idle
+            # Wait for request to complete: thinking dots disappear + content grew
             timeout = action.get("timeout", 30) * 1000
-            baseline_count = getattr(self, '_pre_send_reply_count', 0)
-            # Wait for either thinking state or new AI reply beyond baseline
-            try:
-                await self.page.wait_for_function(
-                    f"""() => {{
-                        const text = document.body.innerText;
-                        const hasThinking = text.includes('Thinking') || text.includes('thinking') || text.includes('思考中');
-                        const replyCount = document.querySelectorAll('.ai-reply-content').length;
-                        return hasThinking || replyCount > {baseline_count};
-                    }}""",
-                    timeout=min(timeout, 10000),
-                )
-            except Exception:
-                pass
-            # Then wait for idle + new content
+            initial_feed_len = getattr(self, '_pre_send_feed_len', 0)
             await self.page.wait_for_function(
                 f"""() => {{
-                    const text = document.body.innerText;
-                    const isIdle = (text.includes('进化待机') || text.includes('Idle'))
-                        && !text.includes('Thinking') && !text.includes('thinking') && !text.includes('思考中');
-                    const replyCount = document.querySelectorAll('.ai-reply-content').length;
-                    return isIdle && replyCount > {baseline_count};
+                    const hasDots = document.querySelector('.thinking-dots') !== null;
+                    const feed = document.querySelector('[class*="overflow-y-auto"]') || document.body;
+                    const grew = feed.innerText.length > {initial_feed_len + 80};
+                    return !hasDots && grew;
                 }}""",
                 timeout=timeout,
             )
@@ -280,46 +265,33 @@ class TestEngine:
         elif action_type == "auto_confirm_loop":
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            # Baseline from send_message (before message was sent)
+            # Simple loop: click Run/Confirm when it appears, exit when request_complete fires
+            # The frontend sets phase="idle" on request_complete, which removes thinking dots
+            # We detect this by checking: no confirm buttons + no thinking + feed content grew
             initial_feed_len = getattr(self, '_pre_send_feed_len', 0)
             if not initial_feed_len:
                 initial_feed_len = await self.page.evaluate(
                     "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-            # The user bubble adds ~30-50 chars immediately; we need RESPONSE content (much more)
-            response_threshold = initial_feed_len + 100
-            # Phase 1: Wait for response to start (confirm btn, or significant content growth)
+            clicked_confirm = False
             while time.time() < deadline:
+                # Click Run/Confirm if available
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
+                    clicked_confirm = True
+                    await self.page.wait_for_timeout(1000)
+                    continue
+                # Check: thinking dots gone + content grew (request_complete received)
+                has_thinking = await self.page.evaluate(
+                    "() => document.querySelector('.thinking-dots') !== null")
+                cur_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                content_grew = cur_len > initial_feed_len + 80
+                if not has_thinking and content_grew:
+                    # Double-check: wait 1s more to ensure no late content
                     await self.page.wait_for_timeout(1000)
                     break
-                cur_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len > response_threshold:
-                    break
                 await self.page.wait_for_timeout(500)
-            # Phase 2: Keep clicking confirm and wait for text to stabilize
-            last_len = await self.page.evaluate(
-                "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-            stable_count = 0
-            while time.time() < deadline:
-                confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
-                if await confirm_btn.count() > 0:
-                    await confirm_btn.first.click()
-                    stable_count = 0
-                    await self.page.wait_for_timeout(1500)
-                    continue
-                await self.page.wait_for_timeout(1000)
-                cur_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len == last_len:
-                    stable_count += 1
-                else:
-                    stable_count = 0
-                    last_len = cur_len
-                if stable_count >= 2 and cur_len > response_threshold:
-                    break
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
