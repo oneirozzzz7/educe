@@ -23,7 +23,8 @@ function getEventDisplay(event: any): { icon: React.ReactNode; label: string; de
 
   // lifecycle
   if (name === "ws_received" || name === "request_start") {
-    return { icon: <Zap size={11} />, label: "Request", detail: summary.slice(0, 60), color: "var(--accent)" };
+    const msg = data.user_message || summary || `${data.msg_len} chars`;
+    return { icon: <Zap size={11} />, label: "Request", detail: msg.slice(0, 60), color: "var(--accent)" };
   }
   if (name === "request_complete") {
     const ms = data.wall_ms || event.duration_ms || 0;
@@ -45,7 +46,12 @@ function getEventDisplay(event: any): { icon: React.ReactNode; label: string; de
   if (name === "llm_response" || name === "model_responded") {
     const ms = event.duration_ms || data.duration_ms || 0;
     const actions = data.actions_count || 0;
-    return { icon: <Brain size={11} />, label: `Response`, detail: `${ms}ms · ${actions} actions`, color: ms > 5000 ? "var(--warning, orange)" : "var(--pass)" };
+    const types = (data.action_types || []).join(", ");
+    const preview = data.reply_preview || "";
+    const detail = actions > 0
+      ? `${ms}ms · ${types}`
+      : `${ms}ms · ${preview.slice(0, 40) || "no action"}`;
+    return { icon: <Brain size={11} />, label: `Response`, detail, color: ms > 5000 ? "var(--warning, orange)" : "var(--pass)" };
   }
 
   // tool_call
@@ -75,26 +81,34 @@ function EventRow({ event }: { event: any }) {
   const display = getEventDisplay(event);
   if (!display) return null;
 
+  const data = event.data || {};
+
   return (
-    <div
-      className="flex items-center gap-2 py-1 px-2 rounded cursor-pointer transition-all hover:bg-[var(--surface-2)]"
-      onClick={() => setExpanded(!expanded)}
-    >
-      <span style={{ color: display.color, flexShrink: 0 }}>{display.icon}</span>
-      <span style={{ fontSize: 11, fontWeight: 500, color: display.color, flexShrink: 0, minWidth: 55 }}>
-        {display.label}
-      </span>
-      <span className="flex-1 truncate" style={{ fontSize: 11, color: "var(--text-2)" }}>
-        {display.detail}
-      </span>
-      <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0 }}>
-        {formatTime(event.ts)}
-      </span>
+    <div className="mb-0.5">
+      <div
+        className="flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-all hover:bg-[var(--surface-2)]"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span style={{ color: display.color, flexShrink: 0 }}>{display.icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 500, color: display.color, flexShrink: 0, minWidth: 55 }}>
+          {display.label}
+        </span>
+        <span className="flex-1 truncate" style={{ fontSize: 11, color: "var(--text-2)" }}>
+          {display.detail}
+        </span>
+        <span style={{ fontSize: 9, color: "var(--text-3)", flexShrink: 0 }}>
+          {formatTime(event.ts)}
+        </span>
+      </div>
       {expanded && (
-        <div className="w-full mt-1 pl-7" onClick={e => e.stopPropagation()}>
-          <pre style={{ fontSize: 10, color: "var(--text-3)", margin: 0, whiteSpace: "pre-wrap", maxHeight: 80, overflow: "auto" }}>
-            {JSON.stringify(event.data || event, null, 2).slice(0, 300)}
-          </pre>
+        <div className="pl-8 pr-2 pb-2" style={{ fontSize: 11, color: "var(--text-3)" }}>
+          {data.user_message && <div style={{ color: "var(--text-2)" }}>"{data.user_message}"</div>}
+          {data.reply_preview && <div style={{ color: "var(--text-2)", marginTop: 2 }}>→ {data.reply_preview}</div>}
+          {data.action_params && data.action_params.length > 0 && (
+            <div style={{ marginTop: 2 }}>{data.action_types?.map((t: string, i: number) => `${t}: ${data.action_params[i] || ""}`).join(" | ")}</div>
+          )}
+          {data.error && <div style={{ color: "var(--fail)", marginTop: 2 }}>{data.error}</div>}
+          {event.duration_ms && <div>⏱ {event.duration_ms}ms</div>}
         </div>
       )}
     </div>

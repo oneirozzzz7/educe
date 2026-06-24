@@ -1339,9 +1339,10 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 sl = orchestrator.session_logger
                 if sl:
                     sl.event(type="lifecycle", name="ws_received",
-                             summary=f"msg_len={len(user_input)}",
+                             summary=user_input[:80],
                              data={"request_id": _request_id, "msg_len": len(user_input),
-                                   "has_file": bool(file_content)})
+                                   "has_file": bool(file_content),
+                                   "user_message": user_input[:200]})
 
                 await websocket.send_json({"type": "status", "content": "thinking"})
                 orchestrator.context.metadata["session_id"] = session_id

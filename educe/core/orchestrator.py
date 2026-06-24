@@ -702,7 +702,9 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                        summary=f"round={round_idx} actions={len(actions)} chars={len(raw)} ms={_llm_ms:.0f}",
                        data={"round": round_idx, "actions_count": len(actions),
                              "action_types": [a.type for a in actions],
-                             "raw_len": len(raw), "duration_ms": round(_llm_ms)})
+                             "raw_len": len(raw), "duration_ms": round(_llm_ms),
+                             "reply_preview": reply_text[:150] if reply_text else "",
+                             "action_params": [a.params[:60] for a in actions[:3]]})
             log.info("_action_loop | round=%d actions=%d reply_len=%d raw_tail='%s'",
                      round_idx, len(actions), len(reply_text),
                      raw[-200:].replace('\n', '\\n') if raw else "")
