@@ -415,12 +415,19 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, reflexBubble: null };
 
     // ── 确认机制 ──
-    case "ACTION_CONFIRM_REQUEST":
+    case "ACTION_CONFIRM_REQUEST": {
+      const confirmReqEvent: AppEvent = {
+        type: "action_confirm_request",
+        ts: Date.now() / 1000,
+        actions: action.actions,
+      };
       return {
         ...state,
+        events: [...state.events, confirmReqEvent],
         pendingConfirm: action.actions,
         stream: { ...state.stream, thinking: false },
       };
+    }
 
     case "ACTION_CONFIRMED": {
       // 追加确认事件到 events（保留在历史中）

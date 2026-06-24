@@ -222,6 +222,7 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       type: "zero_state",
       ts: Date.now() / 1000,
       cwd: msg.cwd,
+      project_name: msg.project_name,
       files: msg.files,
       file_count: msg.file_count,
       has_git: msg.has_git,

@@ -382,7 +382,7 @@ function ActionGroup({ events, isExpanded, onToggle }: {
 function WelcomeCard({ event, onSuggestionClick }: { event: AppEvent; onSuggestionClick?: (text: string) => void }) {
   const files = event.files || [];
   const cwd = event.cwd || ".";
-  const dirName = cwd.split("/").pop() || cwd;
+  const dirName = event.project_name || cwd.split("/").pop() || cwd;
 
   return (
     <div className="mb-4">
@@ -600,6 +600,19 @@ export function ActivityFeed({
               return <ConflictCard key={idx} event={event} />;
             case "zero_state":
               return <WelcomeCard key={idx} event={event} />;
+            case "action_confirm_request":
+              return (
+                <div key={idx} className="mb-2 px-4 py-2 rounded-lg flex items-center gap-2" style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", fontSize: 12 }}>
+                  <span style={{ color: "var(--warning, #f59e0b)", fontWeight: 500 }}>⏸ Confirm</span>
+                  <span style={{ color: "var(--text-2)" }}>{(event.actions || []).map((a: any) => a.display || `${a.type} ${(a.params || "").slice(0, 40)}`).join("; ")}</span>
+                </div>
+              );
+            case "user_confirm":
+              return (
+                <div key={idx} className="mb-2 px-4 py-1.5 rounded-lg" style={{ fontSize: 11, color: "var(--text-3)" }}>
+                  ✓ {event.decision === "confirm" ? "已确认执行" : "已跳过"}
+                </div>
+              );
             case "transcript":
               return <AiReplyBubble key={idx} event={{...event, content: event.content || ""}} isExpanded={expanded} onToggle={toggle} />;
             default:

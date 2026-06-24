@@ -1057,6 +1057,7 @@ def create_app(config: EduceConfig | None = None) -> Any:
                 await websocket.send_json({
                     "type": "zero_state",
                     "cwd": cwd,
+                    "project_name": project_name,
                     "files": visible,
                     "file_count": len(entries),
                     "hidden_count": hidden_count,
