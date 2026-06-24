@@ -35,6 +35,8 @@ class Situation:
     shells_run: list = field(default_factory=list)      # [{cmd, exit_code, round}]
     repeated_reads: dict = field(default_factory=dict)  # {path: count}
     consecutive_failures: int = 0
+    turns_without_edit: int = 0                         # 连续多少轮没有 write/edit
+    last_edit_round: int = -1
     last_user_msg: str = ""
     last_user_msg_round: int = 0
 
@@ -75,6 +77,9 @@ class Situation:
         if self.consecutive_failures > 0:
             lines.append(f"consecutive_command_failures: {self.consecutive_failures}")
 
+        if self.turns_without_edit > 3:
+            lines.append(f"turns_without_edit: {self.turns_without_edit}")
+
         return "<situation>\n" + "\n".join(lines) + "\n</situation>"
 
 
@@ -95,6 +100,8 @@ class EffectStream:
         self._round_idx = round_idx
         self.situation.rounds_total = round_idx + 1
         self.situation.rounds_since_user_msg = round_idx - self.situation.last_user_msg_round
+        if round_idx > 0 and self.situation.last_edit_round < round_idx - 1:
+            self.situation.turns_without_edit = round_idx - max(0, self.situation.last_edit_round + 1)
 
     def emit(self, kind: str, intent: dict, outcome: dict) -> Effect:
         e = Effect(
@@ -131,11 +138,18 @@ class EffectStream:
                     "mode": e.outcome.get("mode", "created"),
                     "round": e.round_idx,
                 })
+                s.last_edit_round = e.round_idx
+                s.turns_without_edit = 0
 
         elif e.kind == "file_read":
             path = e.intent.get("path", "")
             s.files_read.append({"path": path, "round": e.round_idx})
             s.repeated_reads[path] = s.repeated_reads.get(path, 0) + 1
+
+        elif e.kind == "file_edit":
+            if e.outcome.get("success"):
+                s.last_edit_round = e.round_idx
+                s.turns_without_edit = 0
 
         elif e.kind == "shell":
             cmd = e.intent.get("cmd", "")[:60]

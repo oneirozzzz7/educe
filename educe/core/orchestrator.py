@@ -799,68 +799,24 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                         self.state.add_ai_reply(raw)
                 break
 
-            # Safety Tiers: 分层确认，常见安全操作自动执行
-            # CONFIRMED: build, plan（影响大，需要用户确认方向）
-            # OBSERVABLE: shell(安全命令), write_file, memorize（自动执行+记录）
-            # TRANSPARENT: read_dir, read_file, recall, lookup_tools（静默）
-            needs_confirm = {"build", "plan"}
+            # Irreversibility Gate: 唯一硬逻辑 — 不可逆动作前暂停
+            from educe.core.irreversibility import is_irreversible
 
             def _needs_confirmation(action) -> bool:
-                # Benchmark mode: skip all confirmations
                 if self.context.metadata.get("_benchmark_auto_confirm"):
                     return False
-                if action.type in needs_confirm:
+                if is_irreversible(action):
                     return True
-                if action.type == "shell":
-                    return _is_dangerous_shell(action.params)
-                if _is_dangerous_use_tool(action):
-                    return True
+                # MCP connector 自声明的不可逆能力
+                if action.type == "use_tool":
+                    tool_name = action.name or ""
+                    if "." in tool_name:
+                        connector_name, capability_name = tool_name.split(".", 1)
+                        connector = self._get_connector_registry().get(connector_name)
+                        if connector and hasattr(connector, 'is_dangerous'):
+                            return connector.is_dangerous(capability_name)
                 return False
 
-            def _is_dangerous_shell(params: str) -> bool:
-                """安全命令自动执行，危险命令需确认。
-                利用 shell_taxonomy + resource_delta 声明式配置判断（公理五）。
-                """
-                import json as _j
-                cmd = params.strip()
-                try:
-                    parsed = _j.loads(cmd)
-                    cmd = parsed.get("cmd") or parsed.get("command") or cmd
-                except (ValueError, TypeError, AttributeError):
-                    pass
-                cmd = cmd.strip()
-
-                from educe.core.metabolism.context_sig import shell_subclass, _rdelta_classifier
-                subclass = shell_subclass(cmd)
-                # 安全类别：来自 YAML 配置的语义分类
-                safe_categories = {
-                    "shell.git", "shell.pkg", "shell.python", "shell.node",
-                    "shell.search", "shell.read", "shell.nav", "shell.test",
-                    "shell.build", "shell.open", "shell.source",
-                }
-                if subclass in safe_categories:
-                    return False
-
-                # mutate 类进一步判断：创建(+file)安全，删除(-file)危险
-                rdelta = _rdelta_classifier.classify(cmd)
-                if subclass == "shell.mutate" and rdelta != "-file":
-                    return False
-
-                return True
-
-            # 检查 use_tool 是否调用危险能力
-            def _is_dangerous_use_tool(action) -> bool:
-                if action.type != "use_tool":
-                    return False
-                tool_name = action.name or ""
-                if "." in tool_name:
-                    connector_name, capability_name = tool_name.split(".", 1)
-                    connector = self._get_connector_registry().get(connector_name)
-                    if connector and hasattr(connector, 'is_dangerous'):
-                        return connector.is_dangerous(capability_name)
-                return False
-
-            # 检查是否有需要确认的 action
             pending_actions = [a for a in actions if _needs_confirmation(a)]
             immediate_actions = [a for a in actions if a not in pending_actions]
 
@@ -1014,40 +970,6 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                 runtime_facts.record_reply()
                 if hasattr(self, 'state'):
                     self.state.add_ai_reply(reply_text)
-
-            # Evidence-Gated Nudge：探索信息饱和时注入反射镜
-            if immediate_actions and not pending_actions and ledger.should_nudge():
-                reflection = ledger.build_reflection()
-                messages.append({"role": "user", "content": reflection})
-                trace_collector.mark_nudge()
-                self.decision_ledger.record(
-                    "nudge_inject", "framework",
-                    f"force convergence nudge #{ledger.nudge_count}",
-                    context={"nudge_count": ledger.nudge_count,
-                             "redundancy_score": getattr(ledger, '_last_redundancy', 0),
-                             "round": round_idx})
-                log.info("_action_loop | round %d nudge injected (nudge_count=%d)", round_idx, ledger.nudge_count)
-                self._slog("framework", "nudge_triggered",
-                           summary=f"nudge #{ledger.nudge_count}",
-                           data={"nudge_count": ledger.nudge_count,
-                                 "redundancy_score": getattr(ledger, '_last_redundancy', 0)})
-
-            # 安全网：nudge 反复失败后，拒绝纯 read 类 action
-            if ledger.should_restrict_actions(max_rounds, round_idx):
-                read_only = all(a.type in ("read_lines", "read_file", "read_dir", "search_in_file", "use_tool")
-                               for a in immediate_actions) if immediate_actions else False
-                if read_only and immediate_actions:
-                    messages.append({"role": "user", "content":
-                        "[系统] 探索预算已用尽。请直接执行修改（edit_file），或告知用户你无法完成此任务。"})
-                    self.decision_ledger.record(
-                        "safety_net", "framework",
-                        "block read-only actions, force convergence",
-                        context={"round": round_idx, "nudge_count": ledger.nudge_count,
-                                 "blocked_actions": [a.type for a in immediate_actions]})
-                    log.info("_action_loop | round %d safety net triggered", round_idx)
-                    self._slog("framework", "safety_net",
-                               summary=f"round {round_idx}, nudge_count={ledger.nudge_count}",
-                               data={"round": round_idx, "nudge_count": ledger.nudge_count})
 
             # 需要确认的 action → 暂存，发确认请求给前端，返回等待
             if pending_actions:
