@@ -169,9 +169,6 @@ class TestEngine:
             await self.page.wait_for_timeout(300)
 
         elif action_type == "send_message":
-            # Record baseline state before sending (for auto_confirm_loop to compare)
-            self._pre_send_reply_count = await self.page.evaluate(
-                "() => document.querySelectorAll('.ai-reply-content').length")
             self._pre_send_feed_len = await self.page.evaluate(
                 "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
             input_box = self.page.get_by_role("textbox")
@@ -208,19 +205,22 @@ class TestEngine:
             await self.page.screenshot(path=str(path))
 
         elif action_type == "multi_turn_wait":
-            # Wait for request to complete: no thinking dots + stable for 2s
             timeout = action.get("timeout", 30) * 1000
-            last_change = time.time()
             deadline_s = time.time() + timeout / 1000
+            baseline_len = getattr(self, '_pre_send_feed_len', 0)
+            last_len = baseline_len
+            stable_since = None
             while time.time() < deadline_s:
-                has_thinking = await self.page.evaluate(
-                    "() => document.querySelector('.thinking-dots') !== null")
-                if has_thinking:
-                    last_change = time.time()
-                    await self.page.wait_for_timeout(500)
-                    continue
-                if time.time() - last_change >= 2.0:
-                    break
+                cur_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                if cur_len != last_len:
+                    last_len = cur_len
+                    stable_since = None
+                else:
+                    if stable_since is None:
+                        stable_since = time.time()
+                    elif cur_len > baseline_len + 30 and time.time() - stable_since >= 4.0:
+                        break
                 await self.page.wait_for_timeout(500)
             await self.page.wait_for_timeout(1000)
 
@@ -267,38 +267,30 @@ class TestEngine:
         elif action_type == "auto_confirm_loop":
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            # Simple reliable loop:
-            # 1. Click Run/Confirm whenever it appears
-            # 2. Exit when: no thinking dots + no confirm buttons + waited at least 2s after last change
-            last_change_time = time.time()
+            baseline_len = getattr(self, '_pre_send_feed_len', 0)
+            last_len = baseline_len
+            stable_since = None
             while time.time() < deadline:
                 # Click Run/Confirm if available
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
-                    last_change_time = time.time()
+                    stable_since = None
                     await self.page.wait_for_timeout(1000)
                     continue
-                # Check: thinking dots present = still processing
-                has_thinking = await self.page.evaluate(
-                    "() => document.querySelector('.thinking-dots') !== null")
-                if has_thinking:
-                    last_change_time = time.time()
-                    await self.page.wait_for_timeout(500)
-                    continue
-                # Check: feed content still changing = still processing
+                # Poll feed length
                 cur_len = await self.page.evaluate(
                     "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if not hasattr(self, '_acl_last_len') or cur_len != self._acl_last_len:
-                    self._acl_last_len = cur_len
-                    last_change_time = time.time()
-                    await self.page.wait_for_timeout(500)
-                    continue
-                # No thinking, no confirm, content stable — check if stable for 3s
-                if time.time() - last_change_time >= 3.0:
-                    break
+                if cur_len != last_len:
+                    last_len = cur_len
+                    stable_since = None
+                else:
+                    if stable_since is None:
+                        stable_since = time.time()
+                    # Content grew from baseline AND stable for 4s → done
+                    elif cur_len > baseline_len + 30 and time.time() - stable_since >= 4.0:
+                        break
                 await self.page.wait_for_timeout(500)
-            self._acl_last_len = 0
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:

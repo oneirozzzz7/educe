@@ -55,7 +55,9 @@ async def main():
         else:
             scenarios = list_contracts()
 
-        for scenario_name in scenarios:
+        for i, scenario_name in enumerate(scenarios):
+            if i > 0:
+                await page.wait_for_timeout(5000)  # 避免 API 限流
             print(f"\n▶ Running: {scenario_name}...")
             # Create fresh session for each scenario
             await page.goto(frontend_url)
