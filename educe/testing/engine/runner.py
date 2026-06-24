@@ -286,10 +286,19 @@ class TestEngine:
                     last_change_time = time.time()
                     await self.page.wait_for_timeout(500)
                     continue
-                # No thinking, no confirm — check if stable for 2s
-                if time.time() - last_change_time >= 2.0:
+                # Check: feed content still changing = still processing
+                cur_len = await self.page.evaluate(
+                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
+                if not hasattr(self, '_acl_last_len') or cur_len != self._acl_last_len:
+                    self._acl_last_len = cur_len
+                    last_change_time = time.time()
+                    await self.page.wait_for_timeout(500)
+                    continue
+                # No thinking, no confirm, content stable — check if stable for 3s
+                if time.time() - last_change_time >= 3.0:
                     break
                 await self.page.wait_for_timeout(500)
+            self._acl_last_len = 0
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
