@@ -208,18 +208,16 @@ class TestEngine:
             timeout = action.get("timeout", 30) * 1000
             deadline_s = time.time() + timeout / 1000
             baseline_len = getattr(self, '_pre_send_feed_len', 0)
-            last_len = baseline_len
-            stable_since = None
+            saw_activity = False
             while time.time() < deadline_s:
                 cur_len = await self.page.evaluate(
                     "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len != last_len:
-                    last_len = cur_len
-                    stable_since = None
-                else:
-                    if stable_since is None:
-                        stable_since = time.time()
-                    elif cur_len > baseline_len + 30 and time.time() - stable_since >= 4.0:
+                if cur_len > baseline_len + 30:
+                    saw_activity = True
+                if saw_activity:
+                    has_thinking = "thinking-dots" in await self.page.evaluate("() => document.body.innerHTML")
+                    is_idle = not has_thinking
+                    if is_idle:
                         break
                 await self.page.wait_for_timeout(500)
             await self.page.wait_for_timeout(1000)
@@ -268,27 +266,25 @@ class TestEngine:
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
             baseline_len = getattr(self, '_pre_send_feed_len', 0)
-            last_len = baseline_len
-            stable_since = None
+            saw_activity = False
             while time.time() < deadline:
                 # Click Run/Confirm if available
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
-                    stable_since = None
+                    saw_activity = True
                     await self.page.wait_for_timeout(1000)
                     continue
-                # Poll feed length
+                # Check feed growth (means something happened)
                 cur_len = await self.page.evaluate(
                     "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len != last_len:
-                    last_len = cur_len
-                    stable_since = None
-                else:
-                    if stable_since is None:
-                        stable_since = time.time()
-                    # Content grew from baseline AND stable for 4s → done
-                    elif cur_len > baseline_len + 30 and time.time() - stable_since >= 4.0:
+                if cur_len > baseline_len + 30:
+                    saw_activity = True
+                # Only check idle AFTER we've seen activity (content grew or button clicked)
+                if saw_activity:
+                    has_thinking = "thinking-dots" in await self.page.evaluate("() => document.body.innerHTML")
+                    is_idle = not has_thinking
+                    if is_idle:
                         break
                 await self.page.wait_for_timeout(500)
             await self.page.wait_for_timeout(500)
@@ -415,9 +411,9 @@ class TestEngine:
             return count >= min_count, f"action lines visible={count}, min={min_count}"
 
         if "status_idle" in check:
-            text = await self.page.evaluate("() => document.body.innerText")
-            is_idle = "进化待机" in text or "Idle" in text
-            return is_idle, f"status contains idle marker (found={'进化待机' in text or 'Idle' in text})"
+            text = await self.page.evaluate("() => document.body.innerHTML")
+            no_thinking = "thinking-dots" not in text
+            return no_thinking, f"no thinking dots = idle (found={no_thinking})"
 
         return False, f"Unknown UI check: {check}"
 
