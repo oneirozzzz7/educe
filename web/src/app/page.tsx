@@ -63,6 +63,7 @@ export default function Home() {
 
   useEffect(() => { if (!isThinking) return; const t = setInterval(() => dispatch({ type: "TICK_THINKING" }), 1000); return () => clearInterval(t); }, [isThinking]);
   useEffect(() => { if (!isBuilding) return; const t = setInterval(() => dispatch({ type: "TICK_BUILD" }), 1000); return () => clearInterval(t); }, [isBuilding]);
+  useEffect(() => { document.body.dataset.phase = phase; }, [phase]);
 
   // ── Actions ──
   function send(text: string) {

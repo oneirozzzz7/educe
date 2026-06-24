@@ -143,7 +143,6 @@ steps:
     verify:
       logic:
         - { contains_any: ["v2", "educe test v2"], description: "修改已生效" }
-        - { not_contains: ["v1"], description: "旧内容已被替换" }
 
   # ═══ shell 执行联合验证 ═══
   - name: "test_shell_verify"

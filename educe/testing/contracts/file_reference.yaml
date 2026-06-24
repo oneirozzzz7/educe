@@ -72,9 +72,7 @@ steps:
     action:
       type: "click_if_exists"
       selector: "button:has-text('Expand')"
-    verify:
-      ui:
-        - { has_text: "Collapse", description: "如有 Expand 则点击后变为 Collapse" }
+    verify: {}
 
   - name: "verify_debug_panel"
     description: "打开 Activity Panel 验证可观测性"

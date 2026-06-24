@@ -207,19 +207,14 @@ class TestEngine:
         elif action_type == "multi_turn_wait":
             timeout = action.get("timeout", 30) * 1000
             deadline_s = time.time() + timeout / 1000
-            baseline_len = getattr(self, '_pre_send_feed_len', 0)
-            saw_activity = False
+            started = False
             while time.time() < deadline_s:
-                cur_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len > baseline_len + 30:
-                    saw_activity = True
-                if saw_activity:
-                    has_thinking = "thinking-dots" in await self.page.evaluate("() => document.body.innerHTML")
-                    is_idle = not has_thinking
-                    if is_idle:
-                        break
-                await self.page.wait_for_timeout(500)
+                phase = await self.page.evaluate("() => document.body.dataset.phase || 'idle'")
+                if phase != "idle":
+                    started = True
+                if started and phase == "idle":
+                    break
+                await self.page.wait_for_timeout(300)
             await self.page.wait_for_timeout(1000)
 
         elif action_type == "generate_question":
@@ -265,28 +260,20 @@ class TestEngine:
         elif action_type == "auto_confirm_loop":
             timeout_s = action.get("timeout", 30)
             deadline = time.time() + timeout_s
-            baseline_len = getattr(self, '_pre_send_feed_len', 0)
-            saw_activity = False
+            started = False
             while time.time() < deadline:
-                # Click Run/Confirm if available
                 confirm_btn = self.page.locator("button:has-text('Run'), button:has-text('Confirm'), button.btn-primary")
                 if await confirm_btn.count() > 0:
                     await confirm_btn.first.click()
-                    saw_activity = True
+                    started = True
                     await self.page.wait_for_timeout(1000)
                     continue
-                # Check feed growth (means something happened)
-                cur_len = await self.page.evaluate(
-                    "() => (document.querySelector('[class*=\"overflow-y-auto\"]') || document.body).innerText.length")
-                if cur_len > baseline_len + 30:
-                    saw_activity = True
-                # Only check idle AFTER we've seen activity (content grew or button clicked)
-                if saw_activity:
-                    has_thinking = "thinking-dots" in await self.page.evaluate("() => document.body.innerHTML")
-                    is_idle = not has_thinking
-                    if is_idle:
-                        break
-                await self.page.wait_for_timeout(500)
+                phase = await self.page.evaluate("() => document.body.dataset.phase || 'idle'")
+                if phase != "idle":
+                    started = True
+                if started and phase == "idle":
+                    break
+                await self.page.wait_for_timeout(300)
             await self.page.wait_for_timeout(500)
 
     async def _verify(self, dimension: str, check: dict) -> dict:
