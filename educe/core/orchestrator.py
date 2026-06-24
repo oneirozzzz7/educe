@@ -781,7 +781,6 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                     self._reflex_router.record_llm_actual(shadow_input, llm_actions)
 
             if not actions:
-                # 无 action = 纯回复
                 if not raw or not raw.strip():
                     log.warning("_action_loop | round %d empty response, messages=%d",
                                 round_idx, len(messages))
@@ -792,59 +791,6 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
                         if hasattr(self, 'state'):
                             self.state.add_ai_reply(fallback)
                 else:
-                    # 检测"未完成意图"：模型声明了方案但没执行
-                    _CONTINUATION_SIGNALS = [
-                        "让我实现", "让我修改", "让我添加", "让我开始",
-                        "我的方案是", "具体修改如下", "接下来我会",
-                        "let me implement", "let me modify", "I'll now",
-                    ]
-                    has_continuation = (
-                        round_idx < max_rounds - 2
-                        and any(sig in raw for sig in _CONTINUATION_SIGNALS)
-                    )
-
-                    # 检测"执行幻觉"：用户要求运行脚本，模型跳过执行直接编造结果
-                    _EXEC_KEYWORDS = ["运行", "执行", "跑一下", "run ", "execute"]
-                    _user_wants_exec = any(kw in user_input for kw in _EXEC_KEYWORDS)
-                    _has_exec_hallucination = (
-                        round_idx == 0
-                        and _user_wants_exec
-                        and not has_continuation
-                        and not any(sig in raw for sig in _CONTINUATION_SIGNALS)
-                    )
-
-                    matched_sigs = [s for s in _CONTINUATION_SIGNALS if s in raw]
-                    log.info("_action_loop | round=%d continuation_check: matched=%s has=%s exec_hallucination=%s",
-                             round_idx, matched_sigs, has_continuation, _has_exec_hallucination)
-                    if has_continuation:
-                        # 模型想继续但没输出 action → 追加提示让它执行
-                        messages.append({"role": "assistant", "content": raw})
-                        messages.append({"role": "user", "content":
-                            "[系统] 方案已收到。请直接修改文件。你可以用以下格式：\n"
-                            "tool:edit_file\n"
-                            '{"path": "文件路径", "old": "要替换的原文", "new": "替换后的新文"}\n'
-                            "或者用 shell 执行 python 脚本来修改。不需要再解释，直接执行。"})
-                        log.info("_action_loop | round %d continuation detected, prompting execution", round_idx)
-                        matched = [sig for sig in _CONTINUATION_SIGNALS if sig in raw]
-                        self._slog("framework", "continuation",
-                                   summary=f"round {round_idx}, signal: {matched[0] if matched else '?'}",
-                                   data={"signal_text": matched[0] if matched else ""})
-                        continue
-
-                    if _has_exec_hallucination:
-                        # 模型编造了执行结果 → 要求真正执行
-                        messages.append({"role": "assistant", "content": raw})
-                        messages.append({"role": "user", "content":
-                            "[系统] ⚠️ 你的回答看起来没有真正执行命令。"
-                            "用户要求的是实际运行脚本/命令并查看真实输出。"
-                            "请用 ```shell 代码块真正执行，然后基于实际输出回答。"
-                            "不要从记忆中编造结果。"})
-                        log.info("_action_loop | round %d exec hallucination detected, forcing execution", round_idx)
-                        self._slog("framework", "exec_hallucination",
-                                   summary=f"round {round_idx}, user asked exec but model replied without action",
-                                   data={"user_input": user_input[:100]})
-                        continue
-
                     for i in range(0, len(raw), 20):
                         self._notify_chunk("assistant", raw[i:i+20])
                     final_reply = raw
