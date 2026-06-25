@@ -423,52 +423,34 @@ function ActionGroup({ events, isExpanded, onToggle }: {
   );
 }
 
-/** Zero-state welcome card — shows project context and suggestions */
+/** Zero-state welcome card — clean greeting + action suggestions */
 function WelcomeCard({ event, onSuggestionClick }: { event: AppEvent; onSuggestionClick?: (text: string) => void }) {
-  const files = event.files || [];
-  const cwd = event.cwd || ".";
-  const dirName = event.project_name || cwd.split("/").pop() || cwd;
+  const dirName = event.project_name || (event.cwd || ".").split("/").pop() || "项目";
 
   return (
-    <div className="mb-4">
-      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-1)", background: "var(--surface-1)" }}>
-        <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-0)" }}>
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>
-              {dirName}/
-            </span>
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-              {event.file_count} items{event.has_git ? " · git" : ""}{event.has_package ? " · package" : ""}
-            </span>
-          </div>
-          {files.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {files.slice(0, 12).map((f: string) => (
-                <span key={f} style={{ fontSize: 11, color: "var(--text-2)", background: "var(--surface-0)", padding: "2px 6px", borderRadius: 4 }}>
-                  {f}
-                </span>
-              ))}
-              {files.length > 12 && (
-                <span style={{ fontSize: 11, color: "var(--text-3)" }}>+{files.length - 12}</span>
-              )}
-            </div>
-          )}
-        </div>
-        {event.suggestions && event.suggestions.length > 0 && (
-          <div className="px-4 py-2.5 flex flex-wrap gap-2">
-            {event.suggestions.map((s: string, i: number) => (
-              <button
-                key={i}
-                onClick={() => onSuggestionClick?.(s)}
-                className="cursor-pointer transition-all hover:brightness-110"
-                style={{ fontSize: 12, color: "var(--accent)", background: "var(--accent-dim)", border: "none", padding: "4px 10px", borderRadius: 12 }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
+    <div className="mb-4 flex flex-col items-center justify-center" style={{ paddingTop: 80 }}>
+      <div style={{ fontSize: 28, fontWeight: 700, color: "var(--text-1)", marginBottom: 8 }}>
+        Educe
       </div>
+      <div style={{ fontSize: 13, color: "var(--text-3)", marginBottom: 24 }}>
+        当前项目：{dirName}/
+        {event.has_git ? " · git" : ""}
+        {event.has_package ? " · package" : ""}
+      </div>
+      {event.suggestions && event.suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2 justify-center">
+          {event.suggestions.map((s: string, i: number) => (
+            <button
+              key={i}
+              onClick={() => onSuggestionClick?.(s)}
+              className="cursor-pointer transition-all hover:brightness-110"
+              style={{ fontSize: 13, color: "var(--accent)", background: "var(--accent-dim)", border: "none", padding: "6px 14px", borderRadius: 16 }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -646,7 +628,7 @@ export function ActivityFeed({
             case "memory_conflict":
               return <ConflictCard key={idx} event={event} />;
             case "zero_state":
-              return null;
+              return <WelcomeCard key={idx} event={event} />;
             case "action_confirm_request":
               return (
                 <div key={idx} className="mb-2 px-4 py-2 rounded-lg flex items-center gap-2" style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", fontSize: 12 }}>
