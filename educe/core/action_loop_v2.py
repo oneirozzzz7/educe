@@ -1,20 +1,19 @@
-"""Action Loop V2 — Plan-aware 循环
+"""Action Loop V2 — Plan + Challenge + 压缩
 
-核心改变：
-1. 模型维护 <plan> 块（自知状态）
-2. status=done 时自行终止（无 max_rounds 硬墙）
+核心机制：
+1. 模型维护 <plan> 块（自知状态 + status=done 自决停止）
+2. Challenge：检测重复/空转，强制模型回应（不可忽略）
 3. 三层滑动窗口压缩（hot/warm/frozen）
 4. wall_clock 120s 超时兜底
 5. Pinned plan 每轮注入
-
-调用方式：
-    result = await action_loop_v2(orchestrator, user_input, system, messages, client, ...)
+6. 跨轮上下文：plan.findings 写入 conversation
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
+from collections import Counter
 from typing import Any
 
 from educe.core.plan_parser import parse_plan, _PLAN_RE
@@ -27,8 +26,64 @@ def _strip_plan(text: str) -> str:
     """从文本中移除 <plan>...</plan> 块，只留给用户看的内容。"""
     return _PLAN_RE.sub("", text).strip()
 
-WALL_CLOCK_TIMEOUT = 120  # 秒
 
+WALL_CLOCK_TIMEOUT = 120
+CHALLENGE_COOLDOWN = 2  # 至少隔 2 轮才能再次 challenge
+
+
+# ═══ Challenge 检测 ═══
+
+def _detect_challenges(round_idx: int, action_history: list[dict],
+                       has_plan: bool, last_challenge_round: int) -> str | None:
+    """检测是否应该注入 challenge。返回 challenge 文本或 None。"""
+    if round_idx - last_challenge_round < CHALLENGE_COOLDOWN:
+        return None
+
+    # 1. 重复操作检测（同一 target 3+ 次）
+    if len(action_history) >= 3:
+        recent = action_history[-5:]
+        sigs = [f"{a['type']}::{a['target']}" for a in recent]
+        counter = Counter(sigs)
+        most_common, count = counter.most_common(1)[0]
+        if count >= 3:
+            name, _, target = most_common.partition("::")
+            return (
+                f"<challenge>\n"
+                f"你在最近 {len(recent)} 轮中对相同目标执行了 {count} 次 `{name}`（目标: {target}）。\n"
+                f"这似乎没有产生新信息。请在你的 plan 中说明：\n"
+                f"- 你在找什么？\n"
+                f"- 换一种方式（如 search_in_file 定位关键词）是否更高效？\n"
+                f"- 如果已有足够信息，请直接回复用户。\n"
+                f"</challenge>"
+            )
+
+    # 2. Plan 缺失（第 3 轮起）
+    if round_idx >= 3 and not has_plan:
+        return (
+            "<challenge>\n"
+            "你已执行了多步操作但未维护 plan。请输出 <plan> 块记录：\n"
+            "- goal: 你在做什么\n"
+            "- findings: 到目前为止发现了什么\n"
+            "- next: 下一步打算做什么\n"
+            "- status: working 或 done\n"
+            "</challenge>"
+        )
+
+    # 3. 长时间无回复（10+ 轮全在执行）
+    if round_idx >= 10 and len(action_history) >= 10:
+        return (
+            "<challenge>\n"
+            f"已执行 {round_idx} 轮操作，尚未给用户任何回复。\n"
+            f"请评估：你已有的信息是否足够回答用户的问题？\n"
+            f"如果是，请停止操作，直接回复用户（status: done）。\n"
+            f"如果不是，请在 plan 中明确说明还缺什么。\n"
+            "</challenge>"
+        )
+
+    return None
+
+
+# ═══ 主循环 ═══
 
 async def action_loop_v2(
     orch: Any,
@@ -38,16 +93,12 @@ async def action_loop_v2(
     client: Any,
     file_context: str = "",
 ) -> dict:
-    """新 action loop：Plan-aware + 压缩窗口 + 无 max_rounds。
-
-    返回 {"final_reply": str, "reason": str, "rounds": int}
-    """
+    """Plan-aware action loop with Challenge mechanism."""
     from educe.core.action_executor import parse_actions
 
     loop_ctx = LoopContext()
-    messages = list(initial_messages)  # 浅拷贝，不影响原始
+    messages = list(initial_messages)
 
-    # 用户输入
     user_content = user_input
     if file_context:
         user_content = f"{user_input}\n\n{file_context}"
@@ -56,30 +107,42 @@ async def action_loop_v2(
     final_reply = ""
     round_idx = 0
     start_time = time.monotonic()
+    action_history: list[dict] = []  # {"type": str, "target": str, "round": int}
+    last_challenge_round = -999
 
     while True:
-        # Wall clock 超时检查
         elapsed = time.monotonic() - start_time
         if elapsed > WALL_CLOCK_TIMEOUT:
             log.warning("loop_v2 | wall clock timeout at round %d (%.0fs)", round_idx, elapsed)
             break
 
-        # 注入 Situation（第 2 轮起）
+        # ── Situation 注入 ──
         if hasattr(orch, 'effects'):
             orch.effects.set_round(round_idx)
             situation_text = orch.effects.situation.render_for_model()
             if situation_text:
                 messages.append({"role": "user", "content": situation_text})
 
-        # Pinned Plan（第 2 轮起注入，第 1 轮还没有 plan）
+        # ── Pinned Plan ──
         messages = [m for m in messages if not m.get("content", "").startswith(PIN_LABEL)]
         if loop_ctx.current_plan and round_idx >= 1:
             messages.append({"role": "user", "content": f"{PIN_LABEL}\n{loop_ctx.current_plan.to_block()}"})
 
-        # 压缩检查
+        # ── Challenge 注入 ──
+        challenge = _detect_challenges(
+            round_idx, action_history,
+            has_plan=loop_ctx.current_plan is not None,
+            last_challenge_round=last_challenge_round,
+        )
+        if challenge:
+            messages.append({"role": "user", "content": challenge})
+            last_challenge_round = round_idx
+            log.info("loop_v2 | round %d challenge injected", round_idx)
+
+        # ── 压缩 ──
         loop_ctx.compress_if_needed()
 
-        # 调用 LLM
+        # ── LLM 调用 ──
         log.info("loop_v2 | round=%d msgs=%d elapsed=%.1fs", round_idx, len(messages), elapsed)
         try:
             raw = await asyncio.wait_for(
@@ -101,73 +164,67 @@ async def action_loop_v2(
             log.warning("loop_v2 | round %d empty response", round_idx)
             break
 
-        # 解析 plan + actions
+        # ── 解析 ──
         new_plan = parse_plan(raw)
         loop_ctx.update_plan(new_plan)
         reply_text, actions = parse_actions(raw)
 
-        # status=done → 模型自己决定结束
+        # ── status=done → 终止 ──
         if loop_ctx.is_done():
             text = _strip_plan(reply_text or raw)
             if text:
                 for i in range(0, len(text), 20):
                     orch._notify_chunk("assistant", text[i:i+20])
-            final_reply = text
+            final_reply = text or ""
             if hasattr(orch, 'state') and text:
                 orch.state.add_ai_reply(text)
             break
 
-        # 无 action → 推送回复给用户 → 结束
+        # ── 无 action → 回复用户 → 终止 ──
         if not actions:
             text = _strip_plan(reply_text or raw)
             if text:
                 for i in range(0, len(text), 20):
                     orch._notify_chunk("assistant", text[i:i+20])
-            final_reply = text
+            final_reply = text or ""
             if hasattr(orch, 'state') and text:
                 orch.state.add_ai_reply(text)
             break
 
-        # 有 action → 检查不可逆 → 执行
+        # ── 不可逆检查 ──
         from educe.core.irreversibility import is_irreversible
-
-        # 分离：不可逆的需确认，其余直接执行
         pending_confirm = [a for a in actions if is_irreversible(a)]
         immediate = [a for a in actions if a not in pending_confirm]
 
-        # 不可逆动作 → 触发 confirm 流程，暂停 loop
         if pending_confirm:
             import json as _json_cf
+            from educe.core.message import Message, MessageType
             confirm_items = [{"type": a.type, "params": a.params, "name": a.name,
                               "display": f"{a.type}: {a.params[:60]}"} for a in pending_confirm]
             orch.context.metadata["_pending_actions"] = confirm_items
             orch.context.metadata["_pending_user_input"] = user_input
-            # 用 _emit_tool_event 走 __ACTION_CONFIRM__ 协议
-            from educe.core.message import Message, MessageType
             confirm_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                 content="__ACTION_CONFIRM__" + _json_cf.dumps(confirm_items, ensure_ascii=False))
             orch._notify(confirm_msg)
             return {"final_reply": "", "reason": "confirm_pending", "rounds": round_idx}
 
-        # assistant 原始输出追加一次
+        # ── 执行 actions ──
         messages.append({"role": "assistant", "content": raw})
 
         for action in immediate:
-
-            # 执行 action
             result = await orch._execute_action(action, user_input,
-                                                   orch.context.metadata.get("_transcript"))
-
-            # 推送 action detail 事件
+                                               orch.context.metadata.get("_transcript"))
             _emit_action_detail(orch, action, result, round_idx)
 
-            # 结果追加到 messages
             output = result.get("output", "")[:500]
             success = result.get("success", False)
             messages.append({"role": "user", "content":
                 f"[系统] {'✓' if success else '✗'} {action.type} 结果：{output}"})
 
-            # 记录到 loop context
+            # 记录 action 历史（用于 challenge 检测）
+            target = action.params.split("\n")[0][:60] if action.params else ""
+            action_history.append({"type": action.type, "target": target, "round": round_idx})
+
             loop_ctx.add_turn(TurnRecord(
                 round_idx=round_idx,
                 assistant_raw=raw,
@@ -177,13 +234,12 @@ async def action_loop_v2(
                 success=success,
             ))
 
-            # Effect 记录
             if hasattr(orch, 'effects') and action.type == "shell":
                 orch.effects.emit("shell",
                     intent={"cmd": action.params[:60]},
                     outcome={"exit_code": result.get("exit_code", 0)})
 
-        # 如果有 reply_text（"说了再做"），推送给用户
+        # ── "说了再做" ──
         if reply_text:
             clean_reply = _strip_plan(reply_text)
             if clean_reply:
@@ -194,7 +250,7 @@ async def action_loop_v2(
 
         round_idx += 1
 
-    # Loop 结束后：如果没有 final_reply（超时等），做保底总结
+    # ── 保底总结（超时退出时） ──
     if not final_reply and round_idx > 0:
         try:
             messages.append({"role": "user", "content":
@@ -204,26 +260,24 @@ async def action_loop_v2(
                             max_tokens=orch.config.default_model.max_tokens),
                 timeout=30)
             if summary and summary.strip():
-                text = summary.strip()
-                for i in range(0, len(text), 20):
-                    orch._notify_chunk("assistant", text[i:i+20])
-                final_reply = text
-                if hasattr(orch, 'state'):
-                    orch.state.add_ai_reply(text)
+                text = _strip_plan(summary.strip())
+                if text:
+                    for i in range(0, len(text), 20):
+                        orch._notify_chunk("assistant", text[i:i+20])
+                    final_reply = text
+                    if hasattr(orch, 'state'):
+                        orch.state.add_ai_reply(text)
         except Exception as e:
             log.warning("loop_v2 | summary call failed: %s", str(e)[:100])
 
-    # 写入 conversation（包含 action 摘要，让下轮能看到上下文）
-    if loop_ctx.hot or loop_ctx.warm:
-        # 把本轮 action 历史摘要写入 conversation
-        action_summary_parts = []
-        for turn in loop_ctx.hot:
-            action_summary_parts.append(f"{turn.action_type}({turn.action_params[:50]}) → {'✓' if turn.success else '✗'}")
-        for s in loop_ctx.warm[-5:]:
-            action_summary_parts.append(s)
-        if action_summary_parts:
-            summary = "[操作记录] " + "; ".join(action_summary_parts[:10])
-            orch.conversation.add_assistant(summary)
+    # ── 写入 conversation（含 plan.findings，确保跨轮上下文） ──
+    if loop_ctx.current_plan and loop_ctx.current_plan.findings:
+        findings_text = "[本轮发现] " + "; ".join(loop_ctx.current_plan.findings[:10])
+        orch.conversation.add_assistant(findings_text)
+    elif loop_ctx.hot:
+        action_summary = "[操作记录] " + "; ".join(
+            f"{t.action_type}({t.action_params[:40]})" for t in loop_ctx.hot[-5:])
+        orch.conversation.add_assistant(action_summary)
 
     if final_reply:
         orch.conversation.add_assistant(final_reply)
