@@ -93,4 +93,4 @@ def build_system_prompt(
         '<action type="read_file">src/main.py</action>\n'
     )
 
-    return identity + seed_section + knowledge_section + tools_section + context_section + action_format + plan_section
+    return identity + seed_section + knowledge_section + tools_section + context_section + action_format

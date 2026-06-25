@@ -28,7 +28,27 @@ def _strip_plan(text: str) -> str:
 
 
 WALL_CLOCK_TIMEOUT = 120
-CHALLENGE_COOLDOWN = 2  # 至少隔 2 轮才能再次 challenge
+CHALLENGE_COOLDOWN = 2
+
+# ═══ Skill 加载 ═══
+
+_SKILL_DIR = None
+
+def _load_skill(name: str) -> str:
+    """从 educe/config/skills/ 加载可注入的 skill 片段。"""
+    global _SKILL_DIR
+    if _SKILL_DIR is None:
+        from pathlib import Path
+        _SKILL_DIR = Path(__file__).parent.parent / "config" / "skills"
+    path = _SKILL_DIR / f"{name}.md"
+    if path.exists():
+        content = path.read_text(encoding="utf-8").strip()
+        # 跳过首行注释
+        lines = content.splitlines()
+        while lines and lines[0].startswith("#"):
+            lines.pop(0)
+        return "\n".join(lines).strip()
+    return ""  # 至少隔 2 轮才能再次 challenge
 
 
 # ═══ Challenge 检测 ═══
@@ -59,13 +79,11 @@ def _detect_challenges(round_idx: int, action_history: list[dict],
 
     # 2. Plan 缺失（第 3 轮起）
     if round_idx >= 3 and not has_plan:
+        plan_skill = _load_skill("plan_protocol")
         return (
             "<challenge>\n"
-            "你已执行了多步操作但未维护 plan。请输出 <plan> 块记录：\n"
-            "- goal: 你在做什么\n"
-            "- findings: 到目前为止发现了什么\n"
-            "- next: 下一步打算做什么\n"
-            "- status: working 或 done\n"
+            "你已执行了多步操作但未维护 plan。请按以下格式输出：\n\n"
+            f"{plan_skill}\n"
             "</challenge>"
         )
 
