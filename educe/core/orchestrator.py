@@ -1094,7 +1094,10 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
         # ═══ 记忆自动写入：fact / scar ═══
         trace_summary = trace_collector.get_summary()
         if trace_summary and trace_summary["steps"] >= 2:
-            if trace_summary["all_success"]:
+            # 只记录包含修改性操作的轨迹（纯读取链没有复利价值）
+            has_mutation = any(a in trace_summary.get("action_chain", "")
+                              for a in ("edit_file", "write_file", "shell", "build"))
+            if trace_summary["all_success"] and has_mutation:
                 self._auto_write_memory(
                     "fact",
                     f"{trace_summary['user_input'][:80]} → {trace_summary['action_chain']}",

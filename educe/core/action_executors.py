@@ -720,6 +720,13 @@ class ActionExecutorMixin:
             result_lines.append(f"{i+1:4d} | {lines[i]}")
 
         output = f"文件: {file_path} (第{start}-{end}行，共{len(lines)}行)\n" + "\n".join(result_lines)
+
+        if hasattr(self, 'effects'):
+            self.effects.emit("file_read",
+                intent={"path": file_path},
+                outcome={"success": True, "path": str(path), "lines": len(lines),
+                         "range": f"{start}-{end}"})
+
         return {"success": True, "output": output[:3000]}
 
     def _infer_project_path(self, relative_path: str):
