@@ -159,9 +159,9 @@ async def action_loop_v2(
         # ── Env 注入（每轮刷新，反映 state 变化）──
         messages = inject_env(messages, orch.session_env)
 
-        # ── Plan 协议注入（第 2 轮起，仅当已进入多步模式）──
+        # ── Plan 协议注入（有 action 历史后才注入，简单对话不触发）──
         _PLAN_PROTOCOL_MARKER = "[plan_protocol]"
-        if round_idx >= 1 and not any(_PLAN_PROTOCOL_MARKER in m.get("content", "") for m in messages):
+        if action_history and not any(_PLAN_PROTOCOL_MARKER in m.get("content", "") for m in messages):
             plan_skill = _load_skill("plan_protocol")
             if plan_skill:
                 messages.append({"role": "system", "content": f"{_PLAN_PROTOCOL_MARKER}\n{plan_skill}"})
@@ -182,13 +182,18 @@ async def action_loop_v2(
             last_challenge_round = round_idx
             log.info("loop_v2 | round %d challenge injected", round_idx)
 
-        # ── 压缩：messages 滑动窗口（防止 token 爆炸）──
+        # ── 压缩：按 role 边界裁剪（防 token 爆炸 + 不切碎配对）──
         loop_ctx.compress_if_needed()
-        # 保留 system(前2条) + 最近 20 条 messages
-        MAX_MESSAGES = 22
+        MAX_MESSAGES = 24
         if len(messages) > MAX_MESSAGES:
-            # 保留前 2 条（system + env）和最后 20 条
-            messages = messages[:2] + messages[-(MAX_MESSAGES - 2):]
+            sys_msgs = [m for m in messages if m.get("role") == "system"]
+            rest = [m for m in messages if m.get("role") != "system"]
+            keep = MAX_MESSAGES - len(sys_msgs)
+            if len(rest) > keep:
+                rest = rest[-keep:]
+                while rest and rest[0].get("role") == "user" and rest[0].get("content", "").startswith("[系统]"):
+                    rest.pop(0)
+            messages = sys_msgs + rest
 
         # ── LLM 调用 ──
         log.info("loop_v2 | round=%d msgs=%d elapsed=%.1fs", round_idx, len(messages), elapsed)
