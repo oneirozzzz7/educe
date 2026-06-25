@@ -32,7 +32,7 @@ class Tier(str, Enum):
 
 @dataclass
 class Record:
-    """对话事实的原子单位。只增不删。"""
+    """对话事实的原子单位。"""
     id: int
     kind: RecordKind
     role: Literal["user", "assistant"]
@@ -45,6 +45,7 @@ class Record:
     action_type: str = ""
     action_target: str = ""
     success: Optional[bool] = None
+    dropped: bool = False
 
 
 @dataclass
