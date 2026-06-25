@@ -964,7 +964,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         await websocket.send_json(evt)
                     else:
                         original_type = evt.get("type", "")
-                        evt["event"] = original_type
+                        if original_type and "event" not in evt:
+                            evt["event"] = original_type
                         evt["type"] = "tool_event"
                         await websocket.send_json(evt)
                 except Exception as e:
