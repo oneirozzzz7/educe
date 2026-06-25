@@ -288,14 +288,29 @@ async def action_loop_v2(
         except Exception as e:
             log.warning("loop_v2 | summary call failed: %s", str(e)[:100])
 
-    # ── 写入 conversation（含 plan.findings，确保跨轮上下文） ──
+    # ── 写入 conversation（确保跨轮上下文不丢失关键信息） ──
+    # 核心：下一轮模型必须能看到"上次操作了什么路径/发现了什么"
+    context_parts = []
+
+    # 1. 用户原始请求（含路径）
+    context_parts.append(f"用户请求: {user_input[:100]}")
+
+    # 2. Plan findings（如果有）
     if loop_ctx.current_plan and loop_ctx.current_plan.findings:
-        findings_text = "[本轮发现] " + "; ".join(loop_ctx.current_plan.findings[:10])
-        orch.conversation.add_assistant(findings_text)
-    elif loop_ctx.hot:
-        action_summary = "[操作记录] " + "; ".join(
-            f"{t.action_type}({t.action_params[:40]})" for t in loop_ctx.hot[-5:])
-        orch.conversation.add_assistant(action_summary)
+        context_parts.append("发现: " + "; ".join(loop_ctx.current_plan.findings[:8]))
+
+    # 3. 关键操作路径（从 action history 提取唯一路径）
+    paths_seen = []
+    for turn in loop_ctx.hot:
+        if turn.action_type in ("read_dir", "read_file", "shell") and turn.action_params:
+            path = turn.action_params.split("\n")[0][:80]
+            if path not in paths_seen:
+                paths_seen.append(path)
+    if paths_seen:
+        context_parts.append("操作路径: " + ", ".join(paths_seen[:5]))
+
+    if context_parts:
+        orch.conversation.add_assistant("[上轮摘要] " + " | ".join(context_parts))
 
     if final_reply:
         orch.conversation.add_assistant(final_reply)
