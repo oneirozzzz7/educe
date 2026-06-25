@@ -1042,6 +1042,31 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
 
             # Output-Metric Attribution: 记录输出特征到对应 units
             self._record_output_metrics(final_reply)
+        else:
+            # max_rounds 退出但模型从未产出纯文字回复 — 做最后一次 LLM 调用让它总结
+            summary_prompt = (
+                "[系统] 你已经完成了所有探索操作。请根据你收集到的信息，"
+                "直接给用户一个简洁的总结回复。不要再执行任何操作。"
+            )
+            messages.append({"role": "user", "content": summary_prompt})
+            try:
+                summary_raw = await asyncio.wait_for(client.chat(
+                    messages=messages,
+                    model=self.config.default_model.model,
+                    max_tokens=self.config.default_model.max_tokens,
+                ), timeout=120)
+                if summary_raw and summary_raw.strip():
+                    from educe.core.action_normalizer import parse_actions
+                    summary_text, _ = parse_actions(summary_raw)
+                    text = summary_text or summary_raw
+                    for i in range(0, len(text), 20):
+                        self._notify_chunk("assistant", text[i:i+20])
+                    final_reply = text
+                    self.conversation.add_assistant(text)
+                    if hasattr(self, 'state'):
+                        self.state.add_ai_reply(text)
+            except Exception as e:
+                log.warning("_action_loop | summary call failed: %s", str(e)[:100])
 
         reason = "no_action" if final_reply else "max_rounds"
         if self.context.metadata.get("_clarify_pending"):

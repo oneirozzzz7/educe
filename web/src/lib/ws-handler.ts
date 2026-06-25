@@ -162,6 +162,18 @@ export function mapWsMessage(msg: any): Action | Action[] | null {
       return { type: "FILE_WRITTEN", fileName: evt.file, size: evt.size || 0 };
     }
 
+    if (evt.event === "artifact_produced" || evt.type === "artifact_produced") {
+      const event: AppEvent = {
+        type: "artifact_produced",
+        ts: Date.now() / 1000,
+        path: evt.path,
+        filename: evt.filename,
+        size: evt.size,
+        mode: evt.mode,
+      };
+      return { type: "APPEND_EVENT", event };
+    }
+
     if (evt.event === "run_result") {
       const event: AppEvent = {
         type: "transcript",

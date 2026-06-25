@@ -963,6 +963,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                            "error"):
                         await websocket.send_json(evt)
                     else:
+                        original_type = evt.get("type", "")
+                        evt["event"] = original_type
                         evt["type"] = "tool_event"
                         await websocket.send_json(evt)
                 except Exception as e:
@@ -1484,6 +1486,8 @@ def create_app(config: EduceConfig | None = None) -> Any:
                                  summary=f"wall={_wall_ms:.0f}ms",
                                  data={"request_id": _request_id, "wall_ms": round(_wall_ms)})
                     # 推送 request_complete WS 事件（前端/测试可靠判断请求完毕）
+                    # 先让 event loop 执行排队的 send_chunk futures
+                    await asyncio.sleep(0)
                     try:
                         await websocket.send_json({
                             "type": "request_complete",

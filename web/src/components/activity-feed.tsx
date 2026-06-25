@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, AlertCircle, Package, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, AlertCircle, Package, ExternalLink, ChevronDown, ChevronUp, FileText, Download } from "lucide-react";
 import { marked } from "marked";
 import { cn } from "@/lib/utils";
 import type { AppEvent, ToolStream } from "@/lib/state";
@@ -166,6 +166,32 @@ function ActionLine({ event, isExpanded, onToggle }: {
           </pre>
         </div>
       )}
+    </div>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function ArtifactCard({ event }: { event: AppEvent }) {
+  const downloadUrl = `http://${API_HOST}/api/artifacts/${btoa(event.path || "")}`;
+  return (
+    <div className="mb-2 flex items-center gap-2 py-1.5 px-3 rounded-lg"
+         style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+      <FileText size={14} style={{ color: "var(--accent, #6366f1)", flexShrink: 0 }} />
+      <span style={{ fontSize: 12, fontFamily: "'Geist Mono', monospace", color: "var(--text-1)" }}>
+        {event.filename || "file"}
+      </span>
+      <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+        {formatSize(event.size || 0)} · {event.mode || "created"}
+      </span>
+      <a href={downloadUrl} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1"
+         style={{ fontSize: 11, color: "var(--accent, #6366f1)", textDecoration: "none" }}>
+        <Download size={12} />
+      </a>
     </div>
   );
 }
@@ -590,6 +616,8 @@ export function ActivityFeed({
             case "action_detail":
               // Single action (not grouped)
               return <ActionLine key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
+            case "artifact_produced":
+              return <ArtifactCard key={idx} event={event} />;
             case "action_result":
               return <ActionResultCard key={idx} event={event} isExpanded={expanded} onToggle={toggle} />;
             case "error":

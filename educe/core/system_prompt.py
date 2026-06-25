@@ -64,7 +64,8 @@ def build_system_prompt(
         "- read_dir/read_file/recall 直接执行无需确认\n"
         "- shell/write_file/build/memorize 需用户确认后才执行\n"
         "- 分析项目/文件用 read_dir 或 read_file\n"
-        "- 复杂任务：可以连续多轮使用 action（先读取了解，再决定操作）\n"
+        "- 复杂任务：先用 action 收集信息，信息足够后立即回复用户（不要无限探索）\n"
+        "- 每次回复前问自己：我已经有足够信息回答用户了吗？如果是，停止 action 直接回复\n"
         "- 不需要操作时直接回复用户\n"
     )
 

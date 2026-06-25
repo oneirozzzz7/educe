@@ -80,6 +80,9 @@ class Situation:
         if self.turns_without_edit > 3:
             lines.append(f"turns_without_edit: {self.turns_without_edit}")
 
+        if self.rounds_total >= 10 and not self.files_written and self.text_replies == 0:
+            lines.append(f"warning: {self.rounds_total} turns elapsed, 0 replies sent to user")
+
         return "<situation>\n" + "\n".join(lines) + "\n</situation>"
 
 
