@@ -138,11 +138,15 @@ async def action_loop_v2(
     start_time = time.monotonic()
     action_history: list[dict] = []  # {"type": str, "target": str, "round": int}
     last_challenge_round = -999
+    HARD_ROUND_CAP = 50
 
     while True:
         elapsed = time.monotonic() - start_time
         if elapsed > WALL_CLOCK_TIMEOUT:
             log.warning("loop_v2 | wall clock timeout at round %d (%.0fs)", round_idx, elapsed)
+            break
+        if round_idx >= HARD_ROUND_CAP:
+            log.warning("loop_v2 | hard round cap reached (%d)", HARD_ROUND_CAP)
             break
 
         # ── Situation 注入 ──
@@ -171,8 +175,13 @@ async def action_loop_v2(
             last_challenge_round = round_idx
             log.info("loop_v2 | round %d challenge injected", round_idx)
 
-        # ── 压缩 ──
+        # ── 压缩：messages 滑动窗口（防止 token 爆炸）──
         loop_ctx.compress_if_needed()
+        # 保留 system(前2条) + 最近 20 条 messages
+        MAX_MESSAGES = 22
+        if len(messages) > MAX_MESSAGES:
+            # 保留前 2 条（system + env）和最后 20 条
+            messages = messages[:2] + messages[-(MAX_MESSAGES - 2):]
 
         # ── LLM 调用 ──
         log.info("loop_v2 | round=%d msgs=%d elapsed=%.1fs", round_idx, len(messages), elapsed)
@@ -257,18 +266,14 @@ async def action_loop_v2(
             target = action.params.split("\n")[0][:60] if action.params else ""
             action_history.append({"type": action.type, "target": target, "round": round_idx})
 
-            # cwd 跟踪：cd 命令或 read_dir 的路径
+            # cwd 跟踪：只信任绝对路径
             if success and hasattr(orch, 'session_env'):
                 if action.type == "shell" and action.params.strip().startswith("cd "):
-                    # cd 成功 → 更新 cwd
                     new_dir = action.params.strip()[3:].strip().rstrip("/")
-                    if new_dir and not new_dir.startswith("-"):
+                    if new_dir.startswith("/"):  # 只信任绝对路径
                         orch.session_env.update_cwd(new_dir, round_idx)
-                elif action.type == "read_dir" and action.params.strip():
-                    # read_dir 成功 → 确认该路径存在
-                    dir_path = action.params.strip()
-                    if dir_path.startswith("/"):
-                        orch.session_env.pin_path(dir_path)
+                elif action.type == "read_dir" and action.params.strip().startswith("/"):
+                    orch.session_env.pin_path(action.params.strip(), turn_id=round_idx)
 
             loop_ctx.add_turn(TurnRecord(
                 round_idx=round_idx,
