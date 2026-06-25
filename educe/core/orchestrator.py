@@ -579,16 +579,18 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
             if _organ_hints:
                 system += f"\n\n## 用户偏好\n{_organ_hints}"
 
-        # 复利记忆：项目知识/教训/约定注入
+        # ContextAssembler：按需召回相关资产（替代全量 dump）
         if not _bare_mode:
             try:
                 from educe.core.project_memory import ProjectMemoryStore
+                from educe.core.context_assembler import ContextAssembler
                 _mem_store = ProjectMemoryStore()
-                _mem_injection = _mem_store.build_prompt_injection()
-                if _mem_injection:
-                    system += f"\n\n{_mem_injection}"
+                _assembler = ContextAssembler(_mem_store)
+                _context_injection = _assembler.assemble(user_input)
+                if _context_injection:
+                    system += f"\n\n{_context_injection}"
             except Exception as e:
-                log.warning("project memory injection skipped: %s", e)
+                log.warning("context assembly skipped: %s", e)
 
         # Prober: 注入 OPEN claims 让模型感知未验证知识
         if _sid:

@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -77,6 +78,8 @@ DECAY_POLICY = {
     "scar": 0.0,        # 不衰减
     "convention": 0.002, # 极慢衰减
     "skill": 0.005,     # 慢衰减
+    "precedent": 0.005, # 先例慢衰减
+    "boundary": 0.0,    # 边界不衰减（用户显式声明）
 }
 
 CONFIDENCE_THRESHOLD = 0.3  # 低于此值的记忆不注入
@@ -223,6 +226,43 @@ class ProjectMemoryStore:
     def get_disputed(self) -> list[MemoryEntry]:
         """返回所有待仲裁的记忆"""
         return [e for e in self._entries if e.status == "disputed"]
+
+    def record_precedent(self, action_type: str, params: str,
+                         outcome: str, reason: str = "") -> MemoryEntry:
+        """记录一条操作先例（confirm 后自动调用）。"""
+        content = f"{action_type}: {params[:80]} → {outcome}"
+        if reason:
+            content += f" ({reason})"
+        entry = MemoryEntry(
+            id=hashlib.md5(content.encode()).hexdigest()[:12],
+            type="precedent",
+            content=content,
+            confidence=0.8,
+            tags=[action_type, outcome],
+            provenance={"born": time.strftime("%Y-%m-%d %H:%M")},
+            verified_at=time.time(),
+        )
+        self._entries.append(entry)
+        self._save()
+        return entry
+
+    def query_relevant(self, query: str, top_k: int = 5) -> list[MemoryEntry]:
+        """按关键词匹配召回相关资产。简单实现：分词后计算 overlap。"""
+        active = self.get_active()
+        if not active:
+            return []
+
+        query_terms = set(query.lower().split())
+        scored = []
+        for e in active:
+            entry_terms = set(e.content.lower().split())
+            entry_terms.update(t.lower() for t in e.tags)
+            overlap = len(query_terms & entry_terms)
+            if overlap > 0:
+                scored.append((overlap, e))
+
+        scored.sort(key=lambda x: -x[0])
+        return [e for _, e in scored[:top_k]]
 
 
 def _content_overlap(a: str, b: str) -> float:

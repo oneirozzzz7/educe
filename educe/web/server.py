@@ -1210,6 +1210,19 @@ def create_app(config: EduceConfig | None = None) -> Any:
                         elif decision == "confirm":
                             if hasattr(orchestrator, 'state'):
                                 orchestrator.state.add_user_confirm("confirm", note)
+                            # 记录先例到 AssetStore
+                            try:
+                                from educe.core.project_memory import ProjectMemoryStore
+                                _ps = ProjectMemoryStore()
+                                for pa in (pending or []):
+                                    _ps.record_precedent(
+                                        action_type=pa.get("type", ""),
+                                        params=pa.get("params", "")[:100],
+                                        outcome="approved",
+                                        reason=note,
+                                    )
+                            except Exception:
+                                pass
                             await websocket.send_json({"type": "status", "content": "thinking"})
 
                             original = orchestrator.context.metadata.get("_pending_user_input", "")
