@@ -66,7 +66,6 @@ def build_system_prompt(
         "- use_tool：使用工具，需指定 name 属性\n"
         "- lookup_tools：查看可用工具列表\n\n"
         "规则：不需要操作时直接回复用户。\n"
-        "多步任务时可用 <plan> 块追踪进度（goal/findings/done/next/status），status=done 结束循环。\n"
     )
 
     plan_section = (

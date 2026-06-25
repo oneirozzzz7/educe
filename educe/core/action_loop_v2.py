@@ -159,6 +159,13 @@ async def action_loop_v2(
         # ── Env 注入（每轮刷新，反映 state 变化）──
         messages = inject_env(messages, orch.session_env)
 
+        # ── Plan 协议注入（第 2 轮起，仅当已进入多步模式）──
+        _PLAN_PROTOCOL_MARKER = "[plan_protocol]"
+        if round_idx >= 1 and not any(_PLAN_PROTOCOL_MARKER in m.get("content", "") for m in messages):
+            plan_skill = _load_skill("plan_protocol")
+            if plan_skill:
+                messages.append({"role": "system", "content": f"{_PLAN_PROTOCOL_MARKER}\n{plan_skill}"})
+
         # ── Pinned Plan ──
         messages = [m for m in messages if not m.get("content", "").startswith(PIN_LABEL)]
         if loop_ctx.current_plan and round_idx >= 1:
