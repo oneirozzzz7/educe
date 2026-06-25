@@ -68,4 +68,29 @@ def build_system_prompt(
         "规则：不需要操作时直接回复用户。\n"
     )
 
-    return identity + seed_section + knowledge_section + tools_section + context_section + action_format
+    plan_section = (
+        "\n## 工作模式\n"
+        "你在一个多轮循环中工作。每轮工具结果会返回给你继续处理。\n"
+        "多步任务时，在 action 前输出 plan 块追踪进度：\n"
+        "<plan>\n"
+        "goal: 总目标\n"
+        "findings:\n"
+        "  - 已发现的关键信息（累积，不丢旧发现）\n"
+        "done: 已完成步骤\n"
+        "next: 下一步\n"
+        "status: working | done\n"
+        "</plan>\n\n"
+        "status=done 表示任务完成，循环结束。简单问题无需 plan，直接回答。\n\n"
+        "示例：\n"
+        "<plan>\n"
+        "goal: 找出项目入口文件\n"
+        "findings:\n"
+        "  - src/ 下有 main.py 和 utils.py\n"
+        "done: 列出了 src/ 目录\n"
+        "next: 读 main.py 确认入口\n"
+        "status: working\n"
+        "</plan>\n"
+        '<action type="read_file">src/main.py</action>\n'
+    )
+
+    return identity + seed_section + knowledge_section + tools_section + context_section + action_format + plan_section
