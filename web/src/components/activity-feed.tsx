@@ -646,7 +646,7 @@ export function ActivityFeed({
             case "memory_conflict":
               return <ConflictCard key={idx} event={event} />;
             case "zero_state":
-              return <WelcomeCard key={idx} event={event} />;
+              return null;
             case "action_confirm_request":
               return (
                 <div key={idx} className="mb-2 px-4 py-2 rounded-lg flex items-center gap-2" style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", fontSize: 12 }}>
