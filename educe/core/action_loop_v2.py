@@ -138,15 +138,15 @@ async def action_loop_v2(
         # 不可逆动作 → 触发 confirm 流程，暂停 loop
         if pending_confirm:
             import json as _json_cf
-            from educe.core.orchestrator import Message, MessageType
             confirm_items = [{"type": a.type, "params": a.params, "name": a.name,
                               "display": f"{a.type}: {a.params[:60]}"} for a in pending_confirm]
             orch.context.metadata["_pending_actions"] = confirm_items
             orch.context.metadata["_pending_user_input"] = user_input
+            # 用 _emit_tool_event 走 __ACTION_CONFIRM__ 协议
+            from educe.core.message import Message, MessageType
             confirm_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
                 content="__ACTION_CONFIRM__" + _json_cf.dumps(confirm_items, ensure_ascii=False))
             orch._notify(confirm_msg)
-            # Loop 暂停，等用户确认（server.py 处理 confirm response）
             return {"final_reply": "", "reason": "confirm_pending", "rounds": round_idx}
 
         # assistant 原始输出追加一次
@@ -155,7 +155,8 @@ async def action_loop_v2(
         for action in immediate:
 
             # 执行 action
-            result = await orch._execute_action(action, user_input, None)
+            result = await orch._execute_action(action, user_input,
+                                                   orch.context.metadata.get("_transcript"))
 
             # 推送 action detail 事件
             _emit_action_detail(orch, action, result, round_idx)
@@ -227,7 +228,7 @@ def _emit_action_detail(orch, action, result, round_idx):
     """推送 action detail 事件给前端。"""
     import json as _json
     try:
-        from educe.core.orchestrator import Message, MessageType
+        from educe.core.message import Message, MessageType
         evt = {
             "event": "action_detail",
             "action_type": action.type,
