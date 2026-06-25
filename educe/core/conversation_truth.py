@@ -233,7 +233,10 @@ class ConversationTruth:
         if first.action_type:
             target = first.action_target[:50]
             results = [r for r in group[1:] if r.kind == RecordKind.TOOL_RESULT]
-            status = "✓" if all(r.success for r in results) else "✗"
+            if results:
+                status = "✓" if all(r.success is True for r in results) else "✗"
+            else:
+                status = "?"
             return f"[R{first.round_idx}] {status} {first.action_type}({target})"
         return f"[R{first.round_idx}] {first.content[:80]}"
 

@@ -123,6 +123,7 @@ async def action_loop_v3(
     final_reply = ""
     start_time = time.monotonic()
     last_challenge_round = -999
+    exit_reason = "no_action"  # 默认
 
     for round_idx in range(HARD_ROUND_CAP):
         truth.round_idx = round_idx
@@ -131,6 +132,7 @@ async def action_loop_v3(
         elapsed = time.monotonic() - start_time
         if elapsed > WALL_CLOCK_TIMEOUT:
             log.warning("loop_v3 | wall clock timeout at round %d (%.0fs)", round_idx, elapsed)
+            exit_reason = "timeout"
             break
 
         # ── 更新注入 state ──
@@ -174,13 +176,16 @@ async def action_loop_v3(
             )
         except asyncio.TimeoutError:
             log.error("loop_v3 | round %d LLM timeout", round_idx)
+            exit_reason = "llm_timeout"
             break
         except Exception as e:
             log.error("loop_v3 | round %d LLM error: %s", round_idx, str(e)[:100])
+            exit_reason = "llm_error"
             break
 
         if not raw or not raw.strip():
             log.warning("loop_v3 | round %d empty response", round_idx)
+            exit_reason = "empty_response"
             break
 
         # ── 解析 plan + actions ──
@@ -199,6 +204,7 @@ async def action_loop_v3(
                 if hasattr(orch, 'state'):
                     orch.state.add_ai_reply(text)
             truth.add_agent(raw)
+            exit_reason = "done"
             break
 
         # ── 无 action → 回复用户 ──
@@ -211,6 +217,7 @@ async def action_loop_v3(
                 if hasattr(orch, 'state'):
                     orch.state.add_ai_reply(text)
             truth.add_agent(raw)
+            exit_reason = "no_action"
             break
 
         # ── 不可逆检查 ──
@@ -300,8 +307,7 @@ async def action_loop_v3(
 
     return {
         "final_reply": final_reply,
-        "reason": "done" if (current_plan and current_plan.status == "done") else
-                  ("timeout" if time.monotonic() - start_time > WALL_CLOCK_TIMEOUT else "no_action"),
+        "reason": exit_reason,
         "rounds": truth.round_idx,
     }
 
