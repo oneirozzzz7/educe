@@ -81,7 +81,7 @@ def _group_records(records: list[Record]) -> list[list[Record]]:
     """把 assistant + 后续 tool_result 绑成一组。"""
     groups: list[list[Record]] = []
     i = 0
-    active = [r for r in records if r.tier != Tier.FROZEN or True]  # 全部参与分组
+    active = [r for r in records if not r.dropped]
     while i < len(active):
         r = active[i]
         if r.kind == RecordKind.AGENT_TURN and r.action_type:

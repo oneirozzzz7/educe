@@ -268,13 +268,14 @@ async def action_loop_v3(
                 if hasattr(orch, 'state'):
                     orch.state.add_ai_reply(clean)
 
-    # ── 保底总结 ──
+    # ── 保底总结（不写入 truth，避免污染）──
     if not final_reply and truth.round_idx > 0:
         try:
-            truth.add_user("[系统] 请基于已有信息直接给出简洁总结回复。")
-            messages = truth.project()
+            # 临时添加提示到投影（不永久写入 records）
+            temp_msgs = truth.project()
+            temp_msgs.append({"role": "user", "content": "请基于已有信息直接给出简洁总结回复。"})
             summary = await asyncio.wait_for(
-                client.chat(messages=messages, model=orch.config.default_model.model,
+                client.chat(messages=temp_msgs, model=orch.config.default_model.model,
                             max_tokens=orch.config.default_model.max_tokens),
                 timeout=30)
             if summary and summary.strip():
