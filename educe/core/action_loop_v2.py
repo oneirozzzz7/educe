@@ -213,7 +213,18 @@ async def action_loop_v2(
         except Exception as e:
             log.warning("loop_v2 | summary call failed: %s", str(e)[:100])
 
-    # 写入 conversation
+    # 写入 conversation（包含 action 摘要，让下轮能看到上下文）
+    if loop_ctx.hot or loop_ctx.warm:
+        # 把本轮 action 历史摘要写入 conversation
+        action_summary_parts = []
+        for turn in loop_ctx.hot:
+            action_summary_parts.append(f"{turn.action_type}({turn.action_params[:50]}) → {'✓' if turn.success else '✗'}")
+        for s in loop_ctx.warm[-5:]:
+            action_summary_parts.append(s)
+        if action_summary_parts:
+            summary = "[操作记录] " + "; ".join(action_summary_parts[:10])
+            orch.conversation.add_assistant(summary)
+
     if final_reply:
         orch.conversation.add_assistant(final_reply)
 
