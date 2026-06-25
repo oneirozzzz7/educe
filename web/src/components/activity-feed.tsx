@@ -177,21 +177,40 @@ function formatSize(bytes: number): string {
 }
 
 function ArtifactCard({ event }: { event: AppEvent }) {
+  const [preview, setPreview] = useState<string | null>(null);
   const downloadUrl = `http://${API_HOST}/api/artifacts/${btoa(event.path || "")}`;
+
+  const handleClick = async () => {
+    if (preview !== null) { setPreview(null); return; }
+    try {
+      const resp = await fetch(downloadUrl);
+      const text = await resp.text();
+      setPreview(text);
+    } catch { setPreview("(无法加载预览)"); }
+  };
+
   return (
-    <div className="mb-2 flex items-center gap-2 py-1.5 px-3 rounded-lg"
-         style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
-      <FileText size={14} style={{ color: "var(--accent, #6366f1)", flexShrink: 0 }} />
-      <span style={{ fontSize: 12, fontFamily: "'Geist Mono', monospace", color: "var(--text-1)" }}>
-        {event.filename || "file"}
-      </span>
-      <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-        {formatSize(event.size || 0)} · {event.mode || "created"}
-      </span>
-      <a href={downloadUrl} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1"
-         style={{ fontSize: 11, color: "var(--accent, #6366f1)", textDecoration: "none" }}>
-        <Download size={12} />
-      </a>
+    <div className="mb-2">
+      <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg cursor-pointer"
+           onClick={handleClick}
+           style={{ background: "var(--surface-1)", border: "1px solid var(--border-0)" }}>
+        <FileText size={14} style={{ color: "var(--accent, #6366f1)", flexShrink: 0 }} />
+        <span style={{ fontSize: 12, fontFamily: "'Geist Mono', monospace", color: "var(--text-1)" }}>
+          {event.filename || "file"}
+        </span>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+          {formatSize(event.size || 0)} · {event.mode || "created"}
+        </span>
+        <Download size={12} className="ml-auto" style={{ color: "var(--accent, #6366f1)" }} />
+      </div>
+      {preview !== null && (
+        <pre style={{
+          fontSize: 12, lineHeight: 1.5, margin: "4px 0 0 0", padding: 12,
+          background: "var(--surface-0)", borderRadius: 8,
+          border: "1px solid var(--border-0)", maxHeight: 300, overflow: "auto",
+          fontFamily: "'Geist Mono', monospace", color: "var(--text-1)", whiteSpace: "pre-wrap",
+        }}>{preview}</pre>
+      )}
     </div>
   );
 }
