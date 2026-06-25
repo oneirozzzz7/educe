@@ -220,13 +220,17 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, sessionId: action.value };
 
     // ── 事件流 ──
-    case "APPEND_EVENT":
+    case "APPEND_EVENT": {
+      // zero_state 只保留一个（防重连累积）
+      const newEvents = action.event.type === "zero_state"
+        ? [...state.events.filter(e => e.type !== "zero_state"), action.event]
+        : [...state.events, action.event];
       return {
         ...state,
-        events: [...state.events, action.event],
-        // Auto-collapse expanded item when user sends a new message
+        events: newEvents,
         expandedEventIdx: action.event.type === "user_input" ? null : state.expandedEventIdx,
       };
+    }
 
     case "SYNC_STATE": {
       const p = action.payload;
