@@ -443,6 +443,76 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
         return await self._action_loop(user_input, transcript)
 
     async def _action_loop(self, user_input: str, transcript) -> WorkContext:
+        """核心行为循环 V2：Plan-aware + 无 max_rounds + 压缩窗口。"""
+        from educe.core.action_loop_v2 import action_loop_v2
+        from educe.core.system_prompt import build_system_prompt
+
+        client = self._get_client()
+        if not client:
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content="请先配置模型。")
+            self.context.add_message(msg)
+            self._notify(msg)
+            return self.context
+
+        _sid = self.context.metadata.get("session_id", "")
+
+        # L1 澄清：高危不可逆操作确认
+        clarification = self._l1_clarification_check(user_input)
+        if clarification:
+            msg = Message(type=MessageType.RESULT, sender="assistant",
+                         receiver="user", content=clarification)
+            self.context.add_message(msg)
+            self._notify(msg)
+            self.conversation.add_assistant(clarification)
+            return self.context
+
+        # 构建 system prompt（使用新的 build_system_prompt）
+        import os as _os_flag
+        _bare_mode = _os_flag.environ.get("EDUCE_BARE_MODE", "0") == "1"
+
+        seed = ""
+        if self.unified_store:
+            seed = self.unified_store.get_seed_text("build", "general")
+
+        knowledge_hints = []
+        if not _bare_mode:
+            try:
+                from educe.core.project_memory import ProjectMemoryStore
+                from educe.core.context_assembler import ContextAssembler
+                _mem_store = ProjectMemoryStore()
+                _assembler = ContextAssembler(_mem_store)
+                _ctx = _assembler.assemble(user_input)
+                if _ctx:
+                    knowledge_hints.append(_ctx)
+            except Exception:
+                pass
+
+        system = build_system_prompt(seed=seed, knowledge_hints=knowledge_hints or None)
+
+        # 构建初始 messages（含对话历史）
+        history = []
+        if self.conversation.turns:
+            for turn in self.conversation.turns[-6:]:
+                history.append({"role": turn.role, "content": turn.content[:2000]})
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history)
+
+        file_context = self.context.metadata.get("uploaded_files_text", "")
+
+        # 调用 V2 loop
+        result = await action_loop_v2(
+            orch=self,
+            user_input=user_input,
+            system_prompt=system,
+            initial_messages=messages,
+            client=client,
+            file_context=file_context,
+        )
+
+        return self.context
+
+    async def _action_loop_legacy(self, user_input: str, transcript) -> WorkContext:
         """核心行为循环：模型自由决策，框架执行。"""
         from educe.core.action_executor import parse_actions
         from educe.core.context_manager import build_context, SessionMemory

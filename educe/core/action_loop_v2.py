@@ -121,19 +121,34 @@ async def action_loop_v2(
                 orch.state.add_ai_reply(text)
             break
 
-        # 有 action → 执行
+        # 有 action → 检查不可逆 → 执行
         from educe.core.irreversibility import is_irreversible
 
-        for action in actions:
-            # 不可逆检查
-            if is_irreversible(action):
-                # 触发 confirm 流程（复用旧逻辑）
-                # TODO: 集成 confirm 流程
-                pass
+        # 分离：不可逆的需确认，其余直接执行
+        pending_confirm = [a for a in actions if is_irreversible(a)]
+        immediate = [a for a in actions if a not in pending_confirm]
+
+        # 不可逆动作 → 触发 confirm 流程，暂停 loop
+        if pending_confirm:
+            import json as _json_cf
+            from educe.core.orchestrator import Message, MessageType
+            confirm_items = [{"type": a.type, "params": a.params, "name": a.name,
+                              "display": f"{a.type}: {a.params[:60]}"} for a in pending_confirm]
+            orch.context.metadata["_pending_actions"] = confirm_items
+            orch.context.metadata["_pending_user_input"] = user_input
+            confirm_msg = Message(type=MessageType.SYSTEM, sender="system", receiver="user",
+                content="__ACTION_CONFIRM__" + _json_cf.dumps(confirm_items, ensure_ascii=False))
+            orch._notify(confirm_msg)
+            # Loop 暂停，等用户确认（server.py 处理 confirm response）
+            return {"final_reply": "", "reason": "confirm_pending", "rounds": round_idx}
+
+        # assistant 原始输出追加一次
+        messages.append({"role": "assistant", "content": raw})
+
+        for action in immediate:
 
             # 执行 action
-            from educe.core.action_executors import ActionExecutorMixin
-            result = await orch._execute_single_action(action, orch.context.metadata.get("session_id", ""))
+            result = await orch._execute_action(action, user_input, None)
 
             # 推送 action detail 事件
             _emit_action_detail(orch, action, result, round_idx)
@@ -141,7 +156,6 @@ async def action_loop_v2(
             # 结果追加到 messages
             output = result.get("output", "")[:500]
             success = result.get("success", False)
-            messages.append({"role": "assistant", "content": raw})
             messages.append({"role": "user", "content":
                 f"[系统] {'✓' if success else '✗'} {action.type} 结果：{output}"})
 
