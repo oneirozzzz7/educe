@@ -355,7 +355,7 @@ function CommandRail({
           <textarea
             ref={inputRef}
             className="main-input"
-            placeholder={isBuilding ? "Building... add thoughts" : "Think it. Build it. (@ to reference files)"}
+            placeholder={isBuilding ? "构建中... 可以补充想法" : "描述你想做的东西..."}
             onKeyDown={onKeyDown}
             onChange={onInputChange}
             rows={1}
