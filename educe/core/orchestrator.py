@@ -443,8 +443,8 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
         return await self._action_loop(user_input, transcript)
 
     async def _action_loop(self, user_input: str, transcript) -> WorkContext:
-        """核心行为循环 V2：Plan-aware + 无 max_rounds + 压缩窗口。"""
-        from educe.core.action_loop_v2 import action_loop_v2
+        """核心行为循环 V3：ConversationTruth 单一数据源。"""
+        from educe.core.action_loop_v3 import action_loop_v3
         from educe.core.system_prompt import build_system_prompt
 
         client = self._get_client()
@@ -455,9 +455,7 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
             self._notify(msg)
             return self.context
 
-        _sid = self.context.metadata.get("session_id", "")
-
-        # L1 澄清：高危不可逆操作确认
+        # L1 澄清
         clarification = self._l1_clarification_check(user_input)
         if clarification:
             msg = Message(type=MessageType.RESULT, sender="assistant",
@@ -467,7 +465,7 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
             self.conversation.add_assistant(clarification)
             return self.context
 
-        # 构建 system prompt（使用新的 build_system_prompt）
+        # 构建 system prompt
         import os as _os_flag
         _bare_mode = _os_flag.environ.get("EDUCE_BARE_MODE", "0") == "1"
 
@@ -490,25 +488,27 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
 
         system = build_system_prompt(seed=seed, knowledge_hints=knowledge_hints or None)
 
-        # 构建初始 messages（含对话历史）
-        history = []
+        # 把对话历史预注入到 system prompt 末尾（让 truth 干净）
         if self.conversation.turns:
+            history_lines = []
             for turn in self.conversation.turns[-6:]:
-                history.append({"role": turn.role, "content": turn.content[:2000]})
-        messages = [{"role": "system", "content": system}]
-        messages.extend(history)
+                role_label = "用户" if turn.role == "user" else "助手"
+                history_lines.append(f"[{role_label}] {turn.content[:500]}")
+            if history_lines:
+                system += "\n\n## 对话历史\n" + "\n".join(history_lines)
 
         file_context = self.context.metadata.get("uploaded_files_text", "")
 
-        # 调用 V2 loop
-        result = await action_loop_v2(
+        # 调用 V3 loop
+        result = await action_loop_v3(
             orch=self,
             user_input=user_input,
             system_prompt=system,
-            initial_messages=messages,
             client=client,
             file_context=file_context,
         )
+
+        return self.context
 
         return self.context
 
