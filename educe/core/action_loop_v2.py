@@ -17,10 +17,15 @@ import logging
 import time
 from typing import Any
 
-from educe.core.plan_parser import parse_plan
+from educe.core.plan_parser import parse_plan, _PLAN_RE
 from educe.core.loop_context import LoopContext, TurnRecord, PIN_LABEL
 
 log = logging.getLogger("educe.loop_v2")
+
+
+def _strip_plan(text: str) -> str:
+    """从文本中移除 <plan>...</plan> 块，只留给用户看的内容。"""
+    return _PLAN_RE.sub("", text).strip()
 
 WALL_CLOCK_TIMEOUT = 120  # 秒
 
@@ -103,21 +108,23 @@ async def action_loop_v2(
 
         # status=done → 模型自己决定结束
         if loop_ctx.is_done():
-            text = reply_text or raw
-            for i in range(0, len(text), 20):
-                orch._notify_chunk("assistant", text[i:i+20])
+            text = _strip_plan(reply_text or raw)
+            if text:
+                for i in range(0, len(text), 20):
+                    orch._notify_chunk("assistant", text[i:i+20])
             final_reply = text
-            if hasattr(orch, 'state'):
+            if hasattr(orch, 'state') and text:
                 orch.state.add_ai_reply(text)
             break
 
         # 无 action → 推送回复给用户 → 结束
         if not actions:
-            text = reply_text or raw
-            for i in range(0, len(text), 20):
-                orch._notify_chunk("assistant", text[i:i+20])
+            text = _strip_plan(reply_text or raw)
+            if text:
+                for i in range(0, len(text), 20):
+                    orch._notify_chunk("assistant", text[i:i+20])
             final_reply = text
-            if hasattr(orch, 'state'):
+            if hasattr(orch, 'state') and text:
                 orch.state.add_ai_reply(text)
             break
 
@@ -177,10 +184,12 @@ async def action_loop_v2(
 
         # 如果有 reply_text（"说了再做"），推送给用户
         if reply_text:
-            for i in range(0, len(reply_text), 20):
-                orch._notify_chunk("assistant", reply_text[i:i+20])
-            if hasattr(orch, 'state'):
-                orch.state.add_ai_reply(reply_text)
+            clean_reply = _strip_plan(reply_text)
+            if clean_reply:
+                for i in range(0, len(clean_reply), 20):
+                    orch._notify_chunk("assistant", clean_reply[i:i+20])
+                if hasattr(orch, 'state'):
+                    orch.state.add_ai_reply(clean_reply)
 
         round_idx += 1
 
