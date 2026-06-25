@@ -113,9 +113,20 @@ async def action_loop_v2(
 ) -> dict:
     """Plan-aware action loop with Challenge mechanism."""
     from educe.core.action_executor import parse_actions
+    from educe.core.session_env import update_state_from_input, inject_env, SessionState
+
+    # 确保 orch 有 session_state
+    if not hasattr(orch, 'session_env') or orch.session_env is None:
+        orch.session_env = SessionState()
+
+    # @path 检测 → 更新 session state
+    update_state_from_input(orch.session_env, user_input)
 
     loop_ctx = LoopContext()
     messages = list(initial_messages)
+
+    # 注入 env（在 system prompt 之后、history 之前）
+    messages = inject_env(messages, orch.session_env)
 
     user_content = user_input
     if file_context:
@@ -140,6 +151,9 @@ async def action_loop_v2(
             situation_text = orch.effects.situation.render_for_model()
             if situation_text:
                 messages.append({"role": "user", "content": situation_text})
+
+        # ── Env 注入（每轮刷新，反映 state 变化）──
+        messages = inject_env(messages, orch.session_env)
 
         # ── Pinned Plan ──
         messages = [m for m in messages if not m.get("content", "").startswith(PIN_LABEL)]
@@ -242,6 +256,19 @@ async def action_loop_v2(
             # 记录 action 历史（用于 challenge 检测）
             target = action.params.split("\n")[0][:60] if action.params else ""
             action_history.append({"type": action.type, "target": target, "round": round_idx})
+
+            # cwd 跟踪：cd 命令或 read_dir 的路径
+            if success and hasattr(orch, 'session_env'):
+                if action.type == "shell" and action.params.strip().startswith("cd "):
+                    # cd 成功 → 更新 cwd
+                    new_dir = action.params.strip()[3:].strip().rstrip("/")
+                    if new_dir and not new_dir.startswith("-"):
+                        orch.session_env.update_cwd(new_dir, round_idx)
+                elif action.type == "read_dir" and action.params.strip():
+                    # read_dir 成功 → 确认该路径存在
+                    dir_path = action.params.strip()
+                    if dir_path.startswith("/"):
+                        orch.session_env.pin_path(dir_path)
 
             loop_ctx.add_turn(TurnRecord(
                 round_idx=round_idx,
