@@ -71,6 +71,13 @@ _XML_ACTION_PATTERN = re.compile(
 )
 _ATTR_PATTERN = re.compile(r'(\w+)\s*=\s*["\']?([^"\'\s>]+)["\']?')
 
+# 自然 XML 格式：<read_dir>/path</read_dir>（模型更倾向输出这种）
+_NATURAL_XML_TYPES = "|".join(_VALID_ACTION_TYPES)
+_NATURAL_XML_PATTERN = re.compile(
+    rf'<({_NATURAL_XML_TYPES})>([\s\S]*?)</\1>',
+    re.IGNORECASE,
+)
+
 
 def _looks_executable(code: str) -> bool:
     """判断 python 代码块是否像可执行脚本（非纯定义/展示）"""
@@ -159,6 +166,15 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
                     params=body,
                     name=attrs.get("name", ""),
                 ))
+
+    # 自然 XML：<read_dir>/path</read_dir>（模型自然输出的格式）
+    if not actions:
+        for m in _NATURAL_XML_PATTERN.finditer(text):
+            action_type = m.group(1).lower()
+            body = m.group(2).strip()
+            canonical = _ACTION_ALIASES.get(action_type, action_type)
+            actions.append(ParsedAction(type=canonical, params=body, name=""))
+
         if not actions:
             _NATIVE_BARE = re.compile(
                 r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>'
