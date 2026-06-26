@@ -72,6 +72,8 @@ _XML_ACTION_PATTERN = re.compile(
 _ATTR_PATTERN = re.compile(r'(\w+)\s*=\s*["\']?([^"\'\s>]+)["\']?')
 
 # 自然 XML 格式：<read_dir>/path</read_dir>（模型更倾向输出这种）
+# Known limitation: 裸文本中若碰巧出现闭合 action 标签对会被误匹配，
+# 但实际场景中模型不会在正文教学 action 语法，且代码块内已跳过。
 _NATURAL_XML_TYPES = "|".join(_VALID_ACTION_TYPES)
 _NATURAL_XML_PATTERN = re.compile(
     rf'<({_NATURAL_XML_TYPES})>([\s\S]*?)</\1>',
