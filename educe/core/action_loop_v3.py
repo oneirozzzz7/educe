@@ -24,7 +24,14 @@ CHALLENGE_COOLDOWN = 2
 
 
 def _strip_plan(text: str) -> str:
-    return _PLAN_RE.sub("", text).strip()
+    """从文本中移除 <plan>...</plan> 和 action 标签，只留给用户看的内容。"""
+    import re
+    text = _PLAN_RE.sub("", text)
+    # 移除自然 XML action 标签（<read_dir>...</read_dir> 等）
+    from educe.core.action_executor import _NATURAL_XML_PATTERN, _XML_ACTION_PATTERN
+    text = _NATURAL_XML_PATTERN.sub("", text)
+    text = _XML_ACTION_PATTERN.sub("", text)
+    return text.strip()
 
 
 def _load_skill(name: str) -> str:
