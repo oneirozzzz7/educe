@@ -194,6 +194,7 @@ def parse_actions(text: str) -> tuple[str, list[ParsedAction]]:
         if lang not in _CODE_ONLY_LANGS:
             reply_text = reply_text[:m.start()] + reply_text[m.end():]
     reply_text = _XML_ACTION_PATTERN.sub("", reply_text)
+    reply_text = _NATURAL_XML_PATTERN.sub("", reply_text)
     # 清理 native tool call 特殊 token
     reply_text = re.sub(r'<\|tool_call_begin\|>.*?<\|tool_call_argument_begin\|>', '', reply_text, flags=re.DOTALL)
     reply_text = re.sub(r'<\|tool_call_begin\|>.*?<\|tool_call_end\|>', '', reply_text, flags=re.DOTALL)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any
 
@@ -23,11 +24,13 @@ HARD_ROUND_CAP = 50
 CHALLENGE_COOLDOWN = 2
 
 
+_CHALLENGE_RE = re.compile(r'<challenge>[\s\S]*?</challenge>', re.IGNORECASE)
+
+
 def _strip_plan(text: str) -> str:
-    """从文本中移除 <plan>...</plan> 和 action 标签，只留给用户看的内容。"""
-    import re
+    """从文本中移除 <plan>/<challenge>/action 标签，只留给用户看的内容。"""
     text = _PLAN_RE.sub("", text)
-    # 移除自然 XML action 标签（<read_dir>...</read_dir> 等）
+    text = _CHALLENGE_RE.sub("", text)
     from educe.core.action_executor import _NATURAL_XML_PATTERN, _XML_ACTION_PATTERN
     text = _NATURAL_XML_PATTERN.sub("", text)
     text = _XML_ACTION_PATTERN.sub("", text)
@@ -304,11 +307,6 @@ async def action_loop_v3(
             log.warning("loop_v3 | summary call failed: %s", str(e)[:100])
 
     # ── 写入 conversation（跨轮上下文）──
-    findings = truth.get_findings_summary()
-    if findings:
-        orch.conversation.add_assistant(f"[上轮路径] {findings}")
-    if current_plan and current_plan.findings:
-        orch.conversation.add_assistant("[上轮发现] " + "; ".join(current_plan.findings[:5]))
     if final_reply:
         orch.conversation.add_assistant(final_reply)
 
