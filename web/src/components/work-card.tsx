@@ -3,15 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Check, Loader2, ChevronDown, Eye, Code2, ExternalLink, Clock, Copy, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/lib/i18n";
 
 interface StepInfo { agent: string; summary: string; done: boolean }
 
-const LABELS: Record<string, string> = {
-  builder: "构建", tester: "测试", planner: "规划",
-  project_manager: "项目管理", product_manager: "产品",
-  architect: "架构", engineer: "工程", reviewer: "审查",
-  crowd_user: "内测", memory_keeper: "沉淀", assistant: "助手",
-};
+const LABELS: Record<string, string> = {};
 
 const STEP_ICONS: Record<string, string> = {
   builder: "💻", tester: "🧪", planner: "📋",
@@ -41,6 +37,13 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
   const [blobUrl, setBlobUrl] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { t } = useLocale();
+
+  function label(agent: string) {
+    const key = `label.${agent}` as any;
+    const val = t(key);
+    return val !== key ? val : agent;
+  }
 
   useEffect(() => {
     if (html) {
@@ -100,9 +103,9 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
         <span className="text-[13px] font-medium flex-1 text-left">
           {isActive
             ? streamSize > 0
-              ? `💻 生成中... ${(streamSize / 1024).toFixed(1)} KB`
-              : `${STEP_ICONS[currentAgent] || "⚙️"} ${LABELS[currentAgent] || currentAgent || "处理"}中...`
-            : `完成 · ${doneSteps.length} 步${html ? ` · ${fileSize} KB` : ""}`}
+              ? `💻 ${t("work.generating")} ${(streamSize / 1024).toFixed(1)} KB`
+              : `${STEP_ICONS[currentAgent] || "⚙️"} ${label(currentAgent) || t("work.processing")}`
+            : `${t("work.done_steps")} · ${doneSteps.length} ${t("work.steps")}${html ? ` · ${fileSize} KB` : ""}`}
         </span>
         <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-3)" }}>
           <Clock size={11} />
@@ -125,7 +128,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
               {evt.event === "write_file" && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs">📝</span>
-                  <span className="text-xs font-medium" style={{ color: "var(--text-2)" }}>写入 {evt.file}</span>
+                  <span className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{t("log.write")} {evt.file}</span>
                 </div>
               )}
               {evt.event === "run" && (
@@ -150,14 +153,14 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
               {evt.event === "read_file_result" && (
                 <div className="flex items-center gap-2 ml-5">
                   <Check size={11} style={{ color: "var(--success)" }} />
-                  <span className="text-[11px]" style={{ color: "var(--text-3)" }}>已读取</span>
+                  <span className="text-[11px]" style={{ color: "var(--text-3)" }}>{t("log.read")}</span>
                 </div>
               )}
               {evt.event === "done" && (
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-xs">✅</span>
                   <span className="text-xs font-medium" style={{ color: "var(--success)" }}>
-                    完成 · {evt.turns}轮 · {evt.files?.join(", ")}
+                    {t("work.done_steps")} · {evt.turns}{t("complete.rounds")} · {evt.files?.join(", ")}
                   </span>
                 </div>
               )}
@@ -166,7 +169,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
           {isActive && !(toolEvents?.some(e => e.event === "done")) && (
             <div className="flex items-center gap-2 py-1">
               <Loader2 size={11} className="animate-spin shrink-0" style={{ color: "var(--brand)" }} />
-              <span className="text-[11px]" style={{ color: "var(--brand)" }}>执行中...</span>
+              <span className="text-[11px]" style={{ color: "var(--brand)" }}>{t("log.executing")}</span>
             </div>
           )}
         </div>
@@ -179,7 +182,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
             <div key={i} className="flex items-center gap-2 py-1.5">
               <Check size={12} style={{ color: "var(--success)" }} className="shrink-0" />
               <span className="text-xs font-medium shrink-0" style={{ color: "var(--text-2)" }}>
-                {STEP_ICONS[s.agent] || "⚙️"} {LABELS[s.agent] || s.agent}
+                {STEP_ICONS[s.agent] || "⚙️"} {label(s.agent)}
               </span>
               <span className="text-xs truncate flex-1 text-right" style={{ color: "var(--text-3)" }}>{s.summary}</span>
             </div>
@@ -188,7 +191,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
             <div className="flex items-center gap-2 py-1.5">
               <Loader2 size={12} className="animate-spin shrink-0" style={{ color: "var(--brand)" }} />
               <span className="text-xs font-medium" style={{ color: "var(--brand)" }}>
-                {STEP_ICONS[currentAgent] || "⚙️"} {LABELS[currentAgent] || "处理中"}...
+                {STEP_ICONS[currentAgent] || "⚙️"} {label(currentAgent) || t("work.processing")}...
               </span>
               <span className="text-[10px] ml-auto tabular-nums" style={{ color: "var(--text-4)" }}>{elapsed}s</span>
             </div>
@@ -201,7 +204,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
         <div style={{ borderTop: "1px solid var(--border-light)" }}>
           <div className="px-4 py-2 flex items-center gap-2">
             <Code2 size={12} style={{ color: "var(--brand)" }} />
-            <span className="text-[11px] font-medium" style={{ color: "var(--brand)" }}>实时生成中...</span>
+            <span className="text-[11px] font-medium" style={{ color: "var(--brand)" }}>{t("work.live_generating")}</span>
             <span className="text-[10px] ml-auto tabular-nums" style={{ color: "var(--text-4)" }}>
               {(streamingCode.length / 1024).toFixed(1)} KB
             </span>
@@ -225,7 +228,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
                 color: showPreview ? "white" : "var(--text-3)",
                 background: showPreview ? "var(--brand)" : "transparent",
               }}>
-              <Eye size={12} />{showPreview ? "收起预览" : "预览"}
+              <Eye size={12} />{showPreview ? t("action.hide_preview") : t("action.preview")}
             </button>
             <button onClick={() => { setShowCode(!showCode); setShowPreview(false); }}
               className={cn("text-xs font-medium flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all",
@@ -234,17 +237,17 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
                 color: showCode ? "white" : "var(--text-3)",
                 background: showCode ? "var(--brand)" : "transparent",
               }}>
-              <Code2 size={12} />{showCode ? "收起代码" : "代码"}
+              <Code2 size={12} />{showCode ? t("action.hide_code") : t("action.code")}
             </button>
             <button onClick={copyCode}
               className="text-xs font-medium flex items-center gap-1 px-2 py-1.5 rounded-lg transition-colors"
               style={{ color: codeCopied ? "var(--success)" : "var(--text-3)" }}>
-              {codeCopied ? <Check size={12} /> : <Copy size={12} />}{codeCopied ? "已复制" : "复制"}
+              {codeCopied ? <Check size={12} /> : <Copy size={12} />}{codeCopied ? t("action.copied") : t("action.copy")}
             </button>
             <button onClick={downloadCode}
               className="text-xs font-medium flex items-center gap-1 px-2 py-1.5 rounded-lg transition-colors"
               style={{ color: "var(--text-3)" }}>
-              <Download size={12} />下载
+              <Download size={12} />{t("action.download")}
             </button>
 
             {/* 新窗口——醒目按钮 */}
@@ -252,7 +255,7 @@ export function WorkCard({ steps, html, isActive, currentAgent, elapsed, timesta
               <a href={blobUrl} target="_blank" rel="noopener"
                 className="ml-auto text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all hover:shadow-sm"
                 style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
-                <ExternalLink size={12} /> 新窗口打开
+                <ExternalLink size={12} /> {t("action.open")}
               </a>
             )}
           </div>

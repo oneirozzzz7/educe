@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { HelpCircle, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { useLocale } from "@/lib/i18n";
 
 interface Decision {
   question: string;
@@ -13,6 +14,7 @@ export function DecisionCard({ decisions, onSubmit }: {
   decisions: Decision[];
   onSubmit: (choices: { question: string; choice: string }[]) => void;
 }) {
+  const { t } = useLocale();
   const [selections, setSelections] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [userNote, setUserNote] = useState("");
@@ -22,7 +24,7 @@ export function DecisionCard({ decisions, onSubmit }: {
   function handleSubmit() {
     const choices = decisions.map((d, i) => ({
       question: d.question,
-      choice: d.options[selections[i] ?? 0] + (userNote ? ` (补充: ${userNote})` : ""),
+      choice: d.options[selections[i] ?? 0] + (userNote ? ` (${userNote})` : ""),
     }));
     setSubmitted(true);
     onSubmit(choices);
@@ -34,7 +36,7 @@ export function DecisionCard({ decisions, onSubmit }: {
       <div className="flex items-center gap-2 mb-3">
         <HelpCircle size={16} style={{ color: "var(--brand)" }} />
         <span className="text-sm font-medium" style={{ color: "var(--text)" }}>
-          帮我确认几个关键点，这样能做出更好的结果
+          {t("decision.hint")}
         </span>
       </div>
 
@@ -67,7 +69,7 @@ export function DecisionCard({ decisions, onSubmit }: {
       {!submitted && (
         <div className="mt-3 space-y-2">
           <input type="text" value={userNote} onChange={e => setUserNote(e.target.value)}
-            placeholder="补充你的想法（可选）"
+            placeholder={t("decision.note_placeholder")}
             className="w-full text-[12px] px-3 py-2 rounded-lg outline-none transition-colors focus:border-[var(--brand)]"
             style={{ background: "var(--bg)", border: "1px solid var(--border-light)", color: "var(--text-2)" }}
             onKeyDown={e => { if (e.key === "Enter" && allSelected) handleSubmit(); }} />
@@ -80,12 +82,12 @@ export function DecisionCard({ decisions, onSubmit }: {
               color: allSelected ? "white" : "var(--text-4)",
               opacity: allSelected ? 1 : 0.6,
             }}>
-            确认并开始构建 <ChevronRight size={14} />
+            {t("decision.confirm")} <ChevronRight size={14} />
           </button>
           <button onClick={() => { setSubmitted(true); onSubmit([]); }}
             className="text-[12px] px-3 py-1.5 rounded-lg transition-colors hover:bg-[var(--brand-subtle)]"
             style={{ color: "var(--text-3)" }}>
-            跳过，直接做
+            {t("decision.skip")}
           </button>
           </div>
         </div>
@@ -93,7 +95,7 @@ export function DecisionCard({ decisions, onSubmit }: {
 
       {submitted && (
         <div className="mt-2 flex items-center gap-1 text-[11px]" style={{ color: "var(--brand)" }}>
-          <ChevronRight size={12} /> 正在构建...
+          <ChevronRight size={12} /> {t("decision.building")}
         </div>
       )}
     </motion.div>

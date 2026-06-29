@@ -1,4 +1,7 @@
 .educe/
+.claude/
+.deepforge/
+.playwright-mcp/
 __pycache__/
 *.pyc
 *.pyo
@@ -28,6 +31,16 @@ educe.yaml
 docs/*_output_*.md
 docs/agent_raw_*
 
+# 开源前排除的实验/历史文件
+experiments/
+e2e_*.png
+SESSION*.md
+PROJECT_*.md
+.context.md
+.project_context.md
+project-*.md
+context.md
+
 # Next.js / React build
 web/.next/
 web/node_modules/
@@ -48,3 +61,7 @@ requirements.txt
 index.html
 web/tsconfig.tsbuildinfo
 web/tsconfig.tsbuildinfo
+devkit/
+.deepforge
+docs/RULES.md
+.next/

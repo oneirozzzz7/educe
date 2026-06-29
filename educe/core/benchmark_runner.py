@@ -101,6 +101,10 @@ def extract_metrics(events: list[dict]) -> dict:
         "rounds_to_first_meaningful": rounds_to_first,
         "redundant_read_ratio": round(redundant_ratio, 3),
         "total_reads": total_reads,
+        "total_tokens": sum(e.get("data", {}).get("total_tokens", 0) for e in events if e.get("name") == "llm_response"),
+        "prompt_tokens": sum(e.get("data", {}).get("prompt_tokens", 0) for e in events if e.get("name") == "llm_response"),
+        "completion_tokens": sum(e.get("data", {}).get("completion_tokens", 0) for e in events if e.get("name") == "llm_response"),
+        "reflex_hits": sum(1 for e in events if e.get("name") == "reflex_hit"),
     }
 
 

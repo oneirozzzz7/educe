@@ -486,6 +486,11 @@ class Orchestrator(ActionExecutorMixin, BuildMixin, DecisionMixin, EvolutionMixi
             except Exception:
                 pass
 
+        # Episode hint injection (for longitudinal experiments)
+        _episode_hint = self.context.metadata.get("_episode_hint", "")
+        if _episode_hint:
+            knowledge_hints.append(_episode_hint)
+
         system = build_system_prompt(seed=seed, knowledge_hints=knowledge_hints or None)
 
         # 把对话历史预注入到 system prompt 末尾（让 truth 干净）

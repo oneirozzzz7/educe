@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Eye, EyeOff } from "lucide-react";
 import { API_HOST } from "@/lib/ws";
+import { useLocale } from "@/lib/i18n";
 
 const PROVIDER_PRESETS: Record<string, { base_url: string; models: string[] }> = {
   "DeepSeek V4": { base_url: "http://api.example.com/v1", models: ["DeepSeek-V4-Flash"] },
@@ -14,15 +15,16 @@ const PROVIDER_PRESETS: Record<string, { base_url: string; models: string[] }> =
   "OpenAI": { base_url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini", "o3-mini"] },
   "Claude": { base_url: "https://api.anthropic.com/v1", models: ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"] },
   "Kimi": { base_url: "https://api.moonshot.cn/v1", models: ["moonshot-v1-8k", "moonshot-v1-32k"] },
-  "通义千问": { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-plus", "qwen-max"] },
-  "智谱 GLM": { base_url: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash", "GLM-5.1"] },
+  "Qwen (Alibaba)": { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-plus", "qwen-max"] },
+  "Zhipu GLM": { base_url: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-4-flash", "GLM-5.1"] },
   "Gemini": { base_url: "https://generativelanguage.googleapis.com/v1beta/openai", models: ["gemini-2.5-flash", "gemini-2.5-pro"] },
-  "自定义": { base_url: "", models: [] },
+  Custom: { base_url: "", models: [] },
 };
 
 export function SettingsModal({ open, onClose, model, onModelChange }: {
   open: boolean; onClose: () => void; model: string; onModelChange: (m: string) => void;
 }) {
+  const { t } = useLocale();
   const [models, setModels] = useState<string[]>([]);
   const [selected, setSelected] = useState(model);
   const [apiKey, setApiKey] = useState("");
@@ -83,12 +85,12 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
           style={{ background: "var(--surface-1)", border: "1px solid var(--border-1)", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}
           onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-[15px]" style={{ color: "var(--text-0)" }}>设置</h3>
+            <h3 className="font-semibold text-[15px]" style={{ color: "var(--text-0)" }}>{t("settings")}</h3>
             <button onClick={onClose} className="transition-colors hover:text-[var(--text-1)]" style={{ color: "var(--text-3)" }}><X size={16} /></button>
           </div>
 
           {/* Provider */}
-          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>服务商</label>
+          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>{t("settings.provider")}</label>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {Object.keys(PROVIDER_PRESETS).map(name => (
               <button key={name} onClick={() => selectProvider(name)}
@@ -98,18 +100,18 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
                   color: provider === name ? "var(--void)" : "var(--text-2)",
                   border: `1px solid ${provider === name ? "var(--amber)" : "var(--border-1)"}`,
                 }}>
-                {name}
+                {name === "Custom" ? t("settings.custom") : name}
               </button>
             ))}
           </div>
 
           {/* API Key */}
           <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>
-            API Key {hasKey && !apiKey && <span className="text-[10px] normal-case" style={{ color: "var(--pass)" }}>(已配置)</span>}
+            API Key {hasKey && !apiKey && <span className="text-[10px] normal-case" style={{ color: "var(--pass)" }}>{t("settings.configured")}</span>}
           </label>
           <div className="relative mb-4">
             <input type={showKey ? "text" : "password"} value={apiKey} onChange={e => setApiKey(e.target.value)}
-              placeholder={hasKey ? "已配置，留空保持不变" : "sk-..."}
+              placeholder={hasKey ? t("settings.configured_keep") : "sk-..."}
               className="w-full rounded-lg px-3 py-2.5 pr-10 text-sm outline-none font-mono transition-colors focus:border-[var(--amber)]"
               style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }} />
             <button onClick={() => setShowKey(!showKey)} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors hover:text-[var(--text-1)]" style={{ color: "var(--text-3)" }}>
@@ -124,7 +126,7 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
             style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }} />
 
           {/* Model */}
-          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>模型</label>
+          <label className="block text-[10px] font-medium uppercase tracking-wider mb-1.5" style={{ color: "var(--text-3)" }}>{t("settings.model")}</label>
           <select value={selected} onChange={e => setSelected(e.target.value)}
             className="w-full rounded-lg px-3 py-2.5 text-sm outline-none mb-4 cursor-pointer"
             style={{ background: "var(--surface-0)", border: "1px solid var(--border-1)", color: "var(--text-0)" }}>
@@ -134,8 +136,8 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
           {/* Evolution toggle */}
           <div className="flex items-center justify-between mb-5 pt-3" style={{ borderTop: "1px solid var(--border-0)" }}>
             <div>
-              <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-3)" }}>自进化</label>
-              <span className="text-[12px]" style={{ color: "var(--text-3)" }}>使用过程中自动积累经验</span>
+              <label className="block text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-3)" }}>{t("settings.evolution")}</label>
+              <span className="text-[12px]" style={{ color: "var(--text-3)" }}>{t("settings.evolution_desc")}</span>
             </div>
             <button onClick={() => setEvolution(!evolution)}
               className="relative w-10 h-[22px] rounded-full transition-colors"
@@ -147,7 +149,7 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
 
           <div className="flex gap-2 justify-end">
             <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg transition-colors hover:bg-[var(--surface-2)]"
-              style={{ background: "var(--surface-0)", color: "var(--text-2)", border: "1px solid var(--border-1)" }}>取消</button>
+              style={{ background: "var(--surface-0)", color: "var(--text-2)", border: "1px solid var(--border-1)" }}>{t("settings.cancel")}</button>
             <button disabled={saving} onClick={async () => {
               setSaving(true);
               try {
@@ -157,11 +159,11 @@ export function SettingsModal({ open, onClose, model, onModelChange }: {
                 const r = await fetch(`http://${API_HOST}/api/settings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
                 const d = await r.json();
                 if (d.status === "ok") { onModelChange(d.model); onClose(); }
-              } catch { alert("保存失败"); }
+              } catch { alert(t("settings.save_failed")); }
               setSaving(false);
             }} className="px-4 py-2 text-sm rounded-lg transition-opacity"
               style={{ background: "var(--amber)", color: "var(--void)", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "保存中..." : "保存"}
+              {saving ? t("settings.saving") : t("settings.save")}
             </button>
           </div>
         </motion.div>

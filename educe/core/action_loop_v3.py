@@ -175,6 +175,7 @@ async def action_loop_v3(
 
         # ── LLM 调用 ──
         log.info("loop_v3 | round=%d msgs=%d elapsed=%.1fs", round_idx, len(messages), elapsed)
+        _llm_t0 = time.time()
         try:
             raw = await asyncio.wait_for(
                 client.chat(
@@ -192,6 +193,15 @@ async def action_loop_v3(
             log.error("loop_v3 | round %d LLM error: %s", round_idx, str(e)[:100])
             exit_reason = "llm_error"
             break
+
+        _llm_ms = (time.time() - _llm_t0) * 1000
+        _usage = getattr(client, 'last_usage', None) or {}
+        if hasattr(orch, '_slog'):
+            orch._slog("llm_call", "llm_response", duration_ms=_llm_ms,
+                       data={"round_idx": round_idx,
+                             "prompt_tokens": _usage.get("prompt_tokens", 0),
+                             "completion_tokens": _usage.get("completion_tokens", 0),
+                             "total_tokens": _usage.get("total_tokens", 0)})
 
         if not raw or not raw.strip():
             log.warning("loop_v3 | round %d empty response", round_idx)
@@ -288,13 +298,21 @@ async def action_loop_v3(
     # ── 保底总结（不写入 truth，避免污染）──
     if not final_reply and truth.round_idx > 0:
         try:
-            # 临时添加提示到投影（不永久写入 records）
             temp_msgs = truth.project()
             temp_msgs.append({"role": "user", "content": "请基于已有信息直接给出简洁总结回复。"})
+            _sum_t0 = time.time()
             summary = await asyncio.wait_for(
                 client.chat(messages=temp_msgs, model=orch.config.default_model.model,
                             max_tokens=orch.config.default_model.max_tokens),
                 timeout=30)
+            _sum_ms = (time.time() - _sum_t0) * 1000
+            _sum_usage = getattr(client, 'last_usage', None) or {}
+            if hasattr(orch, '_slog'):
+                orch._slog("llm_call", "llm_response", duration_ms=_sum_ms,
+                           data={"round_idx": truth.round_idx, "summary_call": True,
+                                 "prompt_tokens": _sum_usage.get("prompt_tokens", 0),
+                                 "completion_tokens": _sum_usage.get("completion_tokens", 0),
+                                 "total_tokens": _sum_usage.get("total_tokens", 0)})
             if summary and summary.strip():
                 text = _strip_plan(summary.strip())
                 if text:

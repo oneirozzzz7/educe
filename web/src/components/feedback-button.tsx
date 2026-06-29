@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { API_HOST } from "@/lib/ws";
+import { useLocale } from "@/lib/i18n";
 
 export function FeedbackButton({ sessionId }: { sessionId: string }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sent, setSent] = useState(false);
@@ -43,7 +45,7 @@ export function FeedbackButton({ sessionId }: { sessionId: string }) {
         }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
         onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-1)"; e.currentTarget.style.color = "var(--text-3)"; }}
-        title="反馈问题"
+        title={t("feedback.issue_title")}
       >?</button>
     );
   }
@@ -57,16 +59,16 @@ export function FeedbackButton({ sessionId }: { sessionId: string }) {
       display: "flex", flexDirection: "column", gap: 10,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>反馈</span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{t("feedback.title")}</span>
         <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "var(--text-3)", cursor: "pointer", fontSize: 16 }}>×</button>
       </div>
       {sent ? (
-        <div style={{ fontSize: 12, color: "var(--accent)", textAlign: "center", padding: 8 }}>已收到，感谢反馈</div>
+        <div style={{ fontSize: 12, color: "var(--accent)", textAlign: "center", padding: 8 }}>{t("feedback.thanks")}</div>
       ) : (
         <>
           <textarea
             value={text} onChange={e => setText(e.target.value)}
-            placeholder="遇到什么问题？或者有什么建议？"
+            placeholder={t("feedback.placeholder")}
             style={{
               width: "100%", height: 60, resize: "none", borderRadius: 8,
               border: "1px solid var(--border-1)", padding: 8, fontSize: 12,
@@ -77,7 +79,7 @@ export function FeedbackButton({ sessionId }: { sessionId: string }) {
             padding: "6px 12px", borderRadius: 6, border: "none",
             background: "var(--accent)", color: "white", fontSize: 12,
             cursor: "pointer", alignSelf: "flex-end",
-          }}>发送</button>
+          }}>{t("feedback.send")}</button>
         </>
       )}
     </div>

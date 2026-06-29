@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Check, X, Square, ChevronDown, Terminal, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ToolStream } from "@/lib/state";
+import { useLocale } from "@/lib/i18n";
 
 const MAX_VISIBLE_LINES = 200;
 
@@ -94,6 +95,7 @@ export function ToolStreamCard({
   toolStream: ToolStream;
   onCancel?: (id: string) => void;
 }) {
+  const { t } = useLocale();
   const STREAM_THRESHOLD_MS = 300;
   const isFastComplete = toolStream.status !== "running"
     && (toolStream.result?.duration_ms ?? Infinity) < STREAM_THRESHOLD_MS;
@@ -108,7 +110,7 @@ export function ToolStreamCard({
   const title = toolStream.tool === "shell"
     ? toolStream.meta.cmd || "shell"
     : toolStream.tool === "write_file"
-      ? `${toolStream.meta.mode === "modify" ? "修改" : "写入"} ${toolStream.meta.path || ""}`
+      ? `${toolStream.meta.mode === "modify" ? t("tool.modify") : t("tool.write")} ${toolStream.meta.path || ""}`
       : toolStream.tool;
 
   const exitCode = toolStream.result?.exit_code;
@@ -143,7 +145,7 @@ export function ToolStreamCard({
           {elapsed > 0 && <span>{formatDuration(elapsed)}</span>}
           {toolStream.result?.background && (
             <span className="px-1.5 py-0.5 rounded text-[10px]" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
-              后台
+              {t("tool.background")}
             </span>
           )}
         </div>
@@ -155,7 +157,7 @@ export function ToolStreamCard({
             className="px-2 py-0.5 rounded text-[11px] hover:opacity-80 transition-opacity"
             style={{ background: "var(--error-light)", color: "var(--error)" }}
           >
-            停止
+            {t("tool.stop")}
           </button>
         )}
 

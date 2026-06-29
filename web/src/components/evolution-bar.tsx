@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { API_HOST } from "@/lib/ws";
+import { useLocale } from "@/lib/i18n";
 
 interface OrganStatus {
   id: string;
@@ -23,16 +24,8 @@ const STATE_COLORS: Record<string, string> = {
   dismissed: "var(--text-3)",
 };
 
-const STATE_LABELS: Record<string, string> = {
-  idle: "未激活",
-  observing: "观察中",
-  proposed: "待确认",
-  revert_proposed: "建议撤销",
-  crystallized: "已生效",
-  dismissed: "已忽略",
-};
-
 export function EvolutionBar() {
+  const { t } = useLocale();
   const [organs, setOrgans] = useState<OrganStatus[]>([]);
   const [expanded, setExpanded] = useState(false);
 
@@ -74,10 +67,10 @@ export function EvolutionBar() {
         <span style={{ color: "#22d3ee", fontSize: 12 }}>⚡</span>
         <span className="text-[11px] flex-1" style={{ color: "var(--text-2)" }}>
           {crystallized > 0
-            ? `${crystallized} 个偏好已生效`
+            ? `${crystallized} ${t("evolution.preferences_active")}`
             : activeOrgans.length > 0
-              ? `进化中 · ${activeOrgans.length} 个观察`
-              : "进化待机"}
+              ? `${t("evolution.evolving")} · ${activeOrgans.length} ${t("evolution.observations")}`
+              : t("evolution.standby")}
         </span>
         {activeOrgans.length > 0 && (
           <div className="flex items-center gap-1.5">
@@ -102,11 +95,12 @@ export function EvolutionBar() {
         <div className="mt-1 rounded-xl p-3" style={{ background: "var(--bg-code)", border: "1px solid var(--border-light)" }}>
           {organs.map(organ => {
             const color = STATE_COLORS[organ.state] || "var(--text-3)";
-            const label = STATE_LABELS[organ.state] || organ.state;
+            const stateKey = `evolution.${organ.state}` as any;
+            const label = t(stateKey) || organ.state;
             return (
               <div key={organ.id} className="flex items-center gap-2 py-1.5">
                 <span className="text-[11px] w-16" style={{ color: "var(--text-2)" }}>
-                  {organ.family === "verbosity" ? "回答详略" : organ.family}
+                  {organ.family === "verbosity" ? t("evolution.verbosity") : organ.family}
                 </span>
                 <span
                   className="text-[10px] px-1.5 py-0.5 rounded"

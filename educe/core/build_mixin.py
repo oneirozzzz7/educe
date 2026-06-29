@@ -4,6 +4,9 @@ Build Mixin — 从 orchestrator.py 抽取。
 from __future__ import annotations
 
 import logging
+import uuid
+
+from educe.core.message import Message, MessageType, WorkContext
 
 log = logging.getLogger("educe.orchestrator")
 

@@ -1,106 +1,127 @@
 # Educe
 
-**第一个会承认"我没做到"的 AI 执行助手**
+**A runtime compiler from deliberation to reflex.**
 
-让 AI 不只是告诉你怎么做，而是帮你做完，并诚实地告诉你到底成没成。
+Educe is an open-source evolution engine that gives any LLM a learning path outside its weights. The core thesis: **an agent's cost to perform a task should monotonically decrease with experience.**
+
+<!-- TODO: embed descent_curve.png here once generated -->
+
+Every LLM-based system today pays the same token cost for the 10,000th execution of a task as it did for the 1st. Educe breaks this structural amnesia:
+
+```
+experience (causal ledger) → patterns (path mining) → skills (compilation) → reflexes (zero-cost execution)
+```
 
 ---
 
-## 它能做什么
-
-说出你想要的，Educe 帮你执行：
-
-- "帮我写一个待办管理的 Python 脚本" → 创建文件 + 运行验证 + 确认能用
-- "用 pandas 处理 data.csv 算每列平均值" → 安装依赖 + 创建数据 + 执行计算
-- "搭一个 Flask API 项目" → 多文件创建 + 启动服务 + curl 测试
-
-**和 ChatGPT 的区别**：Educe 真的执行，不只是给你一段代码让你自己跑。
-
-**和 AutoGPT 的区别**：Educe 知道自己的边界——做不到时会说"这个我搞不定，你可能需要换个方案"，而不是假装完成或无限重试。
-
-## 快速开始
+## Quick Start
 
 ```bash
-# 1. 克隆
+# Clone
 git clone https://github.com/oneirozzzz7/educe.git
 cd educe
 
-# 2. 安装
+# Install
 pip install -e ".[web]"
 
-# 3. 配置模型（任选一个）
+# Configure (any OpenAI-compatible API works)
 export EDUCE_API_KEY=your-api-key
 export EDUCE_BASE_URL=https://api.deepseek.com/v1
 export EDUCE_MODEL=deepseek-chat
 
-# 4. 启动
+# Launch
 ./start.sh
-# 或手动：python -c "from educe.web.server import run_web; run_web()"
-
-# 5. 打开浏览器
-# http://localhost:3001 (前端) 或 http://localhost:7860 (API)
+# Opens http://localhost:3001 (UI) and http://localhost:7860 (API)
 ```
 
-前端（可选，更好的 UI）：
+## Reproduce the Descent Curve
+
+The core claim is falsifiable. Run this to verify:
+
 ```bash
-cd web && npm install && npm run dev
-# 访问 http://localhost:3001
+pip install matplotlib scipy
+EDUCE_BASE_URL=... EDUCE_API_KEY=... EDUCE_MODEL=... python reproduce_descent.py
 ```
 
-## 支持的模型
+Output: `.educe/descent/descent_curve.png` + `statistics.json`
 
-任何 OpenAI 兼容 API 都可以用：
+Success criteria:
+- **Monotonicity**: Spearman rho < -0.5 (cost negatively correlates with experience)
+- **Convergence**: last-3 / first-3 token ratio < 0.5
+- **Fidelity**: correctness stays >= 0.7 throughout
 
-| 模型 | 推荐场景 | 配置 |
-|------|---------|------|
-| DeepSeek-V3 | 日常使用，便宜 | `EDUCE_BASE_URL=https://api.deepseek.com/v1` |
-| Qwen3 系列 | 中文任务 | 通义千问 API |
-| GPT-4o-mini | 快速可靠 | OpenAI API |
-| 本地模型(Ollama) | 离线/隐私 | `EDUCE_BASE_URL=http://localhost:11434/v1` |
+## How It Works
 
-## 核心机制
-
-### 收敛追踪
-每个任务的执行过程被实时追踪。你能看到系统在"学习"——从尝试、失败、到最终成功的完整弧线。
-
-### 诚实退出
-当系统发现自己连续多轮无法解决某个问题时，会主动告知你，而不是无限重试浪费你的时间。
-
-### 环境感知
-框架自动告知模型运行环境的约束（沙箱限制、端口占用等），让模型一次做对，而不是反复试错。
-
-### 错误恢复
-遇到依赖缺失、文件不存在等问题时，模型会自动安装/创建/修复，无需你手动干预。
-
-## 技术架构
+### Architecture
 
 ```
-用户输入 → Orchestrator(行为循环)
-              ↓
-         模型推理（带环境约束 + 行为规则）
-              ↓
-         Action 执行（shell/write_file/read_dir）
-              ↓
-         IterationState 更新（收敛追踪）
-              ↓
-         结果反馈 → 继续/完成/诚实退出
+User message → action_loop_v3
+  → ConversationTruth (single source of truth)
+  → Plan (model-maintained, pinned slot)
+  → Situation (framework-computed objective facts)
+  → Challenge (forces model to respond to anomalies)
+  → Action execution
+  → Feedback → next round (or model self-stops via status: done)
 ```
 
-## 开发状态
+### Design Principles
 
-- [x] 核心执行引擎（ActionLoop + Markdown-native Protocol）
-- [x] 收敛系统（IterationState + Prober + 自动 Claim 关闭）
-- [x] 环境约束（5 个，消除常见失败模式）
-- [x] 诚实退出（停滞检测 + 用户告知）
-- [x] Web 前端（收敛可视化 + 确认机制）
-- [x] 行为学习（BehaviorManifest）
-- [x] 因果账本 + 路径挖掘器（阶段2：分化）
-- [x] CompositeSkill 编译（L0-L4 多级形态）
-- [x] ReflexRouter 反射弧（阶段3：零 token 执行高频只读情境）
-- [ ] 多反射弧协同（阶段4：器官）
-- [ ] Electron 桌面应用（一键安装）
-- [ ] Windows 支持
+1. **Zero framework judgment** — The framework holds no opinion about "what's right." It holds facts about the user and ensures those facts are presented at irreversible decision points.
+2. **Model decides everything** — Including when to stop, what's dangerous, and whether to ask the user.
+3. **Mechanism, not cognition** — The only hardcoded logic: pause before irreversible actions. Everything else is data the model reads.
+
+### The Fifth Axiom
+
+> Mechanism and cognition must be separated. The framework is infrastructure; the model is intelligence. When the model improves, the system improves — without changing a line of framework code.
+
+## Supported Models
+
+Any OpenAI-compatible API:
+
+| Model | Use Case |
+|-------|----------|
+| DeepSeek-V3/R1 | Cost-effective daily use |
+| Qwen3 series | Strong multilingual |
+| GPT-4o / GPT-4.1 | Reliable general purpose |
+| Claude (via proxy) | Best tool use |
+| Local (Ollama) | Privacy / offline |
+
+## Project Status
+
+- [x] Action Loop V3 (Plan/Challenge/self-termination)
+- [x] ConversationTruth (single data source, tiered compression)
+- [x] Irreversibility detection (the only hardcoded judgment)
+- [x] Shell execution + file ops + streaming output
+- [x] Benchmark runner (30 cases, automated judge scoring)
+- [x] Evidence-based acceptance: 0.722 on Kimi-K2
+- [x] Contract tests (6/6) + E2E tests (24 scenarios)
+- [ ] **The Descent Curve** (experiment in progress)
+- [ ] Frontend i18n (English UI)
+- [ ] Desktop app (Electron)
+
+## Known Limitations
+
+- ConversationTruth WARM tier budget estimation is imprecise
+- State recovery after user confirmation is incomplete
+- Frontend UI is functional but unpolished
+- The Descent Curve has not yet been independently replicated
+
+We list these because honesty is a core value — both in the agent's behavior and in our communication.
+
+## Documentation
+
+- [Vision](docs/VISION.md) — The philosophical foundation (five axioms, evolution metaphor)
+- [Architecture](docs/SESSION11_ARCHITECTURE.md) — Technical deep dive
+- [Boundary Redesign](docs/BOUNDARY_REDESIGN.md) — Framework as asset container
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon).
 
 ## License
 
-MIT
+[Apache-2.0](LICENSE)
+
+---
+
+*[中文版 README](README.zh-CN.md)*

@@ -2,6 +2,7 @@
 
 import { X, FileText, FileCode, Image as ImageIcon, Table, File, AlertCircle } from "lucide-react";
 import { useState } from "react";
+import { useLocale } from "@/lib/i18n";
 
 export interface UploadedFile {
   id: string;
@@ -43,6 +44,7 @@ export function FileChips({ files, onRemove, supportsVision = true }: {
   onRemove: (id: string) => void;
   supportsVision?: boolean;
 }) {
+  const { t } = useLocale();
   if (files.length === 0) return null;
 
   return (
@@ -123,7 +125,7 @@ export function FileChips({ files, onRemove, supportsVision = true }: {
       {files.some(f => f.is_image) && !supportsVision && (
         <div className="w-full text-[11px] px-1 mt-1 flex items-center gap-1.5" style={{ color: "var(--fail)" }}>
           <AlertCircle size={11} />
-          当前模型不支持图片理解，图片将被忽略
+          {t("file.no_image_support")}
         </div>
       )}
     </div>

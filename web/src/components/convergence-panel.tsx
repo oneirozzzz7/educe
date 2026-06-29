@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_HOST } from "@/lib/ws";
+import { useLocale } from "@/lib/i18n";
 
 interface ConvergenceData {
   curve: number[];
@@ -12,6 +13,7 @@ interface ConvergenceData {
 }
 
 export function ConvergencePanel({ sessionId }: { sessionId: string }) {
+  const { t } = useLocale();
   const [data, setData] = useState<ConvergenceData | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -40,7 +42,7 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
     Math.max(...curve.slice(-5)) - Math.min(...curve.slice(-5)) < 0.02;
 
   const dotColor = isStalled ? "#e04040" : has_edits ? "#16a34a" : convergence >= 1.0 ? "#eab308" : "#e04040";
-  const statusText = isStalled ? "遇到困难" : has_edits ? "已修改" : convergence >= 1.0 ? `探索完成` : convergence >= 0.8 ? "探索中" : "进行中";
+  const statusText = isStalled ? t("convergence.stalled") : has_edits ? t("convergence.edited") : convergence >= 1.0 ? t("convergence.exploring_done") : convergence >= 0.8 ? t("convergence.exploring") : t("convergence.in_progress");
 
   return (
     <div style={{ borderTop: "1px solid var(--border-1, #2a2a2a)", marginBottom: 4 }}>
@@ -59,8 +61,8 @@ export function ConvergencePanel({ sessionId }: { sessionId: string }) {
         </span>
         <span>{statusText}</span>
         <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums", color: "var(--text-3)" }}>
-          {isStalled ? "可能需要换个思路" : `${verified}/${total}`}
-          {!isStalled && open > 0 && ` · ${open} 待解决`}
+          {isStalled ? t("convergence.retry_hint") : `${verified}/${total}`}
+          {!isStalled && open > 0 && ` · ${open} ${t("convergence.pending")}`}
         </span>
         <span style={{ fontSize: 10, transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }}>▾</span>
       </button>
