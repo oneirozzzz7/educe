@@ -6,8 +6,8 @@ Educe Benchmark v2 全量运行脚本
 
 环境变量:
   BENCH_API_KEY  - API key
-  BENCH_BASE_URL - API base URL (默认 http://api.example.com/v1)
-  BENCH_MODEL    - 模型名 (默认 Kimi-K2)
+  BENCH_BASE_URL - API base URL (default https://api.deepseek.com/v1)
+  BENCH_MODEL    - Model name (default Kimi-K2)
 """
 import argparse
 import asyncio
@@ -24,7 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description="Educe Benchmark v2")
     parser.add_argument("--model", default=os.environ.get("BENCH_MODEL", "Kimi-K2"))
     parser.add_argument("--api-key", default=os.environ.get("BENCH_API_KEY", ""))
-    parser.add_argument("--base-url", default=os.environ.get("BENCH_BASE_URL", "http://api.example.com/v1"))
+    parser.add_argument("--base-url", default=os.environ.get("BENCH_BASE_URL", "https://api.deepseek.com/v1"))
     parser.add_argument("--cases", default="", help="逗号分隔的 case_id 过滤，空=全跑")
     parser.add_argument("--level", default="", help="L1/L2/L3 过滤")
     parser.add_argument("--domain", default="", help="CODE/FIN/TECH/EDU/LIFE/SCI 过滤")

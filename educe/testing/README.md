@@ -1,13 +1,13 @@
-# Educe Integration Test 指南
+# Educe Integration Test Guide
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 前置条件：后端 + 前端必须运行中
-./start.sh  # 启动后端(7860) + 前端(3000)
+# Prerequisite: backend + frontend must be running
+./start.sh  # Starts backend(7860) + frontend(3000)
 
-# 设置测试 API key（用于 judge 评分，从 JD Cloud AI API 获取）
-export EDUCE_TEST_API_KEY="your-jd-cloud-api-key"
+# Set API key for judge scoring
+export EDUCE_TEST_API_KEY="your-api-key"
 
 # 运行所有合同
 python -m educe.testing

@@ -1,8 +1,0 @@
-{
-  "event_name": "tool_result",
-  "action_type": "edit_file",
-  "summary": "edit_file: fail",
-  "llm_output": "```edit_file\npath: .educe/config.json\n<<<<<<< OLD\n 模型        │ Kimi-K2\n│ API地址     │ http://ai-api.jdclou\n=======\n 模型        │ Kimi-K2\n│ API地址     │ http://api.example.com/v1\n>>>>>>> NEW\n```",
-  "session_dir": ".educe/benchmark_runs/20260617_203236/qwen36/TECH-01/logs/sessions/2026-06-17/a1a012b6546d4568",
-  "hash": "4bc77b8461f7"
-}

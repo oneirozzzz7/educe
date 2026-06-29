@@ -2,9 +2,9 @@
 """The Descent Curve — one command to prove that Educe learns.
 
 Usage:
-    EDUCE_BASE_URL=http://api.example.com/v1 \
-    EDUCE_API_KEY=pk-xxx \
-    EDUCE_MODEL=Qwen3-235B-A22B \
+    EDUCE_BASE_URL=https://api.deepseek.com/v1 \
+    EDUCE_API_KEY=your-key \
+    EDUCE_MODEL=deepseek-chat \
     python reproduce_descent.py
 
 Output:

@@ -116,7 +116,7 @@ async def judge_case(
     output_text: str,
     trace_summary: str | None = None,
     api_key: str = "",
-    base_url: str = "http://api.example.com/anthropic",
+    base_url: str = "",
     model: str = "Claude-Opus-4.8",
 ) -> list[JudgeScore]:
     """对单个 case 的多个维度评分"""

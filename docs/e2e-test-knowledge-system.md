@@ -174,7 +174,7 @@ for f in os.listdir('.deepforge/unified/entries'):
 # DeepSeek-V4-Flash
 curl -s -X POST http://localhost:7860/api/settings \
   -H "Content-Type: application/json" \
-  -d '{"model": "DeepSeek-V4-Flash", "api_key": "<YOUR_KEY>", "base_url": "http://api.example.com/v1"}'
+  -d '{"model": "DeepSeek-V4-Flash", "api_key": "<YOUR_KEY>", "base_url": "https://api.deepseek.com/v1"}'
 
 # Qwen3.5-397B
 curl -s -X POST http://localhost:7860/api/settings \

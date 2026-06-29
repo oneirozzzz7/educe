@@ -323,12 +323,10 @@ def create_app(config: EduceConfig | None = None) -> Any:
         if len(known_models) <= 1:
             known_models = [
                 config.default_model.model,
-                "Kimi-K2-0905-jcloud",
-                "DeepSeek-V3-0324-cloud-provider-iaas",
-                "DeepSeek-R1-cloud-provider-iaas",
+                "deepseek-chat",
+                "deepseek-reasoner",
                 "DeepSeek-V4-Flash",
                 "GLM-5.1",
-                "Chatrhino-750B",
                 "gpt-4o-0806",
                 "gpt-4.1",
                 "qwen-plus",

@@ -20,7 +20,7 @@ SENSITIVE_PATTERNS = [
     (r'Bearer\s+[a-zA-Z0-9\-_.]{20,}', 'Bearer Token'),
     (r'api[_-]?key\s*[=:]\s*["\'][^"\']{10,}["\']', '硬编码API Key'),
     (r'password\s*[=:]\s*["\'][^"\']+["\']', '硬编码密码'),
-    (r'(gpt-proxy|model-api|cloud-provider)\.jd\.com', 'JD内网地址'),
+    (r'(gpt-proxy|model-api|cloud-provider)\.(jd|cloud-provider)\.com', 'internal endpoint'),
     (r'YANXI_API_KEY', '言犀API Key引用'),
     (r'[A-Za-z0-9+/]{40,}={0,2}', '可能的Base64编码密钥（长度>40）'),
 ]

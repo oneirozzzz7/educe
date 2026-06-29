@@ -7,10 +7,10 @@ import { API_HOST } from "@/lib/ws";
 import { useLocale } from "@/lib/i18n";
 
 const PROVIDER_PRESETS: Record<string, { base_url: string; models: string[] }> = {
-  "DeepSeek V4": { base_url: "http://api.example.com/v1", models: ["DeepSeek-V4-Flash"] },
-  "Qwen 3.5": { base_url: "", models: ["Qwen3.5-397B-A17B"] },
-  "Kimi K2": { base_url: "http://api.example.com/v1", models: ["Kimi-K2"] },
-  "GLM 5": { base_url: "http://api.example.com/v1", models: ["GLM-5.1", "GLM-5"] },
+  "DeepSeek V4": { base_url: "https://api.deepseek.com/v1", models: ["DeepSeek-V4-Flash"] },
+  "Qwen 3.5": { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["Qwen3.5-397B-A17B"] },
+  "Kimi K2": { base_url: "https://api.moonshot.cn/v1", models: ["Kimi-K2"] },
+  "GLM 5": { base_url: "https://open.bigmodel.cn/api/paas/v4", models: ["GLM-5.1", "GLM-5"] },
   "DeepSeek": { base_url: "https://api.deepseek.com/v1", models: ["deepseek-chat", "DeepSeek-V4-Flash"] },
   "OpenAI": { base_url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4.1", "gpt-4o-mini", "o3-mini"] },
   "Claude": { base_url: "https://api.anthropic.com/v1", models: ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"] },
