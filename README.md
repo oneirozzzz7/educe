@@ -2,9 +2,9 @@
 
 **A runtime compiler from deliberation to reflex.**
 
-Educe is an open-source evolution engine that gives any LLM a learning path outside its weights. The core thesis: **an agent's cost to perform a task should monotonically decrease with experience.**
+*Turns repeated LLM reasoning into cached, reusable execution paths — cutting cost by up to 75% on recurring tasks.*
 
-<!-- TODO: embed descent_curve.png here once generated -->
+Educe is an open-source evolution engine that gives any LLM a learning path outside its weights. The core thesis: **an agent's cost to perform a task should monotonically decrease with experience.**
 
 Every LLM-based system today pays the same token cost for the 10,000th execution of a task as it did for the 1st. Educe breaks this structural amnesia:
 
@@ -58,7 +58,22 @@ This shows up as a **bimodal distribution**, not a smooth descent curve:
 
 The aggregate correlation (Spearman ρ = -0.16) is statistically insignificant — because adoption is unreliable, not because the mechanism is weak. When the model *does* follow prior experience, cost drops by 75% with identical correctness (15/15 correct in both modes).
 
-**The bottleneck is adoption reliability, not the underlying gain.** This is our #1 open research problem.
+**The bottleneck is adoption reliability, not the underlying gain.** This is our #1 open research problem. Active direction: [trace analysis](docs/descent_analysis.md) confirmed the root cause (hint positioning in context).
+
+### Cost Model
+
+To be precise about what "75% reduction" means:
+- 75% is the **conditional** gain: cost drops from ~9,700 to ~2,450 tokens *when the model adopts* the cached episode
+- At the current 26% adoption rate, the **expected aggregate saving** is ~19.5% per task across all runs
+- As adoption reliability improves toward 80%+, aggregate saving approaches 60%
+- This is an early-stage signal (n=15 per family), not a production benchmark
+
+### Reproduction Cost
+
+Running `reproduce_descent.py` with default settings (5 families × 15 runs) costs approximately:
+- ~500K tokens total (~$1-2 on DeepSeek, ~$5-10 on GPT-4o)
+- ~30-45 minutes wall clock time
+- Any OpenAI-compatible API with function calling support
 
 ### Interpretation
 
@@ -103,6 +118,18 @@ Any OpenAI-compatible API:
 | GPT-4o / GPT-4.1 | Reliable general purpose |
 | Claude (via proxy) | Best tool use |
 | Local (Ollama) | Privacy / offline |
+
+## How Is This Different?
+
+| Approach | What it does | What Educe adds |
+|----------|-------------|-----------------|
+| **Prompt caching** (Anthropic/OpenAI) | Caches the prompt prefix to save input tokens | Educe caches the *action sequence* — saving both input and output tokens, and reducing LLM calls from 7 to 2 |
+| **RAG** | Retrieves documents to augment context | Educe retrieves *verified execution traces*, not documents. The retrieved content is a proven solution, not reference material |
+| **KV cache** | Low-level inference optimization | Transparent to the application. Educe operates at the agent-behavior level — orthogonal and composable with KV cache |
+| **CLAUDE.md / system prompts** | Static rules written by humans | Educe accumulates rules *from observation* — capturing patterns humans can't articulate because they emerge from interaction |
+| **Fine-tuning** | Updates model weights | Requires training infrastructure, not portable across models. Educe works with any model via API, and experience transfers instantly |
+
+The key difference: Educe doesn't make the model smarter — it makes the *system* remember what worked, so the model doesn't have to re-derive it.
 
 ## Project Status
 
