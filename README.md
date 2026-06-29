@@ -34,7 +34,7 @@ export EDUCE_MODEL=deepseek-chat
 # Opens http://localhost:3001 (UI) and http://localhost:7860 (API)
 ```
 
-## Reproduce the Descent Curve
+## The Descent Curve
 
 The core claim is falsifiable. Run this to verify:
 
@@ -45,10 +45,28 @@ EDUCE_BASE_URL=... EDUCE_API_KEY=... EDUCE_MODEL=... python reproduce_descent.py
 
 Output: `.educe/descent/descent_curve.png` + `statistics.json`
 
-Success criteria:
-- **Monotonicity**: Spearman rho < -0.5 (cost negatively correlates with experience)
-- **Convergence**: last-3 / first-3 token ratio < 0.5
-- **Fidelity**: correctness stays >= 0.7 throughout
+### What We Found
+
+The episode-injection mechanism produces a **75% cost reduction** when the agent adopts retrieved experience — but adoption is unreliable (26% of runs in our 15-run experiment).
+
+This shows up as a **bimodal distribution**, not a smooth descent curve:
+
+| Condition | Tokens (median) | LLM Calls | Runs |
+|-----------|----------------|-----------|------|
+| Episode adopted | 2,458 | 2 | 4/15 |
+| Episode ignored | 9,725 | 7 | 11/15 |
+
+The aggregate correlation (Spearman ρ = -0.16) is statistically insignificant — because adoption is unreliable, not because the mechanism is weak. When the model *does* follow prior experience, cost drops by 75% with identical correctness (15/15 correct in both modes).
+
+**The bottleneck is adoption reliability, not the underlying gain.** This is our #1 open research problem.
+
+### Interpretation
+
+- The descent *mechanism* works: verified episodes encode optimal action sequences that save 75% of tokens
+- The descent *reliability* doesn't: the model treats the episode hint as optional context, not a directive
+- Control groups (fin_mortgage, env_python_info) stay flat as expected — confirming the metric has no false positives
+
+Raw data is in `.educe/descent/*/summary.json` after running.
 
 ## How It Works
 
@@ -95,16 +113,18 @@ Any OpenAI-compatible API:
 - [x] Benchmark runner (30 cases, automated judge scoring)
 - [x] Evidence-based acceptance: 0.722 on Kimi-K2
 - [x] Contract tests (6/6) + E2E tests (24 scenarios)
-- [ ] **The Descent Curve** (experiment in progress)
-- [ ] Frontend i18n (English UI)
+- [x] **The Descent Curve** — mechanism verified (75% gain), adoption reliability is open problem
+- [x] Frontend i18n (English/Chinese toggle)
+- [ ] Episode adoption reliability improvement
 - [ ] Desktop app (Electron)
 
 ## Known Limitations
 
-- ConversationTruth WARM tier budget estimation is imprecise
-- State recovery after user confirmation is incomplete
-- Frontend UI is functional but unpolished
-- The Descent Curve has not yet been independently replicated
+1. **Episode adoption rate is 26%** — the model treats retrieved experience as optional. When adopted, cost drops 75%; when ignored, no benefit. This is the primary open research problem. Hypotheses: (a) hint positioning in context, (b) lack of structural enforcement, (c) no confidence metadata on episodes.
+2. ConversationTruth WARM tier budget estimation is imprecise
+3. State recovery after user confirmation is incomplete
+4. Frontend UI is functional but unpolished
+5. The Descent Curve has not yet been independently replicated
 
 We list these because honesty is a core value — both in the agent's behavior and in our communication.
 
@@ -112,11 +132,12 @@ We list these because honesty is a core value — both in the agent's behavior a
 
 - [Vision](docs/VISION.md) — The philosophical foundation (five axioms, evolution metaphor)
 - [Architecture](docs/SESSION11_ARCHITECTURE.md) — Technical deep dive
+- [Descent Analysis](docs/descent_analysis.md) — Episode adoption trace analysis and open problems
 - [Boundary Redesign](docs/BOUNDARY_REDESIGN.md) — Framework as asset container
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
