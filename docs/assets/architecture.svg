@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
+  <rect width="800" height="400" fill="#0d1117" rx="12"/>
+
+  <!-- Title -->
+  <text x="400" y="35" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#8b949e" text-anchor="middle">Educe Core Flow</text>
+
+  <!-- Node: Task (entry - blue) -->
+  <rect x="40" y="170" width="100" height="44" rx="22" fill="#1f6feb" opacity="0.9"/>
+  <text x="90" y="197" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="white" text-anchor="middle">Task</text>
+
+  <!-- Arrow: Task -> Episode Check -->
+  <line x1="140" y1="192" x2="185" y2="192" stroke="#484f58" stroke-width="2"/>
+  <polygon points="185,187 195,192 185,197" fill="#484f58"/>
+
+  <!-- Node: Episode Check (decision - purple) -->
+  <rect x="195" y="162" width="140" height="60" rx="10" fill="#8957e5" opacity="0.85"/>
+  <text x="265" y="188" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white" text-anchor="middle">Episode</text>
+  <text x="265" y="206" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white" text-anchor="middle">Check</text>
+
+  <!-- Branch labels -->
+  <text x="350" y="120" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#3fb950" text-anchor="middle">hit</text>
+  <text x="350" y="275" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#f0883e" text-anchor="middle">miss</text>
+
+  <!-- Arrow: Episode Check -> Replay (hit - up path) -->
+  <path d="M 335 175 L 355 175 L 355 120 L 385 120" fill="none" stroke="#3fb950" stroke-width="2"/>
+  <polygon points="385,115 395,120 385,125" fill="#3fb950"/>
+
+  <!-- Arrow: Episode Check -> Full Reasoning (miss - down path) -->
+  <path d="M 335 205 L 355 205 L 355 265 L 385 265" fill="none" stroke="#f0883e" stroke-width="2"/>
+  <polygon points="385,260 395,265 385,270" fill="#f0883e"/>
+
+  <!-- Node: Replay (execution - green) -->
+  <rect x="395" y="98" width="120" height="44" rx="10" fill="#238636" opacity="0.9"/>
+  <text x="455" y="125" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white" text-anchor="middle">Replay</text>
+
+  <!-- Subtext for Replay -->
+  <text x="455" y="160" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e" text-anchor="middle">2 calls, fast path</text>
+
+  <!-- Node: Full Reasoning (execution - orange) -->
+  <rect x="395" y="243" width="120" height="44" rx="10" fill="#9e6a03" opacity="0.9"/>
+  <text x="455" y="262" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="white" text-anchor="middle">Full</text>
+  <text x="455" y="278" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="white" text-anchor="middle">Reasoning</text>
+
+  <!-- Subtext for Full Reasoning -->
+  <text x="455" y="305" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e" text-anchor="middle">7 calls, deliberation</text>
+
+  <!-- Arrow: Replay -> Record -->
+  <path d="M 515 120 L 540 120 L 540 192 L 565 192" fill="none" stroke="#484f58" stroke-width="2"/>
+  <polygon points="565,187 575,192 565,197" fill="#484f58"/>
+
+  <!-- Arrow: Full Reasoning -> Record -->
+  <path d="M 515 265 L 540 265 L 540 192 L 565 192" fill="none" stroke="#484f58" stroke-width="2"/>
+  <polygon points="565,187 575,192 565,197" fill="#484f58"/>
+
+  <!-- Node: Record (record - orange/amber) -->
+  <rect x="575" y="170" width="100" height="44" rx="10" fill="#9e6a03" opacity="0.7"/>
+  <text x="625" y="197" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="white" text-anchor="middle">Record</text>
+
+  <!-- Arrow: Record -> Done -->
+  <line x1="675" y1="192" x2="710" y2="192" stroke="#484f58" stroke-width="2"/>
+  <polygon points="710,187 720,192 710,197" fill="#484f58"/>
+
+  <!-- Node: Done (exit - blue) -->
+  <rect x="720" y="170" width="60" height="44" rx="22" fill="#1f6feb" opacity="0.9"/>
+  <text x="750" y="197" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="white" text-anchor="middle">Done</text>
+
+  <!-- Feedback loop arrow: Record -> Episode Check -->
+  <path d="M 625 214 L 625 350 L 265 350 L 265 222" fill="none" stroke="#484f58" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <polygon points="260,222 265,232 270,222" fill="#484f58"/>
+  <text x="445" y="368" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#6e7681" text-anchor="middle">episodes accumulate over time</text>
+
+  <!-- Legend -->
+  <rect x="30" y="55" width="12" height="12" rx="3" fill="#1f6feb"/>
+  <text x="48" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e">Entry/Exit</text>
+  <rect x="120" y="55" width="12" height="12" rx="3" fill="#8957e5"/>
+  <text x="138" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e">Decision</text>
+  <rect x="200" y="55" width="12" height="12" rx="3" fill="#238636"/>
+  <text x="218" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e">Fast Path</text>
+  <rect x="280" y="55" width="12" height="12" rx="3" fill="#9e6a03"/>
+  <text x="298" y="65" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" fill="#8b949e">Slow Path / Record</text>
+</svg>
